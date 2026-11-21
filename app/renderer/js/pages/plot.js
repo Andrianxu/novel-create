@@ -38,6 +38,20 @@ injectStyle('plot', `
 .pl-node b{position:absolute;left:0;bottom:9px;transform:translateX(-50%);font-size:10px;font-weight:400;color:#201C18;white-space:nowrap;line-height:1.2;padding:0 2px}
 .pl-node.on b{color:#7C291F}
 .pl-node s{position:absolute;left:0;top:10px;transform:translateX(-50%);font-size:9px;color:#8C8272;text-decoration:none;white-space:nowrap}
+.pl-track{cursor:crosshair}
+.pl-track.dragging{cursor:grabbing}
+.pl-node{cursor:grab;user-select:none}
+.pl-track.dragging .pl-node{transition:none}
+.pl-node.dragging{z-index:5}
+.pl-node.dragging i{box-shadow:0 0 0 6px rgba(47,111,99,.2);transform:scale(1.25)}
+.pl-node.dragging.later i{transform:scale(1.25)}
+.pl-node.dragging b{color:#7C291F}
+.pl-tick{position:absolute;top:58px;width:1px;height:7px;margin-top:-3px;background:#D8CBB2;pointer-events:none}
+.pl-tick.tp-label{top:66px;height:auto;margin-top:0;background:none;font-size:8.5px;color:#B6A98F;transform:translateX(-50%);white-space:nowrap}
+.pl-ghost{position:absolute;top:58px;width:0;height:0;pointer-events:none;z-index:4}
+.pl-ghost i{position:absolute;left:0;top:0;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;border:2px dashed var(--seal);background:#FFFCF5}
+.pl-ghost b{position:absolute;left:0;bottom:12px;transform:translateX(-50%);font-size:10px;font-weight:400;color:var(--seal);white-space:nowrap;background:#FFFCF5;border:1px dashed #E0B9A8;border-radius:5px;padding:0 5px;line-height:1.5}
+.pl-track .pl-drop-hint{position:absolute;right:0;top:0;font-size:9.5px;color:var(--muted)}
 
 /* ---- 悬停气泡 ---- */
 .pl-tip{position:fixed;left:0;top:0;z-index:8300;width:252px;display:none;background:rgba(38,32,26,.96);color:#F2EBDB;border-radius:9px;padding:10px 12px;box-shadow:0 12px 30px rgba(40,30,20,.32);pointer-events:none}
@@ -65,6 +79,9 @@ injectStyle('plot', `
 .pl-lrow{padding:6px;border-bottom:1px dashed #EFE7D7;cursor:pointer;font-size:12px;border-radius:7px}
 .pl-lrow:hover{background:#FBF6EA}
 .pl-lrow.on{background:#F7F0DF;box-shadow:inset 3px 0 0 var(--jade)}
+.pl-lrow.drop-before{box-shadow:inset 0 3px 0 var(--seal);background:#FBEEE8}
+.pl-lrow[draggable="true"]{cursor:grab}
+.pl-lrow.dragging-row{opacity:.45}
 .pl-idx{font-family:var(--mono);font-size:10px;color:#B3A78F}
 .pl-ptitle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-lrow.on .pl-ptitle{font-weight:700;color:#7C291F}
@@ -163,6 +180,26 @@ export default {
     const statusOf = s => STATUS[s] || { label: s || '未定', cls: 'grey' };
     const nodeCls = p => (STATUS[p.status] ? p.status : 'later');
     const nextTp = () => Math.max(0, ...doc.plots.map(p => Number(p.timePoint) || 0)) + 2;
+    /* 稿件标题里的章号：先认阿拉伯数字；「第十八章」这类中文数字也认 */
+    const CN_NUM = { 〇: 0, 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+    function cnToInt(cn) {
+      if (!cn) return 0;
+      let total = 0, cur = 0;
+      for (const ch of cn) {
+        if (ch === '十') { total += (cur || 1) * 10; cur = 0; }
+        else if (ch === '百') { total += (cur || 1) * 100; cur = 0; }
+        else if (CN_NUM[ch] != null) cur = CN_NUM[ch];
+        else return 0;
+      }
+      return total + cur;
+    }
+    function chNum(s) {
+      const t = String(s || '');
+      const ar = t.match(/(\d+)/);
+      if (ar) return Number(ar[1]);
+      const cn = t.match(/第([〇零一二三四五六七八九十百]+)[章回]/);
+      return cn ? cnToInt(cn[1]) : 0;
+    }
 
     /* ================= 骨架 ================= */
     const wrap = h('div', { class: 'pl-wrap' });
@@ -227,9 +264,55 @@ export default {
     }
     function hideTip() { tip.classList.remove('on'); }
 
+    /* ---------- 时间轴 ↔ 时间点 的换算 ----------
+     * 轴是按情节自身的时间点等比铺开的：最左 = 最小时间点，最右 = 最大。
+     * 只有 1 个情节时没有参照，固定落在 50%。
+     * 拖动 / 双击新建都按这个换算回整数时间点，宁可相邻也不要凭空改别人的位置。 */
+    function axisRange() {
+      const tps = doc.plots.map(p => Number(p.timePoint) || 0);
+      const n = tps.length;
+      if (n <= 1) return { min: 0, max: 0, tp: n ? tps[0] : 0, step: 1 };
+      const min = Math.min(...tps), max = Math.max(...tps), span = max - min;
+      const step = Math.max(1, Math.round(span / 30));
+      return { min, max, tp: n, step };
+    }
+    /* 把轴上的百分比换成时间点
+     * opts.free = true 时用于「双击新建」：允许落在两端之外，
+     * 否则两点之间的空白几乎吸不到任何新位置，新建的情节会全挤在已有点上。 */
+    function pctToTime(pct, opts) {
+      const R = axisRange();
+      const t = 4 + (pct / 100) * 92;
+      if (R.tp <= 1) return R.min;
+      const raw = R.max === R.min ? R.min : R.min + ((t - 4) / 92) * (R.max - R.min);
+      const snapped = Math.round(raw / R.step) * R.step;
+      if (!(opts && opts.free)) return Math.max(R.min, Math.min(R.max, snapped));
+      return Math.max(0, snapped);
+    }
+    function timeToPct(tp) {
+      const R = axisRange();
+      if (R.tp <= 1 || R.max === R.min) return 50;
+      return 4 + ((Math.max(R.min, Math.min(R.max, tp)) - R.min) / (R.max - R.min)) * 92;
+    }
+
+    /* 拖动过程中实时调整其它节点位置，松手才落盘 */
+    function previewSpots(list, drag, tp) {
+      const rest = doc.plots.filter(p => p.id !== drag.p.id).map(p => Number(p.timePoint) || 0);
+      const min = Math.min(tp, ...rest), max = Math.max(tp, ...rest);
+      const spots = list.map(p => {
+        const t = p.id === drag.p.id ? tp : (Number(p.timePoint) || 0);
+        if (min === max) {
+          if (p.id === drag.p.id) return 50;
+          return p.timePoint < tp ? 30 : 70;
+        }
+        return 4 + ((t - min) / (max - min)) * 92;
+      });
+      return spots;
+    }
+
     function renderTimeline() {
       clear(tlCard);
       hideTip();
+      ghostAt = null;
       const list = byTime();
 
       tlCard.appendChild(h('div', { class: 'pl-tlhead' },
@@ -237,7 +320,9 @@ export default {
         h('span', { class: 'pl-lg' }, h('i', {}), '已发生'),
         h('span', { class: 'pl-lg' }, h('i', { class: 'later' }), '后续计划'),
         h('span', { class: 'pl-lg' }, h('i', { class: 'ending' }), '结局'),
-        h('span', { class: 'pl-hint' }, list.length ? '悬停看摘要 · 点击选中节点' : '')));
+        h('span', { class: 'pl-hint' }, list.length
+          ? '悬停看摘要 · 点击选中 · 拖动节点改时间 · 双击空白处新建'
+          : '双击时间轴空白处，在这条时间上新建情节')));
 
       const track = h('div', { class: 'pl-track' });
       track.appendChild(h('div', { class: 'pl-axis' }));
@@ -255,21 +340,142 @@ export default {
         });
       }
 
+      /* 时间点刻度：太密就不画，避免一片糊 */
+      const R = axisRange();
+      if (R.tp > 1 && R.max > R.min) {
+        const stepTp = Math.max(R.step, Math.ceil((R.max - R.min) / 8));
+        for (let tp = R.min; tp <= R.max; tp += stepTp) {
+          const left = timeToPct(tp) + '%';
+          track.appendChild(h('span', { class: 'pl-tick', style: { left } }));
+          track.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, String(tp)));
+        }
+      }
+
       const spots = nodeSpots(list);
+      const nodes = [];
       list.forEach((p, i) => {
         const node = h('div', {
           class: 'pl-node ' + nodeCls(p) + (p.id === st.selId ? ' on' : ''),
           style: { left: spots[i] + '%' },
-          onclick: () => select(p.id),
-          onmouseenter: () => showTip(p, node),
-          onmouseleave: hideTip
+          title: p.title + ' · 时间点 ' + (p.timePoint == null ? '—' : p.timePoint) + '（拖我改时间）',
+          onclick: () => { if (!drag || !drag.moved) select(p.id); },
+          onmouseenter: () => { if (!drag) showTip(p, node); },
+          onmouseleave: hideTip,
+          onmousedown: ev => startDrag(ev, p, list)
         }, h('b', {}, p.title), h('s', {}, p.chapter || ''), h('i', {}));
         track.appendChild(node);
+        nodes.push({ node, p });
+      });
+
+      track.addEventListener('click', ev => {
+        if (ev.target.closest('.pl-node')) return;
+        const rect = track.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+        showGhostAt(track, pct, pctToTime(pct, { free: true }));
+      });
+      track.addEventListener('dblclick', ev => {
+        if (ev.target.closest('.pl-node')) return;   /* 双击节点 = 打开编辑，不新建 */
+        const rect = track.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+        openForm(null, pctToTime(pct, { free: true }));
       });
       tlCard.appendChild(track);
+      trackEl = track;
+    }
+    let trackEl = null;
+    let drag = null;
+    let ghostAt = null;   /* 单击空白处留下的「将在这里新建」提示 */
+
+    /* 画一个虚线幽灵节点 + 时间点标签，告诉用户双击会落在哪 */
+    function showGhostAt(track, pct, tp) {
+      if (ghostAt && ghostAt.parentNode) ghostAt.remove();
+      ghostAt = h('div', { class: 'pl-ghost', style: { left: pct + '%', display: '' } },
+        h('b', {}, '双击在此新建 · 时间点 ' + tp), h('i', {}));
+      track.appendChild(ghostAt);
+    }
+
+    /* 拖动时间轴上的节点：实时预览，松手落盘 */
+    function startDrag(ev, p, list) {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      hideTip();
+      const track = trackEl;
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      const startX = ev.clientX;
+      drag = { p, moved: false, list, nodes: new Map() };
+      Array.from(track.querySelectorAll('.pl-node')).forEach((el, i) => {
+        drag.nodes.set(list[i].id, el);
+      });
+      const ghost = h('div', { class: 'pl-ghost' }, h('b', {}, ''), h('i', {}));
+      track.appendChild(ghost);
+      track.classList.add('dragging');
+      const self = drag.nodes.get(p.id);
+      if (self) self.classList.add('dragging');
+
+      const move = e => {
+        if (!drag) return;
+        if (Math.abs(e.clientX - startX) > 2) drag.moved = true;
+        const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+        const tp = pctToTime(pct);
+        drag.tp = tp;
+        drag.pct = pct;
+        const spots = previewSpots(list, drag, tp);
+        list.forEach((q, i) => {
+          const el = drag.nodes.get(q.id);
+          if (el) el.style.left = spots[i] + '%';
+        });
+        ghost.style.left = pct + '%';
+        const label = ghost.querySelector('b');
+        if (label) label.textContent = '时间点 ' + tp + (drag.moved ? '' : '');
+        ghost.style.display = drag.moved ? '' : 'none';
+      };
+      const up = e => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', up);
+        track.classList.remove('dragging');
+        if (ghost.parentNode) ghost.remove();
+        if (self) self.classList.remove('dragging');
+        const d = drag; drag = null;
+        if (!d || !d.moved) { renderTimeline(); return; }
+        /* 防抖：落盘后重画，位置来自新的时间点 */
+        p.timePoint = d.tp;
+        touch();
+        renderAll();
+        toast('「' + p.title + '」已移到时间点 ' + d.tp, 'ok');
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
+      move(ev);
+    }
+
+    /* ---------- 列表拖拽排序 ----------
+     * 列表是按时间点排的，所以「拖到某一行前面」= 把这一行的时间点排到它前面。
+     * 做法：把列表顺序整体重排成新顺序，再按旧的时间点序列逐个回填，
+     * 这样只换顺序、不改变整条时间线覆盖的时间范围（时间轴上的相对位置随之更新）。 */
+    let listDragId = null;
+    function clearRowMarks() {
+      listBody.querySelectorAll('.pl-lrow').forEach(r => r.classList.remove('drop-before'));
+    }
+    function movePlotInList(fromId, toId) {
+      const list = byTime();
+      const from = list.findIndex(p => p.id === fromId);
+      const to = list.findIndex(p => p.id === toId);
+      if (from < 0 || to < 0 || from === to) return;
+      const moved = list.splice(from, 1)[0];
+      let target = to;                    /* 插到目标行之前 */
+      if (from < to) target = to - 1;
+      list.splice(target, 0, moved);
+      const tps = byTime().map(p => Number(p.timePoint) || 0);
+      list.forEach((p, i) => { p.timePoint = tps[i]; });
+      touch();
+      renderAll();
+      toast('已把「' + moved.title + '」移到第 ' + (target + 1) + ' 位', 'ok');
     }
 
     /* ================= 情节列表 ================= */
+    let listBody = null;
     function renderList() {
       clear(listCard);
       const list = byTime();
@@ -287,9 +493,34 @@ export default {
       list.forEach((p, i) => {
         const s = statusOf(p.status);
         const who = namesOf(p);
-        body.appendChild(h('div', {
+        const row = h('div', {
           class: 'pl-lrow' + (p.id === st.selId ? ' on' : ''),
-          onclick: () => select(p.id)
+          draggable: 'true',
+          title: '拖动这一行可以调整它在时间上的先后',
+          onclick: () => select(p.id),
+          ondragstart: ev => {
+            listDragId = p.id;
+            ev.dataTransfer.effectAllowed = 'move';
+            try { ev.dataTransfer.setData('text/plain', p.id); } catch (e) {}
+            row.style.opacity = '0.45';
+          },
+          ondragend: () => { row.style.opacity = ''; listDragId = null; clearRowMarks(); },
+          ondragover: ev => {
+            if (!listDragId || listDragId === p.id) return;
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = 'move';
+            clearRowMarks();
+            row.classList.add('drop-before');
+          },
+          ondragleave: () => row.classList.remove('drop-before'),
+          ondrop: ev => {
+            ev.preventDefault();
+            const fromId = listDragId;
+            listDragId = null;
+            clearRowMarks();
+            if (!fromId || fromId === p.id) return;
+            movePlotInList(fromId, p.id);
+          }
         },
           h('span', { class: 'pl-idx' }, String(i + 1).padStart(2, '0')),
           h('span', { class: 'pl-ptitle', title: p.title }, p.title),
@@ -299,8 +530,10 @@ export default {
             who.length ? (who.length > 2 ? who.slice(0, 2).join('、') + ' 等 ' + who.length + ' 人' : who.join('、')) : '—'),
           h('span', { class: 'pl-rowacts' },
             h('button', { class: 'btn xs', onclick: e => { e.stopPropagation(); openForm(p); } }, '编辑'),
-            h('button', { class: 'btn xs', onclick: e => { e.stopPropagation(); scrapPlot(p); } }, '删除'))));
+            h('button', { class: 'btn xs', onclick: e => { e.stopPropagation(); scrapPlot(p); } }, '删除')));
+        body.appendChild(row);
       });
+      listBody = body;
       listCard.appendChild(body);
     }
 
@@ -336,18 +569,23 @@ export default {
         chips.length ? h('div', { class: 'pl-dchips' }, chips) : h('div', { class: 'pl-dmeta' }, '未标注相关人物'),
         h('div', { class: 'pl-dacts' },
           h('button', { class: 'btn xs', onclick: () => openForm(p) }, '编辑'),
+          h('button', { class: 'btn xs', onclick: () => NF.go('chapter', { plot: p.id }), title: '跳到章节写作里对应的一章' }, '去章节里写'),
           h('button', { class: 'btn xs', onclick: () => scrapPlot(p) }, '移到废案'))));
     }
 
     /* ================= 新建 / 编辑表单 ================= */
-    function openForm(plot) {
+    /* presetTime：在时间轴上双击时传进来的时间点，新建时就落在那儿 */
+    function openForm(plot, presetTime) {
       const isNew = !plot;
       const model = isNew
-        ? { id: uid('g'), title: '', chapter: '', chapterNo: 0, timePoint: nextTp(), place: '', characterIds: [], status: 'later', summary: '' }
+        ? { id: uid('g'), title: '', chapter: '', chapterNo: 0, timePoint: presetTime == null ? nextTp() : presetTime, place: '', characterIds: [], status: 'later', summary: '' }
         : Object.assign({}, plot, { characterIds: (plot.characterIds || []).slice() });
 
       const titleIn = h('input', { class: 'input', value: model.title, placeholder: '例如：雪夜断桥' });
-      const chapIn = h('input', { class: 'input', value: model.chapter || '', placeholder: '例如：第31章' });
+      const chapIn = h('input', { class: 'input', value: model.chapter || '', placeholder: '例如：第31章', list: 'pl-chap-list' });
+      /* 候选来自「章节写作」里已有的稿件，手填也行（章号对得上就会关联） */
+      const chapList = h('datalist', { id: 'pl-chap-list' },
+        (doc.manuscripts || []).map(m => h('option', { value: String(chNum(m)), label: m.title })));
       const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '1', value: String(model.timePoint == null ? nextTp() : model.timePoint) });
       const placeIn = h('input', { class: 'input', value: model.place || '', placeholder: '例如：临水 · 断桥' });
       const statusSel = h('select', { class: 'select' },
@@ -372,14 +610,17 @@ export default {
         body: h('div', { class: 'col', style: { gap: '10px' } },
           h('div', { class: 'field' }, h('label', {}, '情节名'), titleIn),
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
-            h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '章节'), chapIn),
+            h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '章节（对应章节写作里的稿件）'), chapIn, chapList),
             h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '时间点'), tpIn)),
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
             h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '地点'), placeIn),
             h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '状态'), statusSel)),
           h('div', { class: 'field' }, h('label', {}, '摘要'), sumTa),
           h('div', { class: 'field' }, h('label', {}, '相关人物'), pick),
-          h('div', { class: 'tiny muted' }, '时间点决定节点在时间轴上的位置，数字越大越靠右。')),
+          h('div', { class: 'tiny muted' },
+            presetTime == null
+              ? '时间点决定节点在时间轴上的位置，数字越大越靠右；也可以在时间轴上直接拖动节点调整。'
+              : '已按你双击的位置预填时间点 ' + presetTime + '，可以在这里再改。')),
         okText: '保存',
         onOk: () => {
           const title = titleIn.value.trim();

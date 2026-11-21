@@ -11,6 +11,18 @@ injectStyle('chapter', `
 .ch-doc:hover{background:rgba(255,255,255,.55)}
 .ch-doc.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF;color:#201C18}
 .ch-doc .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-plots{display:flex;flex-direction:column;gap:1px;padding:2px 0 4px 34px}
+.ch-plot{display:flex;align-items:center;gap:6px;padding:3px 7px;border-radius:6px;cursor:pointer;font-size:10.5px;color:#6B6357;min-width:0}
+.ch-plot:hover{background:rgba(255,255,255,.6);color:#201C18}
+.ch-plot.on{background:#F3EBDA;color:#201C18}
+.ch-plot i{width:6px;height:6px;border-radius:50%;flex:none;background:var(--jade)}
+.ch-plot.later i{border:1px dashed #C9973C;background:transparent}
+.ch-plot.ending i{border-radius:1px;background:var(--seal);transform:rotate(45deg)}
+.ch-plot span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-plot small{margin-left:auto;font-size:9px;color:#A99C84;flex:none}
+.ch-vplot{display:flex;align-items:center;gap:6px;padding:2px 7px 2px 20px;border-radius:6px;cursor:pointer;font-size:10px;color:#8C8272;min-width:0}
+.ch-vplot:hover{background:rgba(255,255,255,.55);color:#5B5348}
+.ch-vplot span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ch-main{flex:1;min-width:0;display:flex;flex-direction:column;padding:12px 18px 0}
 .ch-top{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid #EAE1CF}
 .ch-title{font-family:var(--kai);font-size:21px;border:none;background:transparent;outline:none;flex:1;min-width:0;color:#201C18;letter-spacing:.04em}
@@ -92,13 +104,66 @@ export default {
     let abortCtrl = null;
     const aiHistory = [];  /* { role:'user'|'assistant', content }，只在本页存活 */
 
+    /* ---------- 情节 ↔ 章节的对照 ----------
+     * 情节页只用一个自由字段记录「第几章」，这里在需要时把它解析成章号去匹配稿件标题。
+     * 匹配不到就归到卷级，至少还能看见。 */
+    const CN_NUM = { 〇: 0, 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+    function cnToInt(cn) {
+      if (!cn) return 0;
+      let total = 0, cur = 0;
+      for (const ch of cn) {
+        if (ch === '十') { total += (cur || 1) * 10; cur = 0; }
+        else if (ch === '百') { total += (cur || 1) * 100; cur = 0; }
+        else if (CN_NUM[ch] != null) cur = CN_NUM[ch];
+        else return 0;
+      }
+      return total + cur;
+    }
+    /* 「第18章」「第十八章」「18」都能认出章号 */
+    function chNum(v) {
+      const t = String(v || '');
+      const ar = t.match(/(\d+)/);
+      if (ar) return Number(ar[1]);
+      const cn = t.match(/第([〇零一二三四五六七八九十百]+)[章回]/);
+      return cn ? cnToInt(cn[1]) : 0;
+    }
+    const plotById = id => (doc.plots || []).find(p => p.id === id);
+    const plotsSorted = () => (doc.plots || []).slice().sort((a, b) => (Number(a.timePoint) || 0) - (Number(b.timePoint) || 0));
+    function plotStatusCls(p) { return p.status === 'ending' ? 'ending' : p.status === 'done' ? 'done' : 'later'; }
+    function plotStatusLabel(p) { return p.status === 'ending' ? '结局' : p.status === 'done' ? '已发生' : '计划'; }
+    const manuscriptNo = m => chNum(m.title) || (m.chapterNo || 0);
+    /* 卷 → 这些稿件的章号区间（取卷内最小 / 最大章号） */
+    function volumeRange(vid) {
+      const ms = doc.manuscripts.filter(m => m.volumeId === vid).map(manuscriptNo).filter(Boolean);
+      if (!ms.length) return null;
+      return { min: Math.min(...ms), max: Math.max(...ms) };
+    }
+    /* 这个情节属于哪一篇稿件（返回稿件 id 或 null=卷级） */
+    function plotManuscript(p, vid) {
+      const no = chNum(p.chapter);
+      if (!no) return null;
+      const hit = doc.manuscripts.find(m => m.volumeId === vid && manuscriptNo(m) === no);
+      return hit ? hit.id : null;
+    }
+    /* 跳转到情节页并选中它 */
+    function openPlot(id) {
+      NF.go('plot', { id });
+    }
+
     function renderSide() {
       clear(side);
+      const plots = plotsSorted();
       side.appendChild(h('div', { class: 'row', style: { padding: '0 4px 6px' } },
         h('div', { style: { fontSize: '12px', fontWeight: '700' } }, '正文'),
         h('div', { class: 'grow' }),
+        h('button', { class: 'btn xs', onclick: () => NF.go('plot'), title: '去情节页管理时间轴' }, '情节 ' + (doc.plots || []).length),
         h('button', { class: 'btn xs', onclick: addVolume }, '＋ 卷')));
       doc.chapters.forEach(v => {
+        const range = volumeRange(v.id);
+        const volPlots = plots.filter(p => {
+          const no = chNum(p.chapter);
+          return range && no >= range.min && no <= range.max && plotManuscript(p, v.id) === null;
+        });
         side.appendChild(h('div', { class: 'ch-vol' + (v.id === st.vol ? ' on' : ''), onclick: () => { st.vol = v.id; renderSide(); } },
           h('span', {}, v.title),
           h('small', {}, (doc.manuscripts.filter(m => m.volumeId === v.id).length) + ' 篇')));
@@ -107,8 +172,26 @@ export default {
             side.appendChild(h('div', { class: 'ch-doc' + (m.id === st.id ? ' on' : ''), onclick: () => { st.id = m.id; renderSide(); renderMain(); } },
               h('span', { class: 'grow' }, m.title || '未命名'),
               h('span', { class: 'tiny muted' }, words(m.content) + ' 字')));
+            /* 这一章挂的情节，点一下跳去情节页 */
+            const mine = plots.filter(p => plotManuscript(p, v.id) === m.id);
+            if (mine.length) {
+              side.appendChild(h('div', { class: 'ch-plots' }, mine.map(p => h('div', {
+                class: 'ch-plot ' + plotStatusCls(p),
+                title: (p.summary || p.title) + ' · 时间点 ' + (p.timePoint == null ? '—' : p.timePoint) + '（点击去情节页）',
+                onclick: () => openPlot(p.id)
+              }, h('i', {}), h('span', {}, p.title), h('small', {}, plotStatusLabel(p))))));
+            }
           });
           side.appendChild(h('div', { class: 'ch-doc', style: { color: '#2F6F63' }, onclick: addDoc }, '＋ 新的章节'));
+          /* 标了卷但没对上具体章节的情节，单独列在卷底下 */
+          if (volPlots.length) {
+            side.appendChild(h('div', { class: 'ch-vplot', style: { cursor: 'default', fontSize: '9px', letterSpacing: '.1em' } }, '本卷情节（未对上章节）'));
+            volPlots.forEach(p => side.appendChild(h('div', {
+              class: 'ch-vplot',
+              title: (p.summary || p.title) + '（点击去情节页）',
+              onclick: () => openPlot(p.id)
+            }, h('i', { style: { width: '6px', height: '6px', borderRadius: '50%', background: p.status === 'ending' ? 'var(--seal)' : p.status === 'later' ? '#C9973C' : 'var(--jade)', flex: 'none' } }), h('span', {}, p.title), h('small', { style: { marginLeft: 'auto', fontSize: '9px', color: '#A99C84' } }, p.chapter || ''))));
+          }
         }
       });
       side.appendChild(h('div', { style: { marginTop: 'auto' } },
@@ -425,6 +508,17 @@ export default {
       document.addEventListener('keydown', (ev) => {
         if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'j') { ev.preventDefault(); toggleDock(); setTimeout(() => ta.focus(), 30); }
       });
+    }
+
+    /* 从情节页点「在章节里定位」之类跳过来时，直接选中对应章节：
+     * params.id 就是稿件 id；只有 params.plot 时按情节的章节号找稿件 */
+    if (ctx.params && ctx.params.plot && !ctx.params.id) {
+      const p = (doc.plots || []).find(x => x.id === ctx.params.plot);
+      if (p) {
+        const no = (String(p.chapter || '').match(/(\d+)/) || [])[0];
+        const hit = no ? doc.manuscripts.find(m => (m.chapterNo || 0) === Number(no) || (String(m.title || '').match(/(\d+)/) || [])[0] === String(Number(no))) : null;
+        if (hit) { st.id = hit.id; st.vol = hit.volumeId; }
+      }
     }
 
     renderSide(); renderMain();
