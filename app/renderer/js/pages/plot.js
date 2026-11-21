@@ -255,15 +255,6 @@ export default {
     }
 
     /* ================= 时间轴 ================= */
-    /* 节点横向位置：优先按 timePoint 等比映射，全部相同时退化为均匀排布 */
-    function nodeSpots(list) {
-      const n = list.length;
-      if (n <= 1) return n ? [50] : [];
-      const tps = list.map(p => Number(p.timePoint) || 0);
-      const min = Math.min(...tps), max = Math.max(...tps), span = max - min;
-      if (!span) return list.map((_, i) => 4 + (i / (n - 1)) * 92);
-      return tps.map(tp => 4 + ((tp - min) / span) * 92);
-    }
 
     function showTip(p, node) {
       const s = statusOf(p.status);
@@ -286,33 +277,38 @@ export default {
     function hideTip() { tip.classList.remove('on'); }
 
     /* ---------- 时间轴 ↔ 时间点的换算 ----------
-     * 轴按「排序后的位置」排布，不再把时间点假装成等距整数刻度：
-     * 时间点紧挨着的一簇会自然拉开（至少 1.4% 宽），离得远的一段会压缩，
-     * 这样一条离群情节不会把其它节点全挤到轴的最左边。
-     * 拖动 / 双击新建时，位置由「插到哪两个相邻节点之间」决定，
-     * 时间点在两者之间线性插值（允许小数），落定后再按顺序归一化（见 normalizeTimes）。 */
-    const GAP_LOOSE = 2;      /* 相邻间隔的平均值：约 2 → 满宽 */
-    const GAP_TIGHT = 1.4;    /* 最小间距（百分比） */
+     * 位置 = 时间点本身，直接线性映射到轴上（4% ~ 96%）。
+     * 这样「改一条情节的时间点」只影响它自己，其它节点在轴上的位置纹丝不动 ——
+     * 这正是拖动的预期：拖哪一个就只动哪一个。
+     * 只有时间点完全相同的一簇会做一点推开处理，保证看得见、不叠在一起。 */
     const tpNum = p => { const n = Number(p && p.timePoint); return isFinite(n) ? n : 0; };
+    const round2 = v => Math.round(v * 100) / 100;
+    const MIN_GAP = 1.6;      /* 时间点相同时也至少隔开的百分比 */
+    const SPAN_LO = 4, SPAN_HI = 96;
 
-    /* 排序列表 → 每个节点的百分比坐标（4% ~ 96%） */
+    /* 时间点 → 百分比。等比映射，单调、稳定：同一条情节点移动不会带动别人。
+     * list 可以是任意子集，但映射必须只用「时间点」本身作参照，
+     * 所以这里用一个和 list 无关的基准（0 ~ 最大时间点），避免增删情节时整体缩放。 */
+    function tpToPct(tp, maxTp) {
+      if (!(maxTp > 0)) return 50;
+      return SPAN_LO + (tp / maxTp) * (SPAN_HI - SPAN_LO);
+    }
+    /* 排序列表 → 每个节点的百分比坐标 */
     function layoutSpots(list) {
       const n = list.length;
       if (!n) return [];
-      if (n === 1) return [50];
       const tps = list.map(tpNum);
-      const avg = tps.reduce((a, b) => a + b, 0) / n;
-      const z = [0];
-      for (let i = 1; i < n; i++) {
-        const d = Math.abs(tps[i] - tps[i - 1]);
-        let g;
-        if (!(avg > 0)) g = GAP_LOOSE;                      /* 老数据全是 0：等距 */
-        else g = Math.max(GAP_TIGHT, Math.min(GAP_LOOSE * 2, GAP_LOOSE * d / avg));
-        z.push(z[i - 1] + g);
+      const maxTp = Math.max(...tps);
+      if (!(maxTp > 0)) {
+        /* 全是 0 或负数：退化成均匀排布 */
+        return n === 1 ? [50] : tps.map((_, i) => SPAN_LO + (i / (n - 1)) * (SPAN_HI - SPAN_LO));
       }
-      const total = z[n - 1] || 1;
-      const base = z[0];
-      return z.map(v => 4 + ((v - base) / total) * 92);
+      const spots = tps.map(t => tpToPct(t, maxTp));
+      /* 时间点相同时把这一簇轻轻推开，只影响簇内，不影响别人 */
+      for (let i = 1; i < n; i++) {
+        if (spots[i] <= spots[i - 1] + 0.001) spots[i] = Math.min(SPAN_HI, spots[i - 1] + MIN_GAP);
+      }
+      return spots;
     }
     function nodeSpots(list) { return layoutSpots(list); }
 
@@ -321,7 +317,7 @@ export default {
     function locate(list, pct) {
       const n = list.length;
       const spots = layoutSpots(list);
-      const t = Math.max(spots[0], Math.min(spots[n - 1], 4 + (pct / 100) * 92));
+      const t = Math.max(spots[0], Math.min(spots[n - 1], SPAN_LO + (pct / 100) * (SPAN_HI - SPAN_LO)));
       let i = 0;
       while (i < n - 2 && t > spots[i + 1]) i++;
       const seg = spots[i + 1] - spots[i] || 1;
@@ -344,49 +340,6 @@ export default {
       if (n === 1) return { index: pct >= 50 ? 1 : 0, tp: tpNum(list[0]) };
       const { i, f } = locate(list, pct);
       return { index: i + 1, tp: timeAtPct(list, pct), f };
-    }
-
-    /* 按顺序重新归一化时间点（"按情节先后自动修正"，而不是对齐已有整数锚点）：
-     * - 第一位保留原值（没有更早的邻居可参考），后面每一位在「原来的位置」附近取一个
-     *   不与邻居相撞的值：间隔宽就取整（1、2、3），挤在一起才用小数（0.5 → 0.1 → 0.02），
-     *   所以拖完一次只动前后几位，不会像等比放大那样越跑越远。
-     * - 严格递增、最小步长 0.02，保证拖到同一格也分得开。 */
-    const round2 = v => Math.round(v * 100) / 100;
-    /* 允许的最小步长：看着间隔 d 有多宽，越宽越慷慨 */
-    function stepFor(d) {
-      if (!(d > 0)) d = 1;
-      if (d >= 0.95) return 1;
-      if (d >= 0.6) return 0.5;
-      if (d >= 0.26) return 0.2;
-      if (d >= 0.11) return 0.1;
-      if (d >= 0.045) return 0.05;
-      return 0.02;
-    }
-    function normalizeTimes(list, startAt) {
-      if (!list.length) return;
-      if (startAt != null) list[0].timePoint = round2(Math.max(0, startAt));
-      else list[0].timePoint = round2(tpNum(list[0]));
-      for (let i = 1; i < list.length; i++) {
-        const want = round2(tpNum(list[i]));           /* 原来的位置 */
-        const prev = tpNum(list[i - 1]);
-        const gap = want - prev;
-        /* 位置本来就正经（比前一位大且留了空隙）就原样保留 —— 小数的照样是小数，
-         * 不会被「抹平」到整数；只有撞车 / 反序时才按顺序修正 */
-        if (gap >= 0.02) { list[i].timePoint = want; continue; }
-        const minStep = stepFor(Math.abs(gap) || 1);
-        list[i].timePoint = round2(prev + minStep);
-      }
-      /* 万一还是不够间距（后面全挤在一起），再补一遍 */
-      dedupeTimes(list);
-    }
-    /* 极度拥挤时兜底：保证严格递增（每次只加最小步长，不放大） */
-    function dedupeTimes(list) {
-      for (let i = 1; i < list.length; i++) {
-        let v = round2(tpNum(list[i]));
-        const prev = tpNum(list[i - 1]);
-        if (!(v > prev + 0.0001)) v = round2(prev + 0.02);
-        list[i].timePoint = v;
-      }
     }
 
     function renderTimeline() {
@@ -441,7 +394,7 @@ export default {
           onclick: () => { if (!drag || !drag.moved) select(p.id); },
           onmouseenter: () => { if (!drag) showTip(p, node); },
           onmouseleave: hideTip,
-          onmousedown: ev => startDrag(ev, p, list)
+          onmousedown: ev => startDrag(ev, p, list, node)
         }, h('b', {}, p.title), h('s', {}, p.chapter || ''), h('i', {}));
         track.appendChild(node);
         nodes.push({ node, p });
@@ -478,10 +431,10 @@ export default {
       track.appendChild(ghostAt);
     }
 
-    /* 拖动时间轴上的节点：不吸附，按鼠标位置实时重排 + 预览小数时间点，松手落盘。
-     * 关键：位置由「第几位」决定，时间点由相邻两个节点插值 —— 鼠标停在哪就落在哪，
-     * 不会被拽到整数锚点上；松手后按新顺序重新归一化，本来该是整数的还是整数。 */
-    function startDrag(ev, p, list) {
+    /* 拖动时间轴上的节点：只管被拖的这一个，别的情节一动不动。
+     * 位置不吸附 —— 鼠标停在哪就是哪，时间点由它左右两个「没动过的」邻居插值出来，
+     * 所以可以是 1.5、6.35 这种小数；松手只写这一个 timePoint，其它节点的时间点原样保留。 */
+    function startDrag(ev, p, list, nodeEl) {
       if (ev.button !== 0) return;
       ev.preventDefault();
       ev.stopPropagation();
@@ -490,53 +443,52 @@ export default {
       if (!track) return;
       const rect = track.getBoundingClientRect();
       const startX = ev.clientX;
-      const order = list.slice();                     /* 当前顺序（byTime 已排好） */
-      const fromIndex = order.findIndex(q => q.id === p.id);
-      drag = { p, moved: false, list: order, preview: null };
+      const order = list.slice();                       /* 当前顺序（byTime 已排好） */
+      const rest = order.filter(q => q.id !== p.id);    /* 别的情节：全程不动 */
+      const restTps = rest.map(tpNum);
+      drag = { p, moved: false };
       const ghost = h('div', { class: 'pl-ghost' }, h('b', {}, ''), h('i', {}));
       track.appendChild(ghost);
       track.classList.add('dragging');
-      const self = track.querySelector('.pl-node.on-drag') || null;
-
-      /* 只重排节点元素，不动 DOM 结构：按新顺序算坐标再贴上去 */
-      const nodeEls = new Map();
-      Array.from(track.querySelectorAll('.pl-node')).forEach((el, i) => nodeEls.set(order[i].id, el));
-      const myEl = nodeEls.get(p.id);
+      const myEl = nodeEl || null;
       if (myEl) myEl.classList.add('dragging');
+
+      /* 鼠标所在的百分比 → 只给被拖的这个算一个新时间点，邻居的时间点完全不碰。
+       * 因为轴就是时间点的线性映射，直接用反函数换算即可：pct → timePoint。 */
+      const maxTp = Math.max(...order.map(tpNum), 0);
+      const pctToTp = pct => {
+        const lo = SPAN_LO, hi = SPAN_HI;
+        const t = Math.max(lo, Math.min(hi, lo + (pct / 100) * (hi - lo)));
+        if (!(maxTp > 0)) return 1;
+        return round2(((t - lo) / (hi - lo)) * maxTp);
+      };
+      const place = pct => {
+        let tp = pctToTp(pct);
+        /* 跟别的情节撞到同一个时间点就往旁边让一点，免得两个点叠在一起 */
+        if (restTps.some(v => Math.abs(v - tp) < 0.011)) {
+          let bump = tp;
+          for (let k = 0; k < 60; k++) {
+            bump = round2(tp + (k + 1) * 0.02);
+            if (bump > maxTp) bump = round2(tp - (k + 1) * 0.02);
+            if (bump < 0) break;
+            if (!restTps.some(v => Math.abs(v - bump) < 0.011)) break;
+          }
+          tp = Math.max(0, bump);
+        }
+        return { tp: Math.max(0, round2(tp)) };
+      };
 
       const move = e => {
         if (!drag) return;
         if (Math.abs(e.clientX - startX) > 2) drag.moved = true;
         const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-        /* 鼠标落在剩下 N-1 个节点的哪一格 → 我就是那一格 */
-        const rest = order.filter(q => q.id !== p.id);
-        let index = rest.length;
-        if (rest.length) {
-          const spotsRest = layoutSpots(rest);
-          const target = 4 + (pct / 100) * 92;
-          index = 0;
-          while (index < rest.length && spotsRest[index] < target) index++;
-        }
-        const preview = rest.slice();
-        preview.splice(index, 0, p);
-        drag.preview = preview;
-        drag.index = index;
-        /* 预览顺序 → 预览时间点（用真实相邻值插值，不落盘） */
-        const tps = preview.map(tpNum);
-        let tp;
-        if (preview.length === 1) tp = tps[0];
-        else if (index === 0) tp = round2(tps[1] - stepFor(Math.abs(tps[1] - tps[0]) || 1));
-        else if (index === preview.length - 1) tp = round2(tps[index - 1] + stepFor(Math.abs(tps[index - 1] - tps[index - 2]) || 1));
-        else tp = round2((tps[index - 1] + tps[index + 1]) / 2);
-        drag.tp = Math.max(0, tp);
-        const spots = layoutSpots(preview);
-        preview.forEach((q, i) => {
-          const el = nodeEls.get(q.id);
-          if (el) el.style.left = spots[i] + '%';
-        });
+        const got = place(pct);
+        drag.tp = got.tp;
+        /* 只有被拖的这个跟着鼠标走，其它节点一个像素都不动 */
+        if (myEl) myEl.style.left = pct + '%';
         ghost.style.left = pct + '%';
         const label = ghost.querySelector('b');
-        if (label) label.textContent = '第 ' + (index + 1) + ' 位 · 时间点 ' + fmtTp(drag.tp);
+        if (label) label.textContent = '时间点 ' + fmtTp(got.tp);
         ghost.style.display = drag.moved ? '' : 'none';
       };
       const up = () => {
@@ -546,19 +498,13 @@ export default {
         if (ghost.parentNode) ghost.remove();
         if (myEl) myEl.classList.remove('dragging');
         const d = drag; drag = null;
-        if (!d || !d.moved || !d.preview) { renderTimeline(); return; }
-        /* 落盘：按预览顺序重排 doc.plots，再按顺序归一化时间点 */
-        const rest = doc.plots.filter(q => q.id !== p.id);
-        const seq = rest.slice();
-        seq.splice(d.index, 0, p);
-        /* 先用拖动预览算出来的时间点落位，再按顺序修正前后冲突 */
-        if (d.tp != null) p.timePoint = round2(d.tp);
-        doc.plots = seq;
-        normalizeTimes(seq);
+        if (!d || !d.moved || d.tp == null) { renderTimeline(); return; }
+        /* 落盘：只改这一个情节的时间点，其它情节原样不动 */
+        p.timePoint = round2(Math.max(0, d.tp));
         touch();
         renderAll();
         select(p.id);
-        toast('「' + p.title + '」已排到第 ' + (d.index + 1) + ' 位 · 时间点 ' + fmtTp(p.timePoint), 'ok');
+        toast('「' + p.title + '」时间点改为 ' + fmtTp(p.timePoint), 'ok');
       };
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', up);
@@ -566,9 +512,8 @@ export default {
     }
 
     /* ---------- 列表拖拽排序 ----------
-     * 列表是按时间点排的，所以「拖到某一行前面」= 把这一行的时间点排到它前面。
-     * 做法：把列表顺序整体重排成新顺序，再按旧的时间点序列逐个回填，
-     * 这样只换顺序、不改变整条时间线覆盖的时间范围（时间轴上的相对位置随之更新）。 */
+     * 列表按时间点排序，所以「拖到某一行前面」= 让它和途中经过的那几条交换时间点。
+     * 只交换涉及到的这几条，没经过的情节时间点一点都不动。 */
     let listDragId = null;
     function clearRowMarks() {
       listBody.querySelectorAll('.pl-lrow').forEach(r => r.classList.remove('drop-before'));
@@ -582,8 +527,11 @@ export default {
       let target = to;                    /* 插到目标行之前 */
       if (from < to) target = to - 1;
       list.splice(target, 0, moved);
-      const tps = byTime().map(p => Number(p.timePoint) || 0);
-      list.forEach((p, i) => { p.timePoint = tps[i]; });
+      /* 只把移动路径上那几条的时间点轮换一圈，其它情节原样不动 */
+      const lo = Math.min(from, target), hi = Math.max(from, target);
+      const tps = list.slice(lo, hi + 1).map(p => tpNum(p));
+      tps.unshift(tps.pop());             /* 末尾那个的时间点挪到最前 */
+      list.slice(lo, hi + 1).forEach((p, i) => { p.timePoint = tps[i]; });
       touch();
       renderAll();
       toast('已把「' + moved.title + '」移到第 ' + (target + 1) + ' 位', 'ok');
@@ -764,23 +712,21 @@ export default {
           model.place = placeIn.value.trim();
           model.status = statusSel.value;
           model.summary = sumTa.value.trim();
-          if (isNew) {
-            if (at && at.index != null) {
-              /* 双击位置决定的位次：插进去以后按顺序归一化，时间点自己算 */
-              const seq = byTime();
-              seq.splice(Math.max(0, Math.min(seq.length, at.index)), 0, model);
-              doc.plots = seq;
-              normalizeTimes(seq);
-            } else {
-              doc.plots.push(model);
-              normalizeTimes(byTime());
+          /* 只动当前这一条：别的情节的时间点一概不碰（和拖动保持一致）。
+           * 撞到别人的时间点就让自己让开 0.02 的整数倍。 */
+          const target = isNew ? model : plot;
+          if (!isNew) Object.assign(plot, model);
+          const others = doc.plots.filter(q => q.id !== target.id).map(tpNum);
+          if (others.some(v => Math.abs(v - target.timePoint) < 0.011)) {
+            const base = target.timePoint;
+            let v = base;
+            for (let k = 0; k < 200; k++) {
+              v = round2(base + (k + 1) * 0.02);
+              if (!others.some(o => Math.abs(o - v) < 0.011)) break;
             }
-          } else {
-            Object.assign(plot, model);
-            const seq = byTime();
-            /* 时间点被改成和邻居冲突时，按顺序推一推 */
-            normalizeTimes(seq);
+            target.timePoint = Math.max(0, v);
           }
+          if (isNew) doc.plots.push(target);
           st.selId = model.id;
           touch();
           renderAll();
