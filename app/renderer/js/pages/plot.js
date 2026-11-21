@@ -71,6 +71,11 @@ injectStyle('plot', `
 .pl-merge.pend{background:transparent;border:1px dashed #DCC9A2;color:#A08A5C}
 .pl-laneacts{flex:none;width:70px;display:flex;gap:3px;justify-content:flex-end}
 .pl-laneacts .btn{padding:1px 5px;font-size:9.5px;line-height:1.5}
+/* ---- 嵌套暗线：往右缩进一层，左边带个肘形符号 ---- */
+.pl-lanetag{transition:margin-left .12s}
+.pl-lanetag.nested{color:#7A6A4E}
+.pl-lanetag.nested .pl-lanedot{width:6px;height:6px;background:#D8BE86}
+.pl-laneelbow{flex:none;color:#C9B58C;font-size:10px;line-height:1;letter-spacing:-1px}
 .pl-lane .pl-track{flex:1;min-width:0;height:56px;margin-top:0;overflow:visible}
 .pl-lane.side .pl-track{height:48px}
 .pl-axis.side{background:linear-gradient(90deg,#D9C39A,#C9973C)}
@@ -93,6 +98,20 @@ injectStyle('plot', `
 .pl-lane{position:relative;z-index:1;background:transparent}
 .pl-lane.on{background:rgba(47,111,99,.045)}
 .pl-track .pl-tick.tp-label{font-size:8px;color:#C0B49B}
+/* ---- 视口外的情节收起来；轴两端标个「还有」 ---- */
+.pl-node.out{display:none}
+.pl-cut{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;color:#C9973C;pointer-events:none;line-height:1;font-weight:700}
+.pl-cut.lo{left:-2px}
+.pl-cut.hi{right:-2px}
+/* ---- 缩放工具条 ---- */
+.pl-zoombar{display:flex;align-items:center;gap:2px;flex:none;margin-left:6px}
+.pl-zbtn{font-family:inherit;font-size:10px;line-height:1;height:19px;min-width:19px;padding:0 5px;cursor:pointer;
+  border:1px solid #E2D6BE;border-radius:5px;background:#FFFDF8;color:#5B5348;transition:background .12s,border-color .12s}
+.pl-zbtn:hover{background:#F7EFDD;border-color:#CBB894;color:#7C291F}
+.pl-zbtn:active{background:#F0E4CB}
+.pl-zbtn.wide{min-width:auto}
+.pl-zpct{font-family:var(--mono);font-size:9.5px;color:#8A6421;min-width:26px;text-align:center;white-space:nowrap}
+.pl-zsep{width:1px;height:12px;background:#E6DAC4;margin:0 3px;flex:none}
 .pl-node.dim{opacity:.38}
 .pl-node.dim i{box-shadow:none}
 .pl-lanefilter{font-size:10px;height:22px;padding:0 4px;border:1px solid var(--line2);border-radius:6px;
@@ -111,6 +130,16 @@ injectStyle('plot', `
   box-shadow:0 6px 18px rgba(40,30,20,.28)}
 .pl-track.picking{outline:2px dashed #C9973C;outline-offset:2px;cursor:crosshair}
 .pl-track.picking .pl-node{pointer-events:none}
+
+/* ---- 端点手柄：引出点 / 收敛点可以直接在父线轴上拖 ----
+ * SVG 本身 pointer-events:none，所以只给手柄开命中；手柄画得比圆点大一圈，好抓。 */
+.pl-brdot{pointer-events:none}
+.pl-brdot.fork,.pl-brdot.merge,.pl-brdot.pending{pointer-events:auto;cursor:ew-resize}
+.pl-brdot.fork:hover,.pl-brdot.merge:hover,.pl-brdot.pending:hover{stroke-width:2.8}
+.pl-branches.epdrag{pointer-events:none}
+.pl-ephint{position:absolute;top:-6px;z-index:30;pointer-events:none;
+  font-size:10px;background:var(--ink);color:var(--paper);padding:2px 8px;border-radius:999px;white-space:nowrap;
+  box-shadow:0 4px 12px rgba(40,30,20,.26);transform:translateX(-50%)}
 .pl-lrow.flash{animation:plFlash .9s ease}
 @keyframes plFlash{0%{background:#F3E4C4;box-shadow:inset 3px 0 0 var(--seal)}100%{background:transparent}}
 
@@ -291,8 +320,36 @@ export default {
     /* 情节属于哪条线：没标的算主线 */
     const laneOf = p => (p && p.lane && lineById(p.lane)) ? p.lane : (mainLine() ? mainLine().id : 'main');
     const onLane = (lane, list) => (list || doc.plots).filter(p => laneOf(p) === lane);
-    /* 暗线要收敛到哪条线（默认主线）；主线自己不需要 */
-    const mergeTarget = l => (!l || l.kind === 'main') ? null : (lineById(l.mergeInto) || mainLine());
+    /* 暗线要收敛到哪条线（默认主线）；主线自己不需要。
+     * 允许收敛到另一条暗线 → 暗线可以一层套一层地嵌套；成环的照旧退回主线。 */
+    const mergeTarget = l => {
+      if (!l || l.kind === 'main') return null;
+      if (!l.mergeInto) return mainLine();
+      const t = lineById(l.mergeInto);
+      if (!t || t.id === l.id || t.kind === 'main') return t && t.kind === 'main' ? t : mainLine();
+      return isAncestor(l.id, t.id) ? mainLine() : t;
+    };
+    /* 把一条线插到它收敛目标的那一行下面 → 树状缩进；成环/找不到的挂最后一层 */
+    const depthOf = l => {
+      let d = 0, cur = l, seen = new Set();
+      while (cur && cur.kind !== 'main' && cur.mergeInto && d < 12) {
+        if (seen.has(cur.id)) break;
+        seen.add(cur.id);
+        const p = lineById(cur.mergeInto);
+        if (!p || p.kind === 'main') break;
+        cur = p; d += 1;
+      }
+      return d;
+    };
+    /* x 是不是 y 的祖先（用来挡「A 收敛进 B、B 又收敛进 A」这种环） */
+    function isAncestor(x, y) {
+      let cur = lineById(y), guard = 0;
+      while (cur && cur.mergeInto && guard++ < 12) {
+        if (cur.mergeInto === x) return true;
+        cur = lineById(cur.mergeInto);
+      }
+      return false;
+    }
     /* 这条线上的情节（按时间点排序） */
     const lanePlots = lane => byTime().filter(p => laneOf(p) === lane);
     /* 它在自己那条线上排第几 */
@@ -405,69 +462,218 @@ export default {
     const SPAN_LO = 3, SPAN_HI = 97;
     const MIN_GAP_PCT = 1.8;       /* 同一刻度上叠了多个情节时，至少错开这么多 */
 
-    /* 某条线的时间点范围：[0, 最大值向上取整]，至少到 10 */
-    function laneMax(lane) {
-      const arr = onLane(lane);
-      const m = Math.max(0, ...arr.map(tpNum));
-      return Math.max(10, Math.ceil(m));
-    }
-    /* 某条线在轴上的一串刻度：有情节的地方用情节的时间点，空档里补整数刻度 */
+    /* 这条线的时间点范围（缩放后所有线共用同一套刻度，这里只为兼容老调用保留） */
+    function laneMax(lane) { return viewSpan().b; }
+    /* 这条线在轴上要画的刻度：视口内、这条线自己踩到的时间点 + 好读的整数刻度。
+     * 缩放后一格可能是 0.1 甚至更小，所以步长跟着视口宽度自动选（1/2/5×10^n）。 */
     function laneTicks(lane) {
-      const arr = onLane(lane);
-      const max = laneMax(lane);
+      const v = viewSpan();
+      const span = v.b - v.a;
+      let step = Math.pow(10, Math.floor(Math.log10(Math.max(1e-6, span / 8))));
+      const m = span / 8 / step;
+      if (m >= 5) step *= 5; else if (m >= 2) step *= 2;
       const set = new Set();
-      arr.forEach(p => set.add(round2(tpNum(p))));
-      set.add(0);
-      set.add(max);
-      const ticks = Array.from(set).sort((x, y) => x - y);
-      const out = [];
-      for (let i = 0; i < ticks.length; i++) {
-        if (i === 0 || out[out.length - 1] !== ticks[i]) out.push(ticks[i]);
-        const nxt = ticks[i + 1];
-        if (nxt == null) break;
-        const gap = nxt - ticks[i];
-        /* 空档太大就每格补一个整数，最多补 40 个，避免稠密到看不清 */
-        if (gap > 1.0001) {
-          const step = gap > 40 ? Math.ceil(gap / 40) : 1;
-          for (let v = ticks[i] + step; v < nxt - 0.0001; v += step) out.push(round2(v));
-        }
+      for (let k = Math.ceil(v.a / step); k * step <= v.b + 1e-9 && set.size < 400; k++) {
+        set.add(round2(k * step));
       }
-      return { ticks: out, max };
+      /* 这条线上情节真正踩的时间点也标出来（哪怕不是整数） */
+      onLane(lane).forEach(p => {
+        const t = round2(tpNum(p));
+        if (t >= v.a - 1e-9 && t <= v.b + 1e-9) set.add(t);
+      });
+      const ticks = Array.from(set).sort((x, y) => x - y);
+      return { ticks, max: v.b, step };
     }
-    /* 时间点 → 百分比 */
-    function tpPct(tp, max) {
-      if (!(max > 0)) return 50;
-      return SPAN_LO + (Math.max(0, Math.min(max, tp)) / max) * (SPAN_HI - SPAN_LO);
-    }
-    /* 百分比 → 时间点（先算连续值，再吸附到最近的刻度；刻度是整数，所以就是四舍五入） */
+    /* 时间点 → 百分比（按当前视口） */
+    function tpPct(tp, max) { return pctK(tp); }
+    /* 百分比 → 时间点（按当前视口反算；不吸附到整数，拖动时落到哪算哪） */
     function pctTp(pct, max) {
-      if (!(max > 0)) return 0;
-      const t = Math.max(SPAN_LO, Math.min(SPAN_HI, SPAN_LO + (pct / 100) * (SPAN_HI - SPAN_LO)));
-      return round2(((t - SPAN_LO) / (SPAN_HI - SPAN_LO)) * max);
+      const v = viewSpan();
+      const t = Math.max(SPAN_LO, Math.min(SPAN_HI, Number(pct) || 0));
+      return round2(v.a + ((t - SPAN_LO) / (SPAN_HI - SPAN_LO)) * (v.b - v.a));
     }
     /* 这条线上每个情节的百分比（按时间点；同一时间点的按顺序错开一点） */
     function laneSpots(lane) {
       const arr = lanePlots(lane);
-      const max = laneMax(lane);
       const out = [];
-      arr.forEach((p, i) => {
-        let x = tpPct(tpNum(p), max);
-        /* 和前面重叠就右移，但不越过轴的右端 */
+      arr.forEach(p => {
+        let x = tpPct(tpNum(p));
+        /* 和前面重叠就右移，但不越过轴的右端；缩得很小时这种错开仍然有用 */
         for (let k = 0; k < out.length; k++) {
           if (Math.abs(out[k] - x) < MIN_GAP_PCT) x = Math.min(SPAN_HI, out[k] + MIN_GAP_PCT);
         }
         out.push(x);
       });
-      return { spots: out, items: arr, max };
+      return { spots: out, items: arr, max: viewSpan().b };
+    }
+    /* 视口外的情节：收起来不画（但列表里照样有） */
+    function inView(p) {
+      const v = viewSpan(), t = tpNum(p);
+      return t >= v.a - 1e-9 && t <= v.b + 1e-9;
+    }
+
+    /* ---- 缩放动作 ---- */
+    /* 以某个百分比位置（默认正中）为锚点缩放 factor 倍：>1 放大，<1 缩小 */
+    function zoomBy(factor, focusPct) {
+      initViewIfNeeded();
+      const v = viewSpan();
+      const f = typeof focusPct === 'number' ? Math.max(SPAN_LO, Math.min(SPAN_HI, focusPct)) : 50;
+      const anchorTp = pctTp(f);
+      const cur = v.b - v.a;
+      const want = Math.max(MIN_WIN, Math.min(axisMax(), cur / factor));
+      const ratio = (anchorTp - v.a) / Math.max(1e-9, cur);
+      setView(clampView(anchorTp - ratio * want, anchorTp - ratio * want + want));
+      renderTimeline();
+    }
+    function zoomFit() {
+      setView({ a: 0, b: Infinity });      /* 全轴：以后数据变了也跟着变 */
+      renderTimeline();
+    }
+    function zoomUsed() {
+      const r = usedRange();
+      const before = viewSpan();
+      setView({ a: r[0], b: r[1] });      /* r 已经是合法视口，不用再夹 */
+      renderTimeline();
+      const now = viewSpan();
+      if (Math.abs((now.b - now.a) - (before.b - before.a)) < 0.05) {
+        toast('情节已经铺满整条轴，没有多余空白可以省', 'ok');
+      } else {
+        toast('已缩到情节实际用到的 ' + fmtTp(now.a) + ' – ' + fmtTp(now.b), 'ok');
+      }
+    }
+    /* 平移：按视口宽度的比例挪 */
+    function panBy(frac) {
+      initViewIfNeeded();
+      const v = viewSpan();
+      const w = v.b - v.a;
+      setView(clampView(v.a + w * frac, v.b + w * frac));
+      renderTimeline();
+    }
+    /* 滚轮：默认横向缩放（鼠标所在处当锚点），按住 Shift 平移；non-passive 才能 preventDefault */
+    function onWheel(ev) {
+      if (!ev.deltaY && !ev.deltaX) return;
+      ev.preventDefault();
+      initViewIfNeeded();
+      if (ev.shiftKey) { panBy((ev.deltaY || ev.deltaX) > 0 ? 0.15 : -0.15); return; }
+      const track = ev.target.closest ? ev.target.closest('.pl-track') : null;
+      let pct = 50;
+      if (track) {
+        const r = track.getBoundingClientRect();
+        pct = Math.max(0, Math.min(100, ((ev.clientX - r.left) / (r.width || 1)) * 100));
+      }
+      zoomBy((ev.deltaY || 0) > 0 ? 0.88 : 1.14, pct);
     }
 
     /* 时间轴卡片：页面重绘会换掉节点，所以每次都现找，别缓存旧节点 */
     const tlCard = () => document.querySelector('.pl-tl');
 
+    /* 缩放工具条：− / 比例 / ＋ / 左右平移 / 「实际用到」/「全部」 */
+    function zoomBar() {
+      const v = viewSpan();
+      const full = axisMax();
+      const ratio = full > 0 ? full / Math.max(1e-9, v.b - v.a) : 1;
+      const pctText = ratio <= 1.01 ? '全部' : '×' + (Math.round(ratio * 10) / 10);
+      const mk = (txt, tip, fn, cls) => h('button', {
+        class: 'pl-zbtn' + (cls ? ' ' + cls : ''), type: 'button', title: tip,
+        onclick: ev => { ev.stopPropagation(); fn(); }
+      }, txt);
+      return h('div', { class: 'pl-zoombar', 'data-probe': 'plot-zoom' },
+        mk('−', '缩小（也可以直接把鼠标放在轴上滚滚轮）', () => zoomBy(1 / 1.6)),
+        h('span', { class: 'pl-zpct', title: '当前显示 ' + fmtTp(v.a) + ' – ' + fmtTp(v.b) + '（时间点）' }, pctText),
+        mk('＋', '放大（滚轮向上）', () => zoomBy(1.6)),
+        h('span', { class: 'pl-zsep' }),
+        mk('◀', '往左平移（视口的 1/3）', () => panBy(-1 / 3)),
+        mk('▶', '往右平移（视口的 1/3）', () => panBy(1 / 3)),
+        h('span', { class: 'pl-zsep' }),
+        mk('实际用到', '只显示情节真正用到的刻度范围', zoomUsed),
+        mk('全部', '回到完整时间轴', zoomFit, 'wide'));
+    }
+
     /* ================= 时间轴（主线 + 暗线，树状引出 / 收敛） ================= */
+
+    /* ---- 横向缩放 / 平移 ----
+     * 所有线共用一套刻度（= 主线的 0 .. 最大时间点），这样上下对齐、树枝也不会画歪。
+     * 缩放只是「把这段刻度放大铺满轨道」，情节的时间点本身一律不动；
+     * 拖到视口外面的就收起来（.out），免得贴着轨道两边堆成一团。
+     * view = { a, b }：当前视口对应的刻度区间，a < b，b - a >= MIN_WIN。 */
+    const MIN_WIN = 0.5;              /* 一屏至少显示多少个时间点（再放大就太挤） */
+    const zoomState = { a: null, b: null };   /* null = 还没定，首帧自动算 */
+
+    /* 全轴该到多少：最小 10，最大时间点之外多留一个刻度（5%）的呼吸空间；
+     * 精度按 0.5 向上取，避免 17 变成 17.85 这种尾巴数。 */
+    function axisMax() {
+      let m = 10;
+      doc.plots.forEach(p => { const v = tpNum(p); if (v > m) m = v; });
+      lines().forEach(l => {
+        if (l.kind === 'main') return;
+        m = Math.max(m, forkTpOf(l), hasMerge(l) ? Number(l.mergeTp) : 0);
+      });
+      return round2(Math.ceil((m + Math.min(0.5, m * 0.05)) * 2) / 2);
+    }
+
+    /* 视口 → 实际区间。b === Infinity 表示「全轴」：每次都按当前数据重算，跟着数据走 */
+    function viewSpan() {
+      if (zoomState.b === Infinity) return { a: 0, b: axisMax() };
+      return { a: zoomState.a, b: zoomState.b };
+    }
+    /* 「实际用到」直接给出一个合法视口：[0, max] 或收紧到情节占用的那一段。
+     * 只收两端，中间的空档一律保留（空档本身也是信息）。 */
+    function usedRange() {
+      const arr = doc.plots.map(tpNum).sort((x, y) => x - y);
+      const max = axisMax();
+      if (!arr.length) return [0, max];
+      /* 暗线的端点也算「用到了」：引出/收敛点落在父线上，裁掉就看不见树枝了 */
+      const marks = arr.slice();
+      lines().forEach(l => {
+        if (l.kind === 'main') return;
+        marks.push(forkTpOf(l));
+        if (hasMerge(l)) marks.push(Number(l.mergeTp));
+      });
+      marks.sort((x, y) => x - y);
+      const lo0 = marks[0], hi0 = marks[marks.length - 1];
+      /* 使用范围本身已经占满大半条轴：没什么可省的，就维持全轴 */
+      if ((hi0 - lo0) >= max * 0.7) return [0, max];
+      /* 两端各留 8% 的呼吸空间（按幅度算，纯比例的话数据越远留得越少） */
+      const pad = Math.max(1, (hi0 - lo0) * 0.08);
+      const lo = Math.max(0, lo0 - pad), hi = Math.min(max, hi0 + pad);
+      return [round2(lo), round2(hi)];
+    }
+    /* 把视口夹到合法范围：不能超出 0..axisMax，窗口也不能小于 MIN_WIN。
+     * 注意这是「缩放锚点」用的夹取：窗口比轴还长时贴左边，否则保持宽度往轴里挪。
+     * 「实际用到」「全部」这种自带合法边界的视口别走这里（会被撑回全轴），直接 setView。 */
+    function clampView(a, b) {
+      const max = axisMax();
+      if (b === Infinity) return { a: 0, b: max };
+      let w = Math.max(MIN_WIN, Math.min(max, b - a));
+      let lo = Math.max(0, a);
+      if (lo + w > max) lo = Math.max(0, max - w);
+      return { a: round2(lo), b: round2(lo + w) };
+    }
+    function initViewIfNeeded() {
+      if (zoomState.b === Infinity) { zoomState.a = 0; return; }
+      if (!isFinite(zoomState.a) || !isFinite(zoomState.b) || !(zoomState.b > zoomState.a)) {
+        /* 首帧：先按「实际用到」给一个不空的视口，免得一堆情节挤在左端 */
+        const r = usedRange();
+        zoomState.a = r[0]; zoomState.b = r[1];
+        return;
+      }
+      const v = clampView(zoomState.a, zoomState.b);
+      zoomState.a = v.a; zoomState.b = v.b;
+    }
+    function setView(v) { zoomState.a = v.a; zoomState.b = v.b; }
+
+    /* 时间点 → 百分比（按当前视口） */
+    function pctK(tp) {
+      const v = viewSpan();
+      const w = v.b - v.a;
+      if (!(w > 0)) return 50;
+      const t = Math.max(v.a, Math.min(v.b, Number(tp) || 0));
+      return SPAN_LO + ((t - v.a) / w) * (SPAN_HI - SPAN_LO);
+    }
     function renderTimeline() {
       /* 只清卡片里的内容，别动卡片本身 */
       if (!document.querySelector('.pl-tl')) return;
+      initViewIfNeeded();          /* 缩放后/第一次画之前，先保证视口合法 */
       clear(tlCard());
       hideTip();
       ghostAt = null;
@@ -479,13 +685,15 @@ export default {
         h('span', { class: 'pl-lg' }, h('i', {}), '已发生'),
         h('span', { class: 'pl-lg' }, h('i', { class: 'later' }), '后续计划'),
         h('span', { class: 'pl-lg' }, h('i', { class: 'ending' }), '结局'),
+        zoomBar(),
         h('span', { class: 'pl-hint' }, all.length
-          ? '拖节点改时间点 · 单击选中 · 双击空白处新建 · 暗线以树状分支挂在主线上'
+          ? '拖节点改时间点 · 单击选中 · 双击空白处新建 · 滚轮缩放 · 拖端点圆点改引出/收敛点 · 暗线可层层嵌套'
           : '双击时间轴空白处新建情节；也可以开一条暗线')));
 
-      /* 主线在上面，暗线按引出位置排在下面；用 SVG 画「分叉 / 收敛」的树枝 */
+      /* 主线在上面，暗线按「收敛到哪条线」排在它下面：收敛进主线的紧贴主线，
+       * 收敛进另一条暗线的再往下缩进一层 —— 层层嵌套也能画。 */
       const main = mainLine();
-      const sideLines = ln.filter(l => l.kind !== 'main');
+      const sideLines = orderedSideLines();
       const board = h('div', { class: 'pl-board' });
       /* 暗线多了就让它自己滚，别把整个情节页撑爆 */
       const canvas = h('div', { class: 'pl-canvas', style: { maxHeight: 'calc(100vh - 340px)', overflowY: 'auto' } });
@@ -494,26 +702,66 @@ export default {
       canvas.appendChild(svg);
 
       const rows = [];
+      const byLine = new Map();
       const addRow = (l, isMain) => {
         const row = laneRow(l, isMain);
         canvas.appendChild(row.el);
         rows.push(row);
+        byLine.set(l.id, row);
       };
       addRow(main, true);
       sideLines.forEach(l => addRow(l, false));
 
-      /* 画树枝：暗线从主线的「引出点」分出去，收敛回主线的「收敛点」 */
+      /* 画树枝：暗线从「它收敛到的那条线」的引出点分出去，再收敛回那条线的收敛点 */
       board.appendChild(canvas);
       tlCard().appendChild(board);
+      /* 滚轮缩放 / 平移：挂在画布上（轨道是每次重画的，挂外层就不用反复解绑） */
+      canvas.addEventListener('wheel', onWheel, { passive: false });
 
       /* 尺寸拿到之后才画 SVG（要真实坐标） */
-      requestAnimationFrame(() => drawBranches(svg, rows, main, sideLines));
+      requestAnimationFrame(() => drawBranches(svg, rows, main, sideLines, byLine));
 
       trackEl = rows[0] ? rows[0].track : null;
     }
 
-    /* SVG 树枝：主线上某点 → 暗线起点（分叉），暗线末端 → 主线上某点（收敛） */
-    function drawBranches(svg, rows, main, sideLines) {
+    /* 暗线排成树：父线一定在自己的子线上面；同层按引出点先后。
+     * 先按数据顺序做一次 DFS，收敛目标找不到/成环的兜底挂到主线下面。 */
+    let rowOrderCache = [];
+    function orderedSideLines() {
+      const all = lines().filter(l => l.kind !== 'main');
+      const kids = new Map();          /* 父线 id → 子线数组 */
+      const orphans = [];
+      all.forEach(l => {
+        const p = mergeTarget(l);
+        const pid = p ? p.id : (mainLine() || {}).id;
+        if (!kids.has(pid)) kids.set(pid, []);
+        kids.get(pid).push(l);
+      });
+      const out = [];
+      const seen = new Set();
+      const walk = (pid, depth) => {
+        (kids.get(pid) || []).forEach(l => {
+          if (seen.has(l.id)) return;
+          seen.add(l.id);
+          out.push({ line: l, depth });
+          walk(l.id, depth + 1);
+        });
+      };
+      walk((mainLine() || {}).id, 0);
+      /* 没被走到的（成环 / 父线被删）直接补在最后，保证一条线都不丢 */
+      all.forEach(l => { if (!seen.has(l.id)) { seen.add(l.id); out.push({ line: l, depth: 0 }); } });
+      rowOrderCache = out;
+      return out.map(x => x.line);
+    }
+    const depthIn = id => {
+      const hit = rowOrderCache.find(x => x.line.id === id);
+      return hit ? hit.depth : 0;
+    };
+
+    /* SVG 树枝：某条线上的一点 → 它的子线起点（分叉），子线末端 → 该线上的一点（收敛）
+     * 一层是这样画的，N 层嵌套也是同一套：每条暗线都找自己「收敛到的那条线」当父线，
+     * 引出点/收敛点落在父线的轨道上，所以 A 下面挂 B、B 下面挂 C 都能连对。 */
+    function drawBranches(svg, rows, main, sideLines, byLine) {
       if (!svg || !rows.length) return;
       const box = svg.parentNode.getBoundingClientRect();
       if (!box.width || !rows[0] || !rows[0].track) return;
@@ -521,48 +769,54 @@ export default {
       svg.setAttribute('height', String(box.height));
       svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
       clear(svg);
-      const mainRow = rows[0];
-      const mainBox = mainRow.track.getBoundingClientRect();
-      /* 主线的时间点刻度：所有暗线的两个端点都按这套刻度换算成横向位置 */
-      const max = laneMax(main.id);
-      const X = pct => mainBox.left - box.left + (pct / 100) * mainBox.width;
-      const axisY = r => {
-        const b2 = r.track.getBoundingClientRect();
-        return b2.top - box.top + b2.height / 2;      /* 轴线在轨道正中 */
+      /* 父线可以是主线，也可以是另一条暗线：按父线自己的刻度换算横向位置 */
+      const geo = l => {
+        const row = byLine.get(l.id) || (l.kind === 'main' ? rows[0] : null);
+        if (!row || !row.track) return null;
+        const b = row.track.getBoundingClientRect();
+        const max = laneMax(l.id);
+        return {
+          row, max,
+          X: pct => b.left - box.left + (pct / 100) * b.width,
+          y: b.top - box.top + b.height / 2      /* 轴线在轨道正中 */
+        };
       };
-      const yMain = axisY(mainRow);
+      const geoMain = geo(main);
+      if (!geoMain) return;
 
-      sideLines.forEach((l, i) => {
-        const row = rows[i + 1];
-        if (!row || !row.track) return;
-        const ySide = axisY(row);
+      sideLines.forEach(l => {
+        const parent = mergeTarget(l) || main;
+        const g = geo(parent), s = geo(l);
+        if (!g || !s) return;
         const arr = lanePlots(l.id);
 
         /* 暗线自己那一行从哪儿画到哪儿：离树枝最近的那个情节 */
         const lo = arr.length ? tpNum(arr[0]) : forkTpOf(l);
         const hi = arr.length ? tpNum(arr[arr.length - 1]) : mergeTpOf(l);
-        const loX = X(tpPct(lo, max));
-        const hiX = X(tpPct(hi, max));
+        const loX = s.X(tpPct(lo, s.max));
+        const hiX = s.X(tpPct(hi, s.max));
 
-        /* ---- 引出点：主线 forkTp 处 → 暗线起点（树状分叉） ---- */
-        const forkX = X(tpPct(forkTpOf(l), max));
-        addBranch(svg, forkX, yMain, loX, ySide, 'fork');
-        addDot(svg, forkX, yMain, 'fork');
+        /* ---- 引出点：父线 forkTp 处 → 暗线起点（树状分叉） ---- */
+        const forkX = g.X(tpPct(forkTpOf(l), g.max));
+        addBranch(svg, forkX, g.y, loX, s.y, 'fork');
+        addDot(svg, forkX, g.y, 'fork', l.id, 'fork');
 
-        /* ---- 收敛点：暗线末端 → 主线 mergeTp 处（树状合并） ---- */
-        const mergeX = X(tpPct(mergeTpOf(l), max));
+        /* ---- 收敛点：暗线末端 → 父线 mergeTp 处（树状合并） ---- */
+        const mergeX = g.X(tpPct(mergeTpOf(l), g.max));
         if (hasMerge(l)) {
-          addBranch(svg, hiX, ySide, mergeX, yMain, 'merge');
-          addDot(svg, mergeX, yMain, 'merge');
+          addBranch(svg, hiX, s.y, mergeX, g.y, 'merge');
+          addDot(svg, mergeX, g.y, 'merge', l.id, 'merge');
         } else {
-          /* 还没设收敛点：先用虚线示意打算并回主线 */
-          addBranch(svg, hiX, ySide, mergeX, yMain, 'pending');
-          addDot(svg, mergeX, yMain, 'pending');
+          /* 还没设收敛点：先用虚线示意打算并回去 */
+          addBranch(svg, hiX, s.y, mergeX, g.y, 'pending');
+          addDot(svg, mergeX, g.y, 'pending', l.id, 'merge');
         }
 
         /* 暗线自身的主干：起点到末端之间那根横杆 */
-        addStem(svg, loX, hiX, ySide, 'side');
+        addStem(svg, loX, hiX, s.y, 'side');
       });
+      /* 端点手柄可拖（只挂一次，每次重画都保证有） */
+      if (!svg.__epWired) { svg.__epWired = true; wireEndpointDots(svg); }
     }
 
     /* 树状枝：从 (x0,y0) 弯到 (x1,y1)，像树杈那样先顺着走再拐过去 */
@@ -579,6 +833,7 @@ export default {
       path.setAttribute('d', d);
       path.setAttribute('class', 'pl-br ' + cls);
       svg.appendChild(path);
+      return path;
     }
     function addStem(svg, x0, x1, y, cls) {
       const NS = 'http://www.w3.org/2000/svg';
@@ -588,39 +843,173 @@ export default {
       line.setAttribute('class', 'pl-brstem ' + cls);
       svg.appendChild(line);
     }
-    function addDot(svg, x, y, cls) {
+    function addDot(svg, x, y, cls, lineId, kind) {
       const NS = 'http://www.w3.org/2000/svg';
       const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y)); c.setAttribute('r', '3.6');
+      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y)); c.setAttribute('r', '5.6');
       c.setAttribute('class', 'pl-brdot ' + cls);
+      /* 端点手柄：告诉拖动逻辑「这是哪条线的哪一端」 */
+      if (lineId) { c.setAttribute('data-line', lineId); c.setAttribute('data-end', kind); }
       svg.appendChild(c);
+      return c;
+    }
+    /* 拖端点时浮在轴上方的小气泡：「引出点 6.8」 */
+    function showEpHint(track, pct, text) {
+      if (!epHint) epHint = h('div', { class: 'pl-ephint' });
+      epHint.textContent = text;
+      epHint.style.left = pct + '%';
+      if (epHint.parentNode !== track) track.appendChild(epHint);
+    }
+    function hideEpHint() { if (epHint && epHint.parentNode) epHint.remove(); }
+    let epHint = null;
+
+    /* 端点手柄的交互挂载点：drawBranches 画完把「手柄 → 归属信息」放进 svg.__eps，
+     * 由 renderTimeline 统一的 pointer 监听来拖。 */
+    function wireEndpointDots(svg) {
+      svg.addEventListener('pointerdown', ev => {
+        const dot = ev.target && ev.target.closest ? ev.target.closest('.pl-brdot[data-line]') : null;
+        if (!dot || ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        startEndpointDrag(ev, dot.getAttribute('data-line'), dot.getAttribute('data-end'));
+      });
+      svg.addEventListener('mousemove', ev => {
+        if (epDrag) return;
+        const dot = ev.target && ev.target.closest ? ev.target.closest('.pl-brdot[data-line]') : null;
+        const info = dot ? epInfoOf(dot.getAttribute('data-line')) : null;
+        if (dot && info) {
+          dot.setAttribute('r', '7');
+          svg.title = '';
+        } else if (!dot) {
+          svg.querySelectorAll('.pl-brdot[data-line]').forEach(c => c.setAttribute('r', '5.6'));
+        }
+      });
+      svg.addEventListener('mouseleave', () => {
+        if (epDrag) return;
+        svg.querySelectorAll('.pl-brdot[data-line]').forEach(c => c.setAttribute('r', '5.6'));
+      });
+      /* 双击端点 = 改回「跟情节走」（清掉手填的端点） */
+      svg.addEventListener('dblclick', ev => {
+        const dot = ev.target && ev.target.closest ? ev.target.closest('.pl-brdot[data-line]') : null;
+        if (!dot) return;
+        ev.preventDefault(); ev.stopPropagation();
+        resetEndpoint(dot.getAttribute('data-line'), dot.getAttribute('data-end'));
+      });
+    }
+    const epInfoOf = id => { const l = lineById(id); return l && l.kind !== 'main' ? l : null; };
+
+    /* 把某一端改回「自动」：引出点跟暗线第一个情节，收敛点跟最后一个 */
+    function resetEndpoint(lineId, kind) {
+      const l = epInfoOf(lineId);
+      if (!l) return;
+      if (kind === 'fork') { delete l.forkTp; l.forkChapter = ''; }
+      else { delete l.mergeTp; l.mergeChapter = ''; }
+      touch();
+      renderAll();
+      toast('「' + (l.title || '暗线') + '」的' + (kind === 'fork' ? '引出点' : '收敛点') + '已改回跟随情节', 'ok');
     }
 
-    /* 一条线 = 一行：左边名牌，右边带刻度的轨道 */
+    /* 拖动端点手柄：只改这一条暗线的这一端，父线刻度当尺子。
+     * 松手才落库（touch），拖的过程中只重画树枝和提示，情节节点一个都不动。 */
+    function startEndpointDrag(ev, lineId, kind) {
+      const l = epInfoOf(lineId);
+      if (!l) return;
+      const parent = mergeTarget(l) || mainLine();
+      const row = document.querySelector('.pl-lane[data-line="' + parent.id + '"] .pl-track');
+      const svg = document.querySelector('.pl-branches');
+      if (!row || !svg) return;
+      const rect = row.getBoundingClientRect();
+      const vs = viewSpan();
+      const tpAt = clientX => {
+        const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / (rect.width || 1)) * 100));
+        return round2(pctTp(pct));
+      };
+      const label = kind === 'fork' ? '引出点' : '收敛点';
+      epDrag = { l, kind, svg };
+      svg.classList.add('epdrag');
+      let moved = false;
+      let lastX = Number(ev.clientX) || rect.left + rect.width / 2;
+      let value = kind === 'fork' ? forkTpOf(l) : mergeTpOf(l);
+      const paint = x => {
+        const pct = Math.max(0, Math.min(100, ((x - rect.left) / (rect.width || 1)) * 100));
+        value = tpAt(x);
+        showEpHint(row, pct, label + ' ' + fmtTp(value));
+      };
+      paint(lastX);
+      const move = e => {
+        if (!epDrag) return;
+        const x = Number(e.clientX) || lastX;
+        if (Math.abs(x - lastX) > 2) moved = true;
+        lastX = x;
+        paint(x);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        hideEpHint();
+        if (svg) svg.classList.remove('epdrag');
+        epDrag = null;
+        if (!moved) {
+          /* 没挪动：当成「单击」→ 打开这条暗线的端点设置，省得去轨道右边找按钮 */
+          renderTimeline();
+          editLane(l);
+          return;
+        }
+        /* 引出点不能晚于收敛点：卡住，不许拖过头 */
+        const other = kind === 'fork' ? (hasMerge(l) ? Number(l.mergeTp) : null) : forkTpOf(l);
+        if (other != null && kind === 'fork' && value > other) {
+          value = other;
+          toast('引出点不能晚于收敛点（' + fmtTp(other) + '），已停在收敛点', 'err');
+        }
+        if (other != null && kind === 'merge' && value < other) {
+          value = other;
+          toast('收敛点不能早于引出点（' + fmtTp(other) + '），已停在引出点', 'err');
+        }
+        if (kind === 'fork') l.forkTp = value; else l.mergeTp = value;
+        touch();
+        renderAll();
+        toast('「' + (l.title || '暗线') + '」' + label + '拖到 ' + fmtTp(value), 'ok');
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    }
+
+    /* 一条线 = 一行：左边名牌，右边带刻度的轨道。
+     * 暗线按嵌套层级往右缩进，一眼看得出它是从哪条线分出去的。 */
     function laneRow(l, isMain) {
       const mine = lanePlots(l.id);
       const max = laneMax(l.id);
-      const row = h('div', { class: 'pl-lane' + (isMain ? ' main' : ' side') + (st.lane === l.id ? ' on' : '') });
+      const depth = isMain ? 0 : depthIn(l.id);
+      const parent = isMain ? null : (mergeTarget(l) || mainLine());
+      const row = h('div', {
+        class: 'pl-lane' + (isMain ? ' main' : ' side') + (st.lane === l.id ? ' on' : ''),
+        'data-line': l.id
+      });
 
       const tag = h('div', {
-        class: 'pl-lanetag',
+        class: 'pl-lanetag' + (depth ? ' nested' : ''),
+        style: depth ? { marginLeft: (depth * 14) + 'px', width: Math.max(70, 96 - depth * 14) + 'px' } : {},
         onclick: () => { st.lane = l.id; renderTimeline(); },
-        title: isMain ? '主线' : '点一下把它设为当前编辑的线'
+        title: isMain ? '主线' : (depth
+          ? '第 ' + (depth + 1) + ' 层暗线 · 收敛进「' + ((parent || {}).title || '主线') + '」；点一下把它设为当前编辑的线'
+          : '暗线 · 点一下把它设为当前编辑的线')
       },
+        depth ? h('span', { class: 'pl-laneelbow', title: '嵌套层级 ' + (depth + 1) }, '└') : null,
         h('span', { class: 'pl-lanedot' }),
         h('span', { class: 'pl-lanename' }, l.title || (isMain ? '主线' : '暗线')),
         isMain ? null : h('span', { class: 'pl-lanecnt' }, mine.length ? mine.length + ' 节' : '空'),
         !isMain ? h('span', { class: 'pl-merge' + (hasMerge(l) ? '' : ' pend'),
-          title: '引出点 ' + fmtTp(forkTpOf(l)) + ' → 收敛点 ' + fmtTp(mergeTpOf(l)) },
+          title: '引出点 ' + fmtTp(forkTpOf(l)) + ' → 收敛点 ' + fmtTp(mergeTpOf(l)) +
+            (parent ? '（画在「' + (parent.title || '主线') + '」上）' : '') },
           fmtTp(forkTpOf(l)) + '→' + (hasMerge(l) ? fmtTp(mergeTpOf(l)) : '?')) : null);
       row.appendChild(tag);
 
       const track = h('div', { class: 'pl-track', 'data-lane': l.id });
       track.appendChild(h('div', { class: 'pl-axis' + (isMain ? '' : ' side') }));
 
-      /* 刻度：整数刻度 + 刻度值标签 */
-      const { ticks } = laneTicks(l.id);
-      const labelStep = Math.max(1, Math.ceil(ticks.length / 14));   /* 太密就隔几个标一次 */
+      /* 刻度：按当前视口算出步长，每隔几个标一次值 */
+      const { ticks, step } = laneTicks(l.id);
+      const labelStep = Math.max(1, Math.ceil(ticks.length / 12));   /* 太密就隔几个标一次 */
       ticks.forEach((t, i) => {
         const left = tpPct(t, max) + '%';
         track.appendChild(h('span', { class: 'pl-tick', style: { left } }));
@@ -628,23 +1017,34 @@ export default {
           track.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, fmtTp(t)));
         }
       });
+      /* 视口比全轴窄时，在两端标一下「左边还有 / 右边还有」 */
+      const vw = viewSpan();
+      const cutLo = vw.a > 0.001, cutHi = vw.b < axisMax() - 0.001;
+      if (cutLo) track.appendChild(h('span', { class: 'pl-cut lo', title: '左边还有情节（往左拖或缩小）' }, '‹'));
+      if (cutHi) track.appendChild(h('span', { class: 'pl-cut hi', title: '右边还有情节（往右拖或缩小）' }, '›'));
 
       const { spots, items } = laneSpots(l.id);
+      let hidden = 0;
       items.forEach((p, i) => {
+        const visible = inView(p);
+        if (!visible) hidden += 1;
         const node = h('div', {
-          class: 'pl-node ' + nodeCls(p) + (p.id === st.selId ? ' on' : ''),
+          class: 'pl-node ' + nodeCls(p) + (p.id === st.selId ? ' on' : '') + (visible ? '' : ' out'),
           style: { left: spots[i] + '%' },
           title: p.title + ' · 时间点 ' + fmtTp(tpNum(p)) + '（拖我改时间点）',
           onclick: () => { if (!drag || !drag.moved) select(p.id); },
-          onmouseenter: () => { if (!drag) showTip(p, node); },
+          onmouseenter: () => { if (!drag && visible) showTip(p, node); },
           onmouseleave: hideTip,
-          onmousedown: ev => startDrag(ev, p, items, node)
+          onmousedown: ev => { if (visible) startDrag(ev, p, items, node); }
         }, h('b', {}, p.title), h('s', {}, p.chapter || ''), h('i', {}));
         track.appendChild(node);
       });
 
       if (!items.length) {
         track.appendChild(h('span', { class: 'pl-laneempty' }, isMain ? '双击空白处新建第一个情节' : '双击这条暗线可以往里加情节'));
+      } else if (!items.some(inView)) {
+        /* 这条线在当前视口里一个情节都没有：给句提示，别让人以为数据丢了 */
+        track.appendChild(h('span', { class: 'pl-laneempty' }, '这一屏没有情节（点「全部」或缩小看看）'));
       }
 
       const pctOf = ev => {
@@ -681,6 +1081,7 @@ export default {
     let trackEl = null;
     let drag = null;
     let ghostAt = null;
+    let epDrag = null;       /* 正在拖的端点手柄 { l, kind, svg } */
 
     function showGhostAt(track, pct, tpText) {
       if (ghostAt && ghostAt.parentNode) ghostAt.remove();
@@ -701,8 +1102,14 @@ export default {
       const track = nodeEl && nodeEl.parentNode ? nodeEl.parentNode : trackEl;
       if (!track) return;
       const rect = track.getBoundingClientRect();
-      /* 拖动期间刻度上限锁死（否则时间点一变，整条轴重新缩放，节点就漂了） */
+      /* 拖动期间视口锁死（否则时间点一变，整条轴重新缩放，节点就漂了） */
       const max = laneMax(laneOf(p));
+      const vs = viewSpan();
+      const vA = vs.a, vB = vs.b;
+      const tpAtPct = pct => {
+        const t = Math.max(SPAN_LO, Math.min(SPAN_HI, pct));
+        return round2(vA + ((t - SPAN_LO) / (SPAN_HI - SPAN_LO)) * (vB - vA));
+      };
       /* 用 mousedown 那一刻的鼠标位置算起点（合成事件常常不带 clientX，movementX 兜底） */
       const startX = Number(ev.clientX) || rect.left + rect.width / 2;
       const restX = [];      /* 其它节点原来停在哪儿，松手后原样还回去 */
@@ -726,7 +1133,7 @@ export default {
         if (Math.abs(x - startX) > 2) drag.moved = true;
         const pct = Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100));
         drag.pct = pct;
-        drag.tp = round2(pctTp(pct, max));
+        drag.tp = tpAtPct(pct);
         /* 节点就是跟着鼠标走，不吸附、不回弹 */
         if (myEl) myEl.style.left = pct + '%';
         /* 别的节点一动不动（取点提示浮层会插进轨道里，别让它把布局挤歪） */
@@ -1234,12 +1641,18 @@ export default {
       const noteIn = h('textarea', { class: 'ta', style: { minHeight: '56px' } }, l.note || '');
       const fork = endpointField('引出点（从主线分出去）', l.forkTp != null ? l.forkTp : 0, l.forkChapter || '');
       const merge = endpointField('收敛点（并回主线）', l.mergeTp != null ? l.mergeTp : laneMax(mainId), l.mergeChapter || '');
-      /* 收敛到哪条线（默认主线；也可以并到另一条暗线） */
-      const intoSel = h('select', { class: 'select' });
+      /* 收敛到哪条线（默认主线；也可以并到另一条暗线 → 暗线可以嵌套）。
+       * 不能选自己和自己的子孙，否则会形成环。 */
+      const intoSel = h('select', { class: 'select', id: 'pl-into-sel' });
       intoSel.appendChild(h('option', { value: '' }, '主线'));
-      lines().filter(x => x.id !== l.id).forEach(x => {
-        intoSel.appendChild(h('option', { value: x.id, selected: l.mergeInto === x.id }, x.title || '未命名'));
+      const blocked = new Set([l.id]);
+      lines().filter(x => x.kind !== 'main').forEach(x => { if (isAncestor(l.id, x.id)) blocked.add(x.id); });
+      lines().filter(x => x.kind !== 'main' && !blocked.has(x.id)).forEach(x => {
+        const d = depthOf(x);
+        intoSel.appendChild(h('option', { value: x.id, selected: l.mergeInto === x.id },
+          (d ? '└ 第 ' + (d + 1) + ' 层 · ' : '') + (x.title || '未命名')));
       });
+      intoSel.value = l.mergeInto || '';
       modal({
         title: '暗线设置 · ' + (l.title || '未命名'), width: '620px',
         body: h('div', { class: 'col', style: { gap: '12px' } },
@@ -1271,20 +1684,25 @@ export default {
     function removeLane(l) {
       if (!l || l.kind === 'main') return;
       const mine = lanePlots(l.id);
+      const parent = mergeTarget(l) || mainLine();
+      const childCount = lines().filter(x => x.mergeInto === l.id).length;
       modal({
         title: '删除暗线「' + l.title + '」', width: '480px',
         body: h('div', { class: 'col' },
           h('p', { class: 'small sub', style: { margin: 0, lineHeight: '1.85' } },
-            '这条暗线上有 ' + mine.length + ' 个情节，删除后它们会移到主线，不会丢。')),
-        okText: '删除并移到主线',
+            '这条暗线上有 ' + mine.length + ' 个情节，删除后它们会移到「' + ((parent || {}).title || '主线') + '」，不会丢。' +
+            (childCount ? '它下面还挂着 ' + childCount + ' 条暗线，会自动往上挂一层。' : ''))),
+        okText: '删除',
         onOk: () => {
           const mainId = (mainLine() || {}).id;
-          mine.forEach(p => { p.lane = ''; });   /* 空 = 跟主线走 */
+          const parentId = (parent && lineById(parent.id) ? parent.id : mainId);
+          mine.forEach(p => { p.lane = parentId === mainId ? '' : parentId; });
+          /* 它的子线改挂到它的父线上，别变成孤儿 */
+          lines().forEach(x => { if (x.mergeInto === l.id) x.mergeInto = l.mergeInto || ''; });
           doc.plotLines = doc.plotLines.filter(x => x.id !== l.id);
-          lines().forEach(x => { if (x.mergeInto === l.id) x.mergeInto = ''; });
-          if (st.lane === l.id) st.lane = mainId;
+          if (st.lane === l.id) st.lane = parentId;
           touch(); renderAll();
-          toast('已删除暗线，情节已移到主线', 'ok');
+          toast('已删除暗线，情节移到「' + ((parent || {}).title || '主线') + '」', 'ok');
         }
       });
     }
@@ -1325,9 +1743,9 @@ export default {
         laneSel.appendChild(h('option', { value: l.id }, (l.kind === 'main' ? '主线' : '暗线') + ' · ' + (l.title || '未命名')));
       });
       laneSel.value = laneSeed;
-      /* 时间点：轴上落点的刻度值，可以手改（整数刻度） */
+      /* 时间点：轴上落点的刻度值，可以手改（不吸附整数，小数点也收） */
       const tpSeed = isNew
-        ? (presetTime != null ? presetTime : Math.max(0, ...onLane(laneSeed).map(tpNum)) + 1)
+        ? (presetTime != null ? presetTime : round2(onLane(laneSeed).reduce((m, q) => Math.max(m, tpNum(q)), 0) + 1))
         : tpNum(plot);
       const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '1', value: String(fmtTp(tpSeed)) });
       const placeIn = h('input', { class: 'input', value: model.place || '', placeholder: '例如：临水 · 断桥' });
