@@ -20,11 +20,14 @@ injectStyle('plot', `
 .pl-lg i.later{border:1.5px dashed #C9973C;background:transparent}
 .pl-lg i.ending{width:7px;height:7px;border-radius:1.5px;background:var(--seal);transform:rotate(45deg)}
 .pl-hint{margin-left:auto;font-size:10px;color:var(--muted)}
-.pl-track{position:relative;height:104px;margin-top:6px}
-.pl-axis{position:absolute;left:0;right:0;top:50%;margin-top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 58%,#A8322A)}
+.pl-track{position:relative;height:104px;margin-top:6px;--ts:1}
+/* 树状分叉的跑道：轨道底部留白 = 子线树杈往下长的地方。
+ * 轴线/节点/刻度全部按「内容区」居中（内容区 = 高度 - 底部留白），彼此对齐不受影响。 */
+.pl-track{box-sizing:border-box;--pb:16px;--cy:calc((100% - var(--pb)) / 2)}
+.pl-axis{position:absolute;left:0;right:0;top:var(--cy);margin-top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 58%,#A8322A)}
 .pl-vol{position:absolute;top:24px;bottom:18px;border-left:1px dashed #E6DAC4}
 .pl-volname{position:absolute;top:82px;font-size:9.5px;color:#B6A98F;white-space:nowrap;letter-spacing:.04em}
-.pl-node{position:absolute;top:50%;width:0;height:0;cursor:pointer;z-index:2}
+.pl-node{position:absolute;top:var(--cy);width:0;height:0;cursor:pointer;z-index:2}
 .pl-node i{position:absolute;left:0;top:0;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;border:2px solid var(--jade);background:#FFFCF5;display:block;transition:box-shadow .12s}
 .pl-node.done i{background:var(--jade)}
 .pl-node.later i{border-color:#C9973C;border-style:dashed;background:#FFFCF5}
@@ -37,6 +40,9 @@ injectStyle('plot', `
 .pl-node.ending.on i{box-shadow:0 0 0 4px rgba(168,50,42,.24)}
 .pl-node b{position:absolute;left:0;bottom:8px;transform:translateX(-50%);font-size:10px;font-weight:400;color:#201C18;white-space:nowrap;line-height:1.2;padding:0 2px}
 .pl-node.on b{color:#7C291F}
+/* 和邻居的名字挤在一起时：只留小方块，名字靠 hover 的 tooltip 看 */
+.pl-node.txt-off b,.pl-node.txt-off s{display:none}
+.pl-node.txt-off i{box-shadow:0 0 0 3px rgba(201,151,60,.12)}
 .pl-node s{position:absolute;left:0;top:9px;transform:translateX(-50%);font-size:9px;color:#8C8272;text-decoration:none;white-space:nowrap}
 .pl-track{cursor:crosshair}
 .pl-track.dragging{cursor:grabbing}
@@ -46,9 +52,9 @@ injectStyle('plot', `
 .pl-node.dragging i{box-shadow:0 0 0 6px rgba(47,111,99,.2);transform:scale(1.25)}
 .pl-node.dragging.later i{transform:scale(1.25)}
 .pl-node.dragging b{color:#7C291F}
-.pl-tick{position:absolute;top:50%;width:1px;height:7px;margin-top:-3px;background:#D8CBB2;pointer-events:none}
-.pl-tick.tp-label{top:calc(50% + 7px);height:auto;margin-top:0;background:none;font-size:8.5px;color:#B6A98F;transform:translateX(-50%);white-space:nowrap}
-.pl-ghost{position:absolute;top:50%;width:0;height:0;pointer-events:none;z-index:4}
+.pl-tick{position:absolute;top:var(--cy);width:1px;height:7px;margin-top:-3px;background:#D8CBB2;pointer-events:none}
+.pl-tick.tp-label{top:calc(var(--cy) + 7px);height:auto;margin-top:0;background:none;font-size:8.5px;color:#B6A98F;transform:translateX(-50%);white-space:nowrap}
+.pl-ghost{position:absolute;top:var(--cy);width:0;height:0;pointer-events:none;z-index:4}
 .pl-ghost i{position:absolute;left:0;top:0;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;border:2px dashed var(--seal);background:#FFFCF5}
 .pl-ghost b{position:absolute;left:0;bottom:12px;transform:translateX(-50%);font-size:10px;font-weight:400;color:var(--seal);white-space:nowrap;background:#FFFCF5;border:1px dashed #E0B9A8;border-radius:5px;padding:0 5px;line-height:1.5}
 .pl-track .pl-drop-hint{position:absolute;right:0;top:0;font-size:9.5px;color:var(--muted)}
@@ -57,29 +63,38 @@ injectStyle('plot', `
 .pl-board{position:relative;margin-top:6px;display:flex;flex-direction:column;gap:4px}
 .pl-ruler{position:relative;height:15px;margin-left:106px;margin-right:70px}
 .pl-rl{position:absolute;top:0;font-size:9px;color:#B6A98F;letter-spacing:.04em;white-space:nowrap;transform:translateX(-1px)}
-.pl-lane{display:flex;align-items:center;gap:8px;border-radius:9px;padding:1px 0}
+/* 树状缩进：子线在父线下面往右递进一层（父上子下、层层往右），像树杈一样铺开。
+ * 行级 padding-left 由 layoutTreeIndent() 按树算，兄弟子线再各占一栏，不会叠在一起。
+ * 右端留一手给最深的几层。 */
+.pl-lane{display:flex;align-items:center;gap:8px;border-radius:9px;padding:1px 24px 1px 0;box-sizing:border-box}
 .pl-lane.on{background:rgba(47,111,99,.045)}
-.pl-lanetag{flex:none;width:96px;display:flex;align-items:center;gap:5px;cursor:pointer;
+.pl-lanetag{flex:0 0 auto;width:auto;max-width:200px;display:flex;align-items:center;gap:5px;cursor:pointer;
   font-size:10.5px;color:#5B5348;padding:3px 6px;border-radius:7px;min-width:0}
 .pl-lanetag:hover{background:rgba(255,255,255,.6)}
 .pl-lane.side .pl-lanetag{color:#8A6421}
 .pl-lanedot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--jade)}
 .pl-lane.side .pl-lanedot{background:#C9973C}
-.pl-lanename{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.pl-lanename{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;max-width:104px}
 .pl-lanecnt{font-size:9px;color:#A99C84;flex:none}
-.pl-merge{flex:none;font-size:8.5px;padding:0 5px;border-radius:999px;background:#F3EBDA;color:#7A6A4E;white-space:nowrap}
+/* 是否显示端点徽标交给布局决定（行太窄就不显示，免得把名牌挤没） */
+.pl-merge{flex:none;display:none;font-size:8.5px;padding:0 5px;border-radius:999px;background:#F3EBDA;color:#7A6A4E;white-space:nowrap}
 .pl-merge.pend{background:transparent;border:1px dashed #DCC9A2;color:#A08A5C}
-.pl-laneacts{flex:none;width:70px;display:flex;gap:3px;justify-content:flex-end}
+/* 是否显示端点徽标交给布局决定（行太窄就不显示，免得把名牌挤没） */
+.pl-board.showep .pl-merge{display:inline-block}
+.pl-laneacts{flex:none;display:flex;gap:3px;justify-content:flex-end;margin-left:auto}
 .pl-laneacts .btn{padding:1px 5px;font-size:9.5px;line-height:1.5}
 /* ---- 嵌套暗线：往右缩进一层，左边带个肘形符号 ---- */
 .pl-lanetag{transition:margin-left .12s}
 .pl-lanetag.nested{color:#7A6A4E}
 .pl-lanetag.nested .pl-lanedot{width:6px;height:6px;background:#D8BE86}
 .pl-laneelbow{flex:none;color:#C9B58C;font-size:10px;line-height:1;letter-spacing:-1px}
-.pl-lane .pl-track{flex:1;min-width:0;height:56px;margin-top:0;overflow:visible}
-.pl-lane.side .pl-track{height:48px}
-.pl-axis.side{background:linear-gradient(90deg,#D9C39A,#C9973C)}
-.pl-laneempty{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:9.5px;color:#C3B79F;pointer-events:none}
+.pl-lane .pl-track{flex:1;min-width:0;height:80px;margin-top:0;overflow:visible}
+.pl-lane.side .pl-track{height:68px}
+.pl-axis.side{background:#C9973C;border-radius:2px}
+/* 暗线自己的那段横线：默认不画，量到「第一个情节 … 最后一个情节」之后才由 JS 设 left/right 显示。
+ * 这样空暗线不会拖一条横贯整行的长线，有内容时横线也绝不会长到引出点/收敛点之外。 */
+.pl-lane.side .pl-axis{display:none}
+.pl-laneempty{position:absolute;left:8px;top:var(--cy);transform:translateY(-50%);font-size:9.5px;color:#C3B79F;pointer-events:none}
 .pl-lane-pill{font-size:9.5px;padding:0 7px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   background:#E2EEEA;color:#23604F;justify-self:start}
 .pl-lane-pill.side{background:#F7EBD3;color:#8A6421}
@@ -88,9 +103,8 @@ injectStyle('plot', `
 .pl-canvas{position:relative}
 .pl-branches{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
 .pl-br{fill:none;stroke-width:1.4;stroke-linecap:round}
-.pl-br.fork{stroke:#C9973C;stroke-dasharray:5 3;opacity:.85}
-.pl-br.merge{stroke:#2F6F63;stroke-dasharray:none;opacity:.85}
-.pl-br.stem{stroke:#C9973C;stroke-dasharray:3 3;opacity:.55}
+.pl-br.fork{stroke:#C9973C;stroke-dasharray:5 3;opacity:.9}
+.pl-br.merge{stroke:#2F6F63;stroke-dasharray:none;opacity:.9}
 .pl-brdot{stroke-width:1.5}
 .pl-brdot.fork{fill:#FFFCF5;stroke:#C9973C;stroke-width:1.8}
 .pl-brdot.merge{fill:#2F6F63;stroke:#2F6F63}
@@ -100,7 +114,7 @@ injectStyle('plot', `
 .pl-track .pl-tick.tp-label{font-size:8px;color:#C0B49B}
 /* ---- 视口外的情节收起来；轴两端标个「还有」 ---- */
 .pl-node.out{display:none}
-.pl-cut{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;color:#C9973C;pointer-events:none;line-height:1;font-weight:700}
+.pl-cut{position:absolute;top:var(--cy);transform:translateY(-50%);font-size:11px;color:#C9973C;pointer-events:none;line-height:1;font-weight:700}
 .pl-cut.lo{left:-2px}
 .pl-cut.hi{right:-2px}
 /* ---- 缩放工具条 ---- */
@@ -137,7 +151,7 @@ injectStyle('plot', `
 .pl-brdot.fork,.pl-brdot.merge,.pl-brdot.pending{pointer-events:auto;cursor:ew-resize}
 .pl-brdot.fork:hover,.pl-brdot.merge:hover,.pl-brdot.pending:hover{stroke-width:2.8}
 .pl-branches.epdrag{pointer-events:none}
-.pl-ephint{position:absolute;top:-6px;z-index:30;pointer-events:none;
+.pl-ephint{position:absolute;top:calc(var(--cy) - 22px);z-index:30;pointer-events:none;
   font-size:10px;background:var(--ink);color:var(--paper);padding:2px 8px;border-radius:999px;white-space:nowrap;
   box-shadow:0 4px 12px rgba(40,30,20,.26);transform:translateX(-50%)}
 .pl-lrow.flash{animation:plFlash .9s ease}
@@ -466,11 +480,12 @@ export default {
     function laneMax(lane) { return viewSpan().b; }
     /* 这条线在轴上要画的刻度：视口内、这条线自己踩到的时间点 + 好读的整数刻度。
      * 缩放后一格可能是 0.1 甚至更小，所以步长跟着视口宽度自动选（1/2/5×10^n）。 */
-    function laneTicks(lane) {
+    function laneTicks(lane, n) {
       const v = viewSpan();
       const span = v.b - v.a;
-      let step = Math.pow(10, Math.floor(Math.log10(Math.max(1e-6, span / 8))));
-      const m = span / 8 / step;
+      const want = Math.max(3, n || 8);
+      let step = Math.pow(10, Math.floor(Math.log10(Math.max(1e-6, span / want))));
+      const m = span / want / step;
       if (m >= 5) step *= 5; else if (m >= 2) step *= 2;
       const set = new Set();
       for (let k = Math.ceil(v.a / step); k * step <= v.b + 1e-9 && set.size < 400; k++) {
@@ -662,13 +677,113 @@ export default {
     }
     function setView(v) { zoomState.a = v.a; zoomState.b = v.b; }
 
-    /* 时间点 → 百分比（按当前视口） */
+    /* 轨道内容区那一块的宽度/尺寸。padding 用百分比写（相对轨道内容区，不会反过来喂宽），
+     * 所以「内容区」= 轨道宽度 - 左右两个百分比 × max(内容区, 背景区) —— 解这个方程就行。
+     * 树状缩进会把轨道压窄，按整条轨道宽度去算 margin 的老写法会把可画宽度挤成负数。 */
+    function trackContent(track) {
+      const W = track.clientWidth || 0;
+      const H = track.clientHeight || track.offsetHeight || 0;
+      const cs = getComputedStyle(track);
+      const ts = Math.max(0.3, Math.min(1, parseFloat(cs.getPropertyValue('--ts')) || 1));
+      const plp = parseFloat(cs.paddingLeft) || 0, prp = parseFloat(cs.paddingRight) || 0;
+      const pbp = parseFloat(cs.getPropertyValue('--pb')) || 0;
+      const ptp = parseFloat(cs.paddingTop) || 0;
+      const pad = plp + prp;
+      let cw;
+      if (pad < 100) {
+        let s = W;
+        for (let i = 0; i < 6; i++) s = W - (pad / 100) * Math.max(0, s);
+        cw = s;
+      } else {
+        cw = Math.max(0, W * (100 - pad) / 100);
+      }
+      /* 轴线 y：内容区竖直方向居中（和 --cy 的算法一致），再按 --ts 缩放一下 */
+      const contentH = Math.max(0, H - ptp - pbp);
+      /* border-box：轴线离轨道顶部的距离（CSS 里 --cy 用 top 算，这是同一个数） */
+      const axisTop = ptp + contentH / 2;
+      return { W, H, cw: Math.max(0, cw) * ts, cy: axisTop * ts, axisTop };
+    }
+    /* 元素在 offsetParent（.pl-canvas 是 position:relative）里的纵坐标：把中间各层的 offsetTop 加起来 */
+    function topIn(el, root) {
+      let y = 0, n = el;
+      while (n && n !== root) { y += n.offsetTop || 0; n = n.offsetParent; }
+      return y;
+    }
+    /* 量每条线自己的节点：圆点位置**严格按时间点**（和刻度同一套 pctK），一丝都不挪 ——
+     * 圆点必须压在刻度上，拖节点才不会漂；名字挤在一起时只把名字藏起来。
+     *   · sync()        —— 把圆点位置写回 DOM，并藏掉放不下的名字
+     *   · span()        —— 这条线内容的左右边界（轨道内容区像素）
+     *   · viewport(root) —— 画布坐标里的轴线 y / 轨道左边 / 内容宽度，画树枝用 */
+    function measureLane(track, items, els) {
+      if (!items || !items.length || !els || els.length !== items.length) return null;
+      const tc = trackContent(track);
+      const used = Math.max(1, tc.cw);
+      const blocks = items.map((it, i) => ({ u: it.u, el: els[i], tp: it.tp, w: it.w, px: it.u * used }));
+      let sl = null;
+      return {
+        blocks, track, used,
+        span() {
+          if (!sl) {
+            sl = { L: blocks[0].px, R: Math.max(blocks[0].px + 18, blocks[blocks.length - 1].px) };
+          }
+          return sl;
+        },
+        sync() {
+          let lastR = -1e9;
+          blocks.forEach(b => {
+            const n = b.el;
+            const bEl = n.querySelector('b'), sEl = n.querySelector('s');
+            /* 节点本身是个 0 尺寸的锚点，圆点/名字都用负 margin 或 translateX(-50%) 自居中，
+             * 所以 left 直接写时间点对应的 px，圆点中心就正好压在刻度上 */
+            n.style.left = b.px + 'px';
+            /* 名字的锚点 = 圆点（节点自身宽高为 0，只当圆心用） */
+            if (bEl) bEl.style.left = '5.5px';
+            if (sEl) sEl.style.left = '5.5px';
+            /* 名字放不下（和上一个名字挤在一起）：藏起来，但小圆点还在，hover 能看全 */
+            const hits = b.px < lastR + 2;
+            n.classList.toggle('txt-off', hits);
+            if (!hits) lastR = b.px + b.w;
+          });
+        },
+        viewport(root) {
+          /* 用屏幕矩形相减来定位（offsetLeft 会因为「轨道是不是 offsetParent」而差一个缩进量，
+           * 树状缩进正好是行上的 padding-left，用 offsetLeft 会整段偏移） */
+          const tr = track.getBoundingClientRect();
+          const rr = root.getBoundingClientRect();
+          const sx = root.scrollLeft || 0, sy = root.scrollTop || 0;
+          const left = tr.left - rr.left + sx;
+          const top = tr.top - rr.top + sy;
+          const cy = tc.axisTop;
+          const sp = this.span();
+          return { y: top + cy, top, left, used, cy, L: left + sp.L, R: left + sp.R };
+        }
+      };
+    }
+
+    /* 时间点 → 百分比（按当前视口）。
+     * ⚠ 这里返回的是「轨道内容区」的百分比：树状缩进把轨道压窄之后，原来按整条轨道长度
+     * 算出来的 margin-left / 圆形内边距会把可画宽度占掉一大截，改用内容区百分比最稳。
+     * 轨道内容区由 --ts 决定（整轴横向缩放：暗线多、缩进深时略缩一点，见 layoutTreeIndent）。 */
     function pctK(tp) {
       const v = viewSpan();
       const w = v.b - v.a;
       if (!(w > 0)) return 50;
       const t = Math.max(v.a, Math.min(v.b, Number(tp) || 0));
-      return SPAN_LO + ((t - v.a) / w) * (SPAN_HI - SPAN_LO);
+      const raw = SPAN_LO + ((t - v.a) / w) * (SPAN_HI - SPAN_LO);
+      return Number.isFinite(raw) ? raw : 50;
+    }
+    /* 时间点钳到当前视口里（树状缩进按屏幕上看得见的位置算，看不见的一律贴边） */
+    function clipTp(t) {
+      const v = viewSpan();
+      return Math.max(v.a, Math.min(v.b, Number(t) || 0));
+    }
+    /* 暗线在父线上「最强的那个点」：引出点、收敛点哪个更靠右边。
+     * 子线排在哪一栏，就看它从父线的哪个位置分出去 / 并回去 —— 这样排出来是树枝，
+     * 不是所有子线都顶在最左边伸一条长枝出来。 */
+    function anchorTp(l) {
+      const f = clipTp(forkTpOf(l));
+      const m = clipTp(mergeTpOf(l));
+      return Math.max(f, m);
     }
     function renderTimeline() {
       /* 只清卡片里的内容，别动卡片本身 */
@@ -690,17 +805,23 @@ export default {
           ? '拖节点改时间点 · 单击选中 · 双击空白处新建 · 滚轮缩放 · 拖端点圆点改引出/收敛点 · 暗线可层层嵌套'
           : '双击时间轴空白处新建情节；也可以开一条暗线')));
 
-      /* 主线在上面，暗线按「收敛到哪条线」排在它下面：收敛进主线的紧贴主线，
-       * 收敛进另一条暗线的再往下缩进一层 —— 层层嵌套也能画。 */
+      /* 主线在上面，暗线整行缩进：「父线在上、子线在下、层层往右」，缩进修成树状图的样子 */
       const main = mainLine();
       const sideLines = orderedSideLines();
+      /* 缩进要先算：laneRow 里量「轨道还剩多宽」要用到它 */
+      layoutTreeIndent();
       const board = h('div', { class: 'pl-board' });
       /* 暗线多了就让它自己滚，别把整个情节页撑爆 */
       const canvas = h('div', { class: 'pl-canvas', style: { maxHeight: 'calc(100vh - 340px)', overflowY: 'auto' } });
+      /* ★ 树状图：每一行就是树的一个节点（行 = 线），整行按层级往右缩进、左边接一个肘形 ↵；
+       *   父子关系由行条上的小圆点和肘形指示，树枝由 layoutBranches 按暗线自己的引出/收敛点弯过去。 */
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('class', 'pl-branches');
       canvas.appendChild(svg);
-
+      /* ★ 树状图按「画布坐标」画（绝对定位），整个画布滚到哪树枝就跟到哪，不会被裁掉 */
+      svg.style.position = 'absolute';
+      svg.style.left = '0';
+      svg.style.top = '0';
       const rows = [];
       const byLine = new Map();
       const addRow = (l, isMain) => {
@@ -712,16 +833,60 @@ export default {
       addRow(main, true);
       sideLines.forEach(l => addRow(l, false));
 
-      /* 画树枝：暗线从「它收敛到的那条线」的引出点分出去，再收敛回那条线的收敛点 */
       board.appendChild(canvas);
       tlCard().appendChild(board);
       /* 滚轮缩放 / 平移：挂在画布上（轨道是每次重画的，挂外层就不用反复解绑） */
       canvas.addEventListener('wheel', onWheel, { passive: false });
 
-      /* 尺寸拿到之后才画 SVG（要真实坐标） */
-      requestAnimationFrame(() => drawBranches(svg, rows, main, sideLines, byLine));
+      /* 树状跑道：有子线的行往下加高，树杈各自占一条道 */
+      layoutTreeTracks();
+      /* 树状缩进再按真实 DOM 刷一遍（行宽可能跟预排的不一样） */
+      layoutTreeIndent();
+
+      /* 刻度密度按「这一行实际能画多宽」挑，缩进吃掉宽度之后自动变稀，标签不叠 */
+      rows.forEach(r => {
+        const cw = trackContent(r.track).cw;
+        r.relabel(Math.max(22, Math.min(90, cw * 0.05)));
+      });
+
+      /* 量布局 + 把情节节点摆到不叠的位置（名字多长都按可见宽度排） */
+      const meas = new Map();
+      rows.forEach(r => {
+        const m = measureLane(r.track, r.mItems, r.nodeEls, r.line.id);
+        if (m) { m.sync(); meas.set(r.line.id, m); }
+      });
+      /* —— 尺寸拿到之后才画 SVG（要真实坐标） —— */
+      layoutBranches(svg, rows, main, sideLines, meas);
+      /* 之后窗口一变、或者暗线增删导致换行，重画一次 */
+      scheduleRebranch(svg, rows, main, sideLines);
 
       trackEl = rows[0] ? rows[0].track : null;
+    }
+
+    /* 树状跑道的排布：一条线有几个子线，就往下多给几条「副轨道」。
+     * 每行默认只够放自己的内容，子线多的时候树杈会挤成一坨；
+     * 这里按子线数量（最多按 3 条算，再多就不无限加高）给父线行增加下边距，
+     * 让每条子线的收敛/引出树杈各自占一条道，看起来才像树杈而不是一束线。 */
+    function layoutTreeTracks() {
+      const perParent = new Map();
+      lines().forEach(l => {
+        if (l.kind === 'main') return;
+        const p = mergeTarget(l);
+        const pid = p ? p.id : (mainLine() || {}).id;
+        perParent.set(pid, (perParent.get(pid) || 0) + 1);
+      });
+      document.querySelectorAll('.pl-canvas .pl-lane').forEach(rowEl => {
+        const id = rowEl.getAttribute('data-line');
+        const track = rowEl.querySelector('.pl-track');
+        if (!track) return;
+        const n = perParent.get(id) || 0;
+        /* 底部留白 = 树杈往下生长的跑道；子线越多跑道越长（最多按 3 条算） */
+        const pb = n > 1 ? 18 + Math.min(n, 3) * 16 : (n ? 26 : 22);
+        track.style.paddingBottom = pb + 'px';
+        track.style.setProperty('--pb', pb + 'px');
+        rowEl.classList.toggle('forking', n > 0);
+        rowEl.setAttribute('data-kids', String(n));
+      });
     }
 
     /* 暗线排成树：父线一定在自己的子线上面；同层按引出点先后。
@@ -750,106 +915,186 @@ export default {
       walk((mainLine() || {}).id, 0);
       /* 没被走到的（成环 / 父线被删）直接补在最后，保证一条线都不丢 */
       all.forEach(l => { if (!seen.has(l.id)) { seen.add(l.id); out.push({ line: l, depth: 0 }); } });
-      rowOrderCache = out;
-      return out.map(x => x.line);
+      /* 兄弟子线按「引出点先后」排（引出点一样就看收敛点），这样树杈从左到右依次叉开、不交叉 */
+      const kidsOf = pid => (kids.get(pid) || []).slice().sort((a, b) => (anchorTp(a) - anchorTp(b)) || (clipTp(mergeTpOf(a)) - clipTp(mergeTpOf(b))));
+      const reorder = [];
+      const walk2 = (pid, depth) => {
+        kidsOf(pid).forEach(l => {
+          if (reorder.some(x => x.line.id === l.id)) return;
+          reorder.push({ line: l, depth });
+          walk2(l.id, depth + 1);
+        });
+      };
+      const rootIds = new Set();
+      walk2((mainLine() || {}).id, 0);
+      /* 兜底：DFS 从主线走不到的（环），原样补在最后 */
+      out.forEach(x => { if (!reorder.some(y => y.line.id === x.line.id)) reorder.push(x); });
+      rowOrderCache = reorder;
+      return reorder.map(x => x.line);
     }
     const depthIn = id => {
       const hit = rowOrderCache.find(x => x.line.id === id);
       return hit ? hit.depth : 0;
     };
 
-    /* SVG 树枝：某条线上的一点 → 它的子线起点（分叉），子线末端 → 该线上的一点（收敛）
-     * 一层是这样画的，N 层嵌套也是同一套：每条暗线都找自己「收敛到的那条线」当父线，
-     * 引出点/收敛点落在父线的轨道上，所以 A 下面挂 B、B 下面挂 C 都能连对。 */
-    function drawBranches(svg, rows, main, sideLines, byLine) {
-      if (!svg || !rows.length) return;
-      const box = svg.parentNode.getBoundingClientRect();
-      if (!box.width || !rows[0] || !rows[0].track) return;
-      svg.setAttribute('width', String(box.width));
-      svg.setAttribute('height', String(box.height));
-      svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+    /* 树状缩进：按「父线 → 子线」的树，每下一层整行右移一个栏距。
+     * 栏位按父线上「引出点 / 收敛点更靠右的那一个」排序，兄弟子线各自占一段宽度，
+     * 免得同一条父线下面几条子线叠在同一栏里（原来一律缩进 14px，兄弟间会压在一起）。
+     * 缩进是「树状图」的骨架：父线在上、子线在下、往右递进，右端留一手把最深的几层也放得下。 */
+    let indentCache = new Map();     /* 线 id → 缩进 px */
+    const TREE_TS = 1;               /* 横向不缩放：缩进之后轨道变窄，刻度与名字自己会变少/压窄，不靠 transform */
+    function layoutTreeIndent() {
+      const main = mainLine();
+      const sideLines = orderedSideLines();
+      const indent = new Map();      /* 线 id → 缩进 px */
+      const off = new Map();         /* 父线 id → 它下面已经排到哪一段 */
+      const STEP = 26, GAP = 8;
+      if (main) indent.set(main.id, 0);
+      /* orderedSideLines() 是 DFS 序：父线一定排在子线前面，所以这里按顺序累加就行 */
+      sideLines.forEach(l => {
+        const p = mergeTarget(l) || main;
+        const pid = p ? p.id : null;
+        const pi = pid != null && indent.has(pid) ? indent.get(pid) : 0;
+        const slot = (pid != null && off.get(pid)) || 0;
+        indent.set(l.id, pi + STEP + slot);
+        if (pid != null) off.set(pid, slot + GAP);
+      });
+      indent.forEach((v, k) => indent.set(k, Math.round(v) + GAP));
+      indentCache = indent;
+      document.querySelectorAll('.pl-canvas .pl-lane').forEach(el => {
+        const idv = el.getAttribute('data-line');
+        el.style.paddingLeft = (indent.get(idv) || 0) + 'px';
+      });
+      document.querySelectorAll('.pl-canvas .pl-track').forEach(el => {
+        el.style.setProperty('--ts', String(TREE_TS));
+      });
+      /* 行太窄（暗线多、缩进深）就把端点徽标收进 title，别把名牌挤成省略号 */
+      const canvas = document.querySelector('.pl-canvas');
+      const board = document.querySelector('.pl-board');
+      if (canvas && board) board.classList.toggle('showep', canvas.clientWidth >= 980);
+    }
+
+    /* ================= 树状树枝 =================
+     * 整套图是一棵树：主线是根，每条暗线是父线上的一个分叉。
+     *
+     *   · 引出点 A、收敛点 B **都画在父线（主线或上层暗线）的轴上**，位置是引出时间 / 收敛时间；
+     *   · 从 A 弯一条枝下来，落到这条暗线的第一个情节；最后一个情节再弯一条枝上去接 B；
+     *   · 暗线自己那一行**只有一小段横线**，正好在「第一个情节 … 最后一个情节」之间，
+     *     横线两端之外什么都不画 —— 所以除了引出点、收敛点之间的那一段，暗线行上没有直线，
+     *     也没有原来那种横贯整行的长横杆；
+     *   · 还没有情节的暗线：整行不画线，只在名牌上标出「引出点 → 收敛点」。
+     *
+     * 坐标全在 .pl-canvas 里按「该行轨道现在实际用的刻度宽度」量：圆点、刻度、情节节点
+     * 用的是同一套 pctK，所以三者永远对齐。 */
+    function layoutBranches(svg, rows, main, sideLines, meas) {
+      const canvas = svg && svg.parentNode;
+      if (!canvas || !rows.length) return;
+      /* 画布尺寸：用「内容尺寸」而不是可视尺寸，滚动时树杈不会被裁掉 */
+      const W = canvas.clientWidth || canvas.getBoundingClientRect().width;
+      const H = canvas.scrollHeight || canvas.clientHeight || canvas.getBoundingClientRect().height;
+      if (!W || !H) return;
+      svg.setAttribute('width', String(W));
+      svg.setAttribute('height', String(H));
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      svg.style.height = H + 'px';
       clear(svg);
-      /* 父线可以是主线，也可以是另一条暗线：按父线自己的刻度换算横向位置 */
-      const geo = l => {
-        const row = byLine.get(l.id) || (l.kind === 'main' ? rows[0] : null);
-        if (!row || !row.track) return null;
-        const b = row.track.getBoundingClientRect();
-        const max = laneMax(l.id);
-        return {
-          row, max,
-          X: pct => b.left - box.left + (pct / 100) * b.width,
-          y: b.top - box.top + b.height / 2      /* 轴线在轨道正中 */
-        };
+      const byId = new Map(rows.map(r => [r.line.id, r]));
+      const vp = l => {
+        const r = byId.get(l.id);
+        const m = r && meas.get(l.id);
+        return r && m ? m.viewport(canvas) : null;
       };
-      const geoMain = geo(main);
-      if (!geoMain) return;
+      /* 轨道内容区里的百分比 → 画布坐标（轨道左边 + 内容宽 × 百分比） */
+      const Xp = (g, pct) => g.left + (pct / 100) * g.used;
 
       sideLines.forEach(l => {
-        const parent = mergeTarget(l) || main;
-        const g = geo(parent), s = geo(l);
-        if (!g || !s) return;
-        const arr = lanePlots(l.id);
-
-        /* 暗线自己那一行从哪儿画到哪儿：离树枝最近的那个情节 */
-        const lo = arr.length ? tpNum(arr[0]) : forkTpOf(l);
-        const hi = arr.length ? tpNum(arr[arr.length - 1]) : mergeTpOf(l);
-        const loX = s.X(tpPct(lo, s.max));
-        const hiX = s.X(tpPct(hi, s.max));
-
-        /* ---- 引出点：父线 forkTp 处 → 暗线起点（树状分叉） ---- */
-        const forkX = g.X(tpPct(forkTpOf(l), g.max));
-        addBranch(svg, forkX, g.y, loX, s.y, 'fork');
-        addDot(svg, forkX, g.y, 'fork', l.id, 'fork');
-
-        /* ---- 收敛点：暗线末端 → 父线 mergeTp 处（树状合并） ---- */
-        const mergeX = g.X(tpPct(mergeTpOf(l), g.max));
-        if (hasMerge(l)) {
-          addBranch(svg, hiX, s.y, mergeX, g.y, 'merge');
-          addDot(svg, mergeX, g.y, 'merge', l.id, 'merge');
-        } else {
-          /* 还没设收敛点：先用虚线示意打算并回去 */
-          addBranch(svg, hiX, s.y, mergeX, g.y, 'pending');
-          addDot(svg, mergeX, g.y, 'pending', l.id, 'merge');
+        const row = byId.get(l.id);
+        const parent = (mergeTarget(l) || main);
+        const g = vp(parent), s = vp(l);
+        const m = meas.get(l.id);
+        if (!row || !g || !s || !m || !m.blocks.length) {
+          /* 没有情节的暗线：整行不画横线（也不画枝） */
+          if (row && row.axis) row.axis.style.display = 'none';
+          return;
         }
-
-        /* 暗线自身的主干：起点到末端之间那根横杆 */
-        addStem(svg, loX, hiX, s.y, 'side');
+        /* 这条暗线自己的内容段（第一个情节 → 最后一个情节），再夹进 [引出点, 收敛点]，
+         * 保证这段横线绝不长到两端之外。 */
+        const fTp = clipTp(forkTpOf(l)), mTp = clipTp(mergeTpOf(l));
+        const loTp = clipTp(m.blocks[0].tp), hiTp = clipTp(m.blocks[m.blocks.length - 1].tp);
+        const lo = Math.min(Math.max(loTp, Math.min(fTp, mTp)), Math.max(fTp, mTp));
+        const hi = Math.max(Math.min(hiTp, Math.max(fTp, mTp)), lo);
+        const pLo = pctK(lo), pHi = pctK(hi);
+        /* 暗线自己的那一段横线：只画在 lo…hi 之间 */
+        if (row.axis) {
+          row.axis.style.display = 'block';
+          row.axis.style.left = pLo + '%';
+          row.axis.style.right = (100 - pHi) + '%';
+        }
+        const ax = Xp(g, pctK(fTp));       /* A：父线上的引出点 */
+        const bx = Xp(g, pctK(mTp));       /* B：父线上的收敛点 */
+        const lx = Xp(s, pLo), rx = Xp(s, pHi);
+        /* ① 引出：A → 暗线第一个情节 */
+        addBranch(svg, ax, g.y, lx, s.y, 'fork', 1.6);
+        /* ② 收敛：暗线最后一个情节 → B */
+        addBranch(svg, rx, s.y, bx, g.y, 'merge', 1.6);
+        /* 端点手柄：A、B 都在父线轴上，可以拖着改引出/收敛时间 */
+        addDot(svg, ax, g.y, 'fork', l.id, 'fork');
+        addDot(svg, bx, g.y, 'merge', l.id, 'merge');
       });
-      /* 端点手柄可拖（只挂一次，每次重画都保证有） */
       if (!svg.__epWired) { svg.__epWired = true; wireEndpointDots(svg); }
     }
 
-    /* 树状枝：从 (x0,y0) 弯到 (x1,y1)，像树杈那样先顺着走再拐过去 */
-    function addBranch(svg, x0, y0, x1, y1, cls) {
+    /* 树状枝：从 (x0,y0) 弯到 (x1,y1)，像树杈一样先顺着长出去、再拐向目标。
+     * ★ 一律画成曲线，绝不出现直线（不出现 L/H/V，也不用「零长控制点」那种假曲线）：
+     *   - 两端横向错开够大 → 标准三次贝塞尔，两头各自水平伸出、中间平滑过渡；
+     *   - 两端几乎同列（引出点和第一个情节同刻）→ 一朵向外鼓的树杈弧（两段 C/S 拼成）。 */
+    function addBranch(svg, x0, y0, x1, y1, cls, tw) {
       const NS = 'http://www.w3.org/2000/svg';
       const path = document.createElementNS(NS, 'path');
+      const dy = y1 - y0, dx = x1 - x0;
+      const h = Math.abs(dy) || 24;
       let d;
-      if (Math.abs(x1 - x0) < 1.5) {
-        d = 'M ' + x0 + ' ' + y0 + ' L ' + x1 + ' ' + y1;
+      if (Math.abs(dx) < 14) {
+        /* 近垂直：一朵向外鼓的树杈弧（两段三次曲线） */
+        const bow = Math.max(20, h * 0.55);
+        const y1q = y0 + dy * 0.58;
+        d = 'M ' + x0 + ' ' + y0 +
+            ' C ' + (x0 + bow) + ' ' + (y0 + dy * 0.08) + ', ' + (x0 + bow) + ' ' + y1q + ', ' +
+            (x0 + bow * 0.55) + ' ' + y1q +
+            ' S ' + (x1 + bow * 0.55) + ' ' + (y1 - dy * 0.08) + ', ' + x1 + ' ' + y1;
       } else {
-        const mx = (x0 + x1) / 2;
-        d = 'M ' + x0 + ' ' + y0 + ' C ' + mx + ' ' + y0 + ', ' + mx + ' ' + y1 + ', ' + x1 + ' ' + y1;
+        /* 树杈式：贴着「树干」那一头离得陡、落到「枝头」那一头放平，
+         * 看起来是从主干上长出去的一根枝，而不是一条斜直线。
+         * dy>0 = 从父线往下长到暗线；dy<0 = 从暗线往上收进父线。 */
+        const dxa = Math.abs(dx), sgn = dx >= 0 ? 1 : -1;
+        const steep = Math.min(dxa * 0.30, 40);
+        const flat = Math.max(dxa * 0.35, 18);
+        let c1x, c1y, c2x, c2y;
+        if (dy > 0) {
+          c1x = x0 + sgn * steep; c1y = y0 + dy * 0.55;
+          c2x = x1 - sgn * flat; c2y = y1;
+        } else {
+          c1x = x0 + sgn * flat; c1y = y0;
+          c2x = x1 - sgn * steep; c2y = y1 - dy * 0.55;
+        }
+        d = 'M ' + x0 + ' ' + y0 + ' C ' + c1x + ' ' + c1y + ',' + c2x + ' ' + c2y + ',' + x1 + ' ' + y1;
       }
       path.setAttribute('d', d);
       path.setAttribute('class', 'pl-br ' + cls);
+      if (tw) path.setAttribute('stroke-width', String(tw));
       svg.appendChild(path);
       return path;
-    }
-    function addStem(svg, x0, x1, y, cls) {
-      const NS = 'http://www.w3.org/2000/svg';
-      const line = document.createElementNS(NS, 'line');
-      line.setAttribute('x1', String(x0)); line.setAttribute('y1', String(y));
-      line.setAttribute('x2', String(x1)); line.setAttribute('y2', String(y));
-      line.setAttribute('class', 'pl-brstem ' + cls);
-      svg.appendChild(line);
     }
     function addDot(svg, x, y, cls, lineId, kind) {
       const NS = 'http://www.w3.org/2000/svg';
       const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y)); c.setAttribute('r', '5.6');
+      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y));
+      /* 行首接枝点画小一号，免得和旁边情节的圆点混淆 */
+      c.setAttribute('r', cls === 'join' ? '4.4' : '5.6');
       c.setAttribute('class', 'pl-brdot ' + cls);
-      /* 端点手柄：告诉拖动逻辑「这是哪条线的哪一端」 */
-      if (lineId) { c.setAttribute('data-line', lineId); c.setAttribute('data-end', kind); }
+      /* 端点手柄：告诉拖动逻辑「这是哪条线的哪一端」。
+       * 行首接枝点不给 data-line：它跟着暗线的起点走，不是可拖的端点。 */
+      if (lineId && cls !== 'join') { c.setAttribute('data-line', lineId); c.setAttribute('data-end', kind); }
       svg.appendChild(c);
       return c;
     }
@@ -911,6 +1156,8 @@ export default {
 
     /* 拖动端点手柄：只改这一条暗线的这一端，父线刻度当尺子。
      * 松手才落库（touch），拖的过程中只重画树枝和提示，情节节点一个都不动。 */
+    /* 拖端点手柄（A = 引出点、B = 收敛点，两个都画在父线轴上，都能拖）：
+     * 只改这一条暗线的这一端，松手才落库（touch），拖的过程中只重画提示。 */
     function startEndpointDrag(ev, lineId, kind) {
       const l = epInfoOf(lineId);
       if (!l) return;
@@ -920,18 +1167,17 @@ export default {
       if (!row || !svg) return;
       const rect = row.getBoundingClientRect();
       const vs = viewSpan();
-      const tpAt = clientX => {
-        const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / (rect.width || 1)) * 100));
-        return round2(pctTp(pct));
-      };
+      const ccw = trackContent(row).cw || rect.width || 1;
+      const pctOfX = x => Math.max(0, Math.min(100, ((x - rect.left) / ccw) * 100));
+      const tpAt = clientX => round2(pctTp(pctOfX(clientX)));
       const label = kind === 'fork' ? '引出点' : '收敛点';
       epDrag = { l, kind, svg };
       svg.classList.add('epdrag');
       let moved = false;
-      let lastX = Number(ev.clientX) || rect.left + rect.width / 2;
+      let lastX = Number(ev.clientX) || rect.left + ccw / 2;
       let value = kind === 'fork' ? forkTpOf(l) : mergeTpOf(l);
       const paint = x => {
-        const pct = Math.max(0, Math.min(100, ((x - rect.left) / (rect.width || 1)) * 100));
+        const pct = pctOfX(x);
         value = tpAt(x);
         showEpHint(row, pct, label + ' ' + fmtTp(value));
       };
@@ -988,13 +1234,15 @@ export default {
 
       const tag = h('div', {
         class: 'pl-lanetag' + (depth ? ' nested' : ''),
-        style: depth ? { marginLeft: (depth * 14) + 'px', width: Math.max(70, 96 - depth * 14) + 'px' } : {},
+        /* 层级缩进交给 layoutTreeIndent() 给整行加 padding-left；名牌本身保持同一宽度 */
+        style: {},
         onclick: () => { st.lane = l.id; renderTimeline(); },
         title: isMain ? '主线' : (depth
-          ? '第 ' + (depth + 1) + ' 层暗线 · 收敛进「' + ((parent || {}).title || '主线') + '」；点一下把它设为当前编辑的线'
-          : '暗线 · 点一下把它设为当前编辑的线')
+          ? '第 ' + (depth + 1) + ' 层暗线 · 引出点 ' + fmtTp(forkTpOf(l)) + ' → 收敛点 ' + fmtTp(mergeTpOf(l)) +
+            '（画在「' + ((parent || {}).title || '主线') + '」上）；点一下把它设为当前编辑的线'
+          : '暗线 · 引出点 ' + fmtTp(forkTpOf(l)) + ' → 收敛点 ' + fmtTp(mergeTpOf(l)) + '；点一下把它设为当前编辑的线')
       },
-        depth ? h('span', { class: 'pl-laneelbow', title: '嵌套层级 ' + (depth + 1) }, '└') : null,
+        depth ? h('span', { class: 'pl-laneelbow', title: '第 ' + (depth + 1) + ' 层（从上面那条线分出来）' }, '↳') : null,
         h('span', { class: 'pl-lanedot' }),
         h('span', { class: 'pl-lanename' }, l.title || (isMain ? '主线' : '暗线')),
         isMain ? null : h('span', { class: 'pl-lanecnt' }, mine.length ? mine.length + ' 节' : '空'),
@@ -1005,18 +1253,16 @@ export default {
       row.appendChild(tag);
 
       const track = h('div', { class: 'pl-track', 'data-lane': l.id });
-      track.appendChild(h('div', { class: 'pl-axis' + (isMain ? '' : ' side') }));
+      /* 轨道底部留白：最下面那条暗线的树杈要有地方长出去 */
+      track.style.paddingBottom = '12px';
+      /* 轴线：主线是贯穿整行的「树干」；暗线只画内容段（见 layoutBranches 里的 left/right），
+       * 默认隐藏，量到内容之后才显示 —— 免得空暗线也拖一条横贯整行的长线。 */
+      const axis = h('div', { class: 'pl-axis' + (isMain ? '' : ' side') });
+      track.appendChild(axis);
 
-      /* 刻度：按当前视口算出步长，每隔几个标一次值 */
-      const { ticks, step } = laneTicks(l.id);
-      const labelStep = Math.max(1, Math.ceil(ticks.length / 12));   /* 太密就隔几个标一次 */
-      ticks.forEach((t, i) => {
-        const left = tpPct(t, max) + '%';
-        track.appendChild(h('span', { class: 'pl-tick', style: { left } }));
-        if (i % labelStep === 0 || i === ticks.length - 1) {
-          track.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, fmtTp(t)));
-        }
-      });
+      /* 刻度：先按默认密度画好，等行宽量出来之后再按可见宽度重排（relabel） */
+      const tickEls = h('span', { style: { display: 'contents' } });
+      track.appendChild(tickEls);
       /* 视口比全轴窄时，在两端标一下「左边还有 / 右边还有」 */
       const vw = viewSpan();
       const cutLo = vw.a > 0.001, cutHi = vw.b < axisMax() - 0.001;
@@ -1024,10 +1270,10 @@ export default {
       if (cutHi) track.appendChild(h('span', { class: 'pl-cut hi', title: '右边还有情节（往右拖或缩小）' }, '›'));
 
       const { spots, items } = laneSpots(l.id);
-      let hidden = 0;
+      const nodeEls = [];
+      /* 节点先挂到轨道上，才能量名字多宽（下面当「一格」的宽度用） */
       items.forEach((p, i) => {
         const visible = inView(p);
-        if (!visible) hidden += 1;
         const node = h('div', {
           class: 'pl-node ' + nodeCls(p) + (p.id === st.selId ? ' on' : '') + (visible ? '' : ' out'),
           style: { left: spots[i] + '%' },
@@ -1038,7 +1284,40 @@ export default {
           onmousedown: ev => { if (visible) startDrag(ev, p, items, node); }
         }, h('b', {}, p.title), h('s', {}, p.chapter || ''), h('i', {}));
         track.appendChild(node);
+        nodeEls.push(node);
       });
+      /* 名字宽度：量一次节点里的 <b>（节点自身宽高是 0，量不出东西） */
+      const W0 = trackContent(track).cw || 500;
+      const mItems = items.map((p, i) => {
+        const b = nodeEls[i].querySelector('b');
+        const w = b ? b.offsetWidth : 0;
+        return { u: pctK(tpNum(p)) / 100, w: w || 30, tp: tpNum(p) };
+      });
+      /* 别让名字把整条轴顶得歪七扭八：错开量最多是「可用宽度的 6%」，
+       * 剩下的交给「相邻太近就换行显示」（sync 里按真实宽度折叠） */
+      const kCap = 0.06;
+      mItems.forEach(it => { it.k = Math.min(it.k, kCap); });
+
+      /* 刻度密度跟着「这一行实际能画多宽」走：缩进把轨道压窄了也不会叠成一团 */
+      function relabel(stepPx) {
+        clear(tickEls);
+        const W = trackContent(track).cw || track.clientWidth || 500;
+        const { ticks } = laneTicks(l.id, Math.max(3, Math.min(24, Math.round(W / Math.max(34, stepPx)))));
+        /* 标签太密就隔几个标一次（预算：每个标签至少占 30px） */
+        const labelStep = Math.max(1, Math.ceil((ticks.length * 30) / Math.max(60, W)));
+        ticks.forEach((t, i) => {
+          const left = pctK(t) + '%';
+          tickEls.appendChild(h('span', { class: 'pl-tick', style: { left } }));
+          if (i % labelStep === 0 || i === ticks.length - 1) {
+            tickEls.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, fmtTp(t)));
+          }
+        });
+        /* 端点徽标太挤（按名牌长度 + 端点文字估）就收起来，只剩 title */
+        const epW = isMain ? 0 : 58 + String(fmtTp(forkTpOf(l))).length * 4 + String(fmtTp(mergeTpOf(l))).length * 4;
+        const board = document.querySelector('.pl-board');
+        if (board) board.classList.toggle('showep', W > epW + 150);
+      }
+      relabel(56);
 
       if (!items.length) {
         track.appendChild(h('span', { class: 'pl-laneempty' }, isMain ? '双击空白处新建第一个情节' : '双击这条暗线可以往里加情节'));
@@ -1047,9 +1326,11 @@ export default {
         track.appendChild(h('span', { class: 'pl-laneempty' }, '这一屏没有情节（点「全部」或缩小看看）'));
       }
 
+      /* 客户端坐标 → 这一行的时间点：按「轨道内容区」换算（和画刻度用的是同一个公式） */
       const pctOf = ev => {
         const r = track.getBoundingClientRect();
-        return Math.max(0, Math.min(100, ((ev.clientX - r.left) / r.width) * 100));
+        const cw = trackContent(track).cw || r.width || 1;
+        return Math.max(0, Math.min(100, ((ev.clientX - r.left) / cw) * 100));
       };
       track.addEventListener('click', ev => {
         if (ev.target.closest('.pl-node')) return;
@@ -1075,7 +1356,37 @@ export default {
           , onclick: e => { e.stopPropagation(); removeLane(l); }
         }, '删除') : null));
 
-      return { el: row, track, line: l };
+      return { el: row, track, axis, line: l, items, nodeEls, mItems, relabel };
+    }
+
+    /* 重画树枝。布局量过之后节点已经摆好；但窗口一变、暗线一增删、行宽就会变，
+     * 所以用 ResizeObserver 看着画布和每一行的轨道，变了就重新量、重新画一遍（节流）。 */
+    let rebranchJob = null;
+    function scheduleRebranch(svg, rows, main, sideLines) {
+      const canvas = svg && svg.parentNode;
+      if (!canvas) return;
+      const again = () => {
+        if (rebranchJob) return;
+        rebranchJob = true;
+        requestAnimationFrame(() => {
+          rebranchJob = false;
+          if (!svg.isConnected || !canvas.isConnected) return;
+          layoutTreeIndent();
+          rows.forEach(r => { r.relabel(Math.max(22, Math.min(90, trackContent(r.track).cw * 0.05))); });
+          const meas = new Map();
+          rows.forEach(r => {
+            const m = measureLane(r.track, r.mItems, r.nodeEls, r.line.id);
+            if (m) { m.sync(); meas.set(r.line.id, m); }
+          });
+          layoutBranches(svg, rows, main, sideLines, meas);
+        });
+      };
+      if (typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(again);
+      ro.observe(canvas);
+      rows.forEach(r => ro.observe(r.track));
+      svg.__ro = ro;
+      again();
     }
 
     let trackEl = null;
@@ -1102,6 +1413,9 @@ export default {
       const track = nodeEl && nodeEl.parentNode ? nodeEl.parentNode : trackEl;
       if (!track) return;
       const rect = track.getBoundingClientRect();
+      /* 可画的宽度是「轨道内容区」；缩进已经在行上，track 自身的左边缘就是内容起点 */
+      const cw = trackContent(track).cw || rect.width || 1;
+      const pctAtClient = cx => Math.max(0, Math.min(100, ((cx - rect.left) / cw) * 100));
       /* 拖动期间视口锁死（否则时间点一变，整条轴重新缩放，节点就漂了） */
       const max = laneMax(laneOf(p));
       const vs = viewSpan();
@@ -1111,11 +1425,12 @@ export default {
         return round2(vA + ((t - SPAN_LO) / (SPAN_HI - SPAN_LO)) * (vB - vA));
       };
       /* 用 mousedown 那一刻的鼠标位置算起点（合成事件常常不带 clientX，movementX 兜底） */
-      const startX = Number(ev.clientX) || rect.left + rect.width / 2;
+      const startX = Number(ev.clientX) || rect.left + cw / 2;
       const restX = [];      /* 其它节点原来停在哪儿，松手后原样还回去 */
       const startY = Number(ev.clientY) || rect.top + rect.height / 2;
       drag = { p, moved: false };
       const myEl = nodeEl;
+      const myLeft0 = myEl ? myEl.style.left : '';
       track.classList.add('dragging');
       if (myEl) myEl.classList.add('dragging');
       /* 拖动期间把这条线的其它节点淡一点，突出正在拖的 */
@@ -1131,11 +1446,11 @@ export default {
         const x = Number(e.clientX) || (lastX + (Number(e.movementX) || 0));
         lastX = x;
         if (Math.abs(x - startX) > 2) drag.moved = true;
-        const pct = Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100));
+        const pct = pctAtClient(x);
         drag.pct = pct;
         drag.tp = tpAtPct(pct);
-        /* 节点就是跟着鼠标走，不吸附、不回弹 */
-        if (myEl) myEl.style.left = pct + '%';
+        /* 节点就是跟着鼠标走，不吸附、不回弹（left 按轨道内容区的 px 算） */
+        if (myEl) myEl.style.left = ((pct / 100) * cw) + 'px';
         /* 别的节点一动不动（取点提示浮层会插进轨道里，别让它把布局挤歪） */
         restX.forEach(o => { o.el.style.left = o.left; });
       };
@@ -1146,23 +1461,12 @@ export default {
         if (myEl) myEl.classList.remove('dragging');
         Array.from(track.querySelectorAll('.pl-node')).forEach(el => el.classList.remove('dim'));
         const d = drag; drag = null;
-        if (!d || !d.moved || d.pct == null) { renderTimeline(); return; }
+        if (!d || !d.moved || d.pct == null) { if (myEl) myEl.style.left = myLeft0; renderTimeline(); return; }
         /* 定格：落点就是终点，绝不回弹。时间点按落点刻度算出来写进去。 */
-        const finalPct = d.pct;
-        const finalTp = d.tp;
-        p.timePoint = Math.max(0, round2(finalTp));
+        p.timePoint = Math.max(0, round2(d.tp));
         touch();
         renderAll();
         select(p.id);
-        /* 重画后，把这条节点按落点百分比**钉住**（重画后轴的最大刻度可能变，
-         * 位置会有点漂移；钉住落点才是用户看到的「拖到哪就停在哪」）。
-         * 之后任何一次重画都会按新时间点摆位，此刻先保证视觉上不动。 */
-        const laneTrack = trackEl && trackEl.dataset.lane === laneOf(p) ? trackEl : null;
-        if (laneTrack) {
-          const el2 = Array.from(laneTrack.querySelectorAll('.pl-node'))
-            .find(n => n.querySelector('b') && n.querySelector('b').textContent === p.title);
-          if (el2) el2.style.left = finalPct + '%';
-        }
         toast('「' + p.title + '」时间点改为 ' + fmtTp(p.timePoint), 'ok');
       };
       window.addEventListener('mousemove', move);

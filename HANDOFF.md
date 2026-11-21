@@ -1,139 +1,159 @@
-# 卷帙 NovelFolio · 交接说明（2026-11-22 第二轮更新）
+# 卷帙 NovelFolio · 交接说明（2026-11-22 第五轮更新）
 
-> 这是一个可以先放着不管的交接备忘：新窗口接上以后，照着往下做就行。
-> 上一轮（时间轴圆点串轴、暗线引出/收敛点、轴取点）见文末「历史」一节；本轮做的是它「还能继续做的事」里的前三项。
+> 这一轮加的是**撤销 / 重做**：全篇一套历史（Ctrl+Z 撤销、Ctrl+Y 或 Ctrl+Shift+Z 重做），
+> 人物、世界观、情节、正文、导入都在里面；状态栏左下角也有「↶ 撤销 / ↷ 重做」两个按钮。
+>
+> 上一轮（第四轮）的情节时间轴暗线树状图改动仍在，见第五节。
 
-## 一、项目在哪、怎么跑
+## 〇、撤销怎么做的（本轮重点）
+
+新增 `app/renderer/js/undo.js`，约 190 行，不依赖任何页面：
+
+| 概念 | 说明 |
+| --- | --- |
+| 快照 | 整篇数据的 JSON 串（先把数据复制成纯对象，**绝不钉住活数据**，否则记录之后再改会跟着变） |
+| 栈 | 撤销 / 重做各 100 步；单张快照超过 6MB 就放弃记录（防止把内存撑爆） |
+| 记点 | 页面照旧只调 `NF.save()`；`app.js` 把它包成 `history.tick()` + 原保存 |
+| 合并 | 只有「正在输入框里打字」才把连续的改动并成一步（600ms 内、同一处）；点按钮不合并，一下一步 |
+
+### 为什么记的不是「改完之后」
+
+页面几乎全是「先改数据、再 `NF.save()`」，收到信号时改动已经发生。所以历史里留一个 **baseline**
+（上一次拍下的样子），每次 `NF.save()` 时把 baseline 收进栈——它就是这一步要撤回去的「改之前」。
+启动时 `history.prime()` 先拍一张原始数据，于是第一笔改动也有地方可回。
+
+### 撤销时页面怎么更新
+
+`replaceDoc()` 换一整份新数据 → `NF.doc = d` → `NF.refresh()`。`route()` 里有一条快捷路径：
+同一个页面、同一份新数据时**复用原来的 `.page` 容器**（滚到哪里还停在哪里），但会先 `unmount()`
+解绑监听、`clear(root)` 清空容器再 `mount()`——这两步少一个就会叠出两份页面、监听越堆越多（踩过）。
+
+撤销后的数据照样落盘（`markDirty()`），不然关掉软件就白撤了。
+
+### 顺带修的两个老问题
+
+- 章节页的 Ctrl+J 绑在 `document` 上从不解绑，换页越堆越多 → 改成记 `page._keyOff`，`unmount()` 里解掉。
+- 章节页正文的撤销：连续打字按一段算一步，撤销后光标回到原处（`page._caret`，记在页面对象上，重挂不丢）。
+
+### 想给某一步起个名字
+
+裸调 `NF.save()` 会按调用栈里的页面文件名推断（人物 / 世界观 / 情节 / 正文…，见 `DEFAULT_LABEL`）。
+更准的写法是 `NF.save(对象, '改名')`：对象按字段认出属于哪一块数据，名字直接进撤销提示的「」里。
+
+### 本轮验证（脚本跑完已删，方法记在这里）
+
+用 `--eval` 在真窗口里驱动真 DOM（`node _scratch/launch.js --disable-gpu --page=<页> --eval=… --ud=<临时数据目录>`）：
+
+| 覆盖 | 结果 |
+| --- | --- |
+| 人物改名 → Ctrl+Z → Ctrl+Y → 再撤 | 数据与界面都回到原值；连打三次只需一次撤销 |
+| 新建人物 / 世界观删一境 / 情节改标题 / 正文打字 | 每个页面都撤得回来，列表、时间轴、正文都重画正确 |
+| 世界观点五次「＋ 一境」再撤五次 | 五次各自独立，五次都能单独退回（按钮不合并） |
+| 章节打字后**不等**自动保存直接 Ctrl+Z | 正文回到打字之前，光标还在正文里 |
+| 来回撤重各 6 次 | 输入框数量、人物数量都不变（页面没叠层），无 JS 报错 |
+| 七页冒烟 + 撤销后读回数据文件 | 0 报错；撤销结果确实写进了 `novelfolio.data.json` |
+| 打包后的 `dist\win-unpacked\NovelFolio.exe` 跑同一套脚本 | 7 项全通过；状态栏能看到「↶ 撤销 / ↷ 重做」 |
+
+## 一、项目在哪、怎么跑（没变）
 
 | 项 | 值 |
 | --- | --- |
 | 项目根目录 | `E:\novel` |
-| 技术栈 | Electron 45.4.1；渲染层是**原生 ES module**（无打包器、无框架），主进程是 `'use strict'` 的 CommonJS |
-| 入口 | `app/main.js`（主进程 / IPC）、`preload.js`（contextBridge → `window.nf.*`）、`app/renderer/js/app.js`（`NF` 对象、路由） |
-| 页面 | `app/renderer/js/pages/{characters,world,plot,chapter,book,importer,settings}.js` |
-| 人的界面 | `app/renderer/index.html` + `app/renderer/css/` |
-| 数据 | 本机 `userData/data/novelfolio.data.json`（`doc` 对象），设置单独存 |
-| 打包产物 | `dist\NovelFolio-0.1.0-portable.exe`（单文件便携版，105.4MB，2026-11-22 00:59 重新打包） |
+| 技术栈 | Electron 45.4.1；渲染层原生 ES module，主进程 CommonJS |
+| 入口 | `app/main.js`、`preload.js`、`app/renderer/js/app.js`；页面 `app/renderer/js/pages/*.js` |
+| 数据 | 本机 `userData/data/novelfolio.data.json` |
+| 打包产物 | `dist\NovelFolio-0.1.0-portable.exe`（本轮已重新打包；`app.asar` 里的 `app.js` / `undo.js` / `chapter.js` 与源码逐字节一致） |
 
-### 构建（约 3.5 分钟）
+构建命令（必须关掉正在运行的便携版，`ELECTRON_BUILDER_CACHE` 必给、`ELECTRON_RUN_AS_NODE` 必删）：
 
 ```powershell
-# 必须先关掉正在运行的便携版，否则 EBUSY
 taskkill /F /IM NovelFolio-0.1.0-portable.exe
-
-# ⚠ 两个坑都要避开：
-#  1) 一定要给 ELECTRON_BUILDER_CACHE，否则默认缓存目录 C:\Users\Administrator 会 EPERM
-#  2) 缓存目录要指向「已经填好的」那个，指到空目录会去网上下 7zip，
-#     然后因为网络抖动 read ECONNRESET 直接失败（本轮就撞上了）
-$env:ELECTRON_BUILDER_CACHE="$env:LOCALAPPDATA\electron-builder\Cache"   # 已含 7zip@1.0.0 / nsis-3.0.4.1
-$env:CSC_IDENTITY_AUTO_DISCOVERY="false"
-$env:USERNAME="Administrator"
+$env:ELECTRON_BUILDER_CACHE="$env:LOCALAPPDATA\electron-builder\Cache"
+$env:CSC_IDENTITY_AUTO_DISCOVERY="false"; $env:USERNAME="Administrator"
 C:\Program Files\nodejs\node.exe E:\novel\node_modules\electron-builder\cli.js --win portable
 ```
 
-> 如果 `$LOCALAPPDATA\electron-builder\Cache` 里没有 `7zip@1.0.0\*\bin\7za.exe`，就先联网跑一次让它下载；本机现在已经有，用这个路径不用联网。
+Git：`D:\Git\cmd\git.exe -c safe.directory=E:/novel ...`
 
-### Git
+## 二、本轮做了什么（`app/renderer/js/pages/plot.js`）
 
-`D:\Git\cmd\git.exe -c safe.directory=E:/novel -c user.name=Andrianxu -c user.email=2686445597@qq.com`
+### 1. 树的形状（按用户标注图）
 
-## 二、本轮做了什么（三条「还能继续做的事」全做完）
-
-### A. 时间轴横向缩放 / 平移
-
-- 所有线**共用一套刻度**（视口 `zoomState = { a, b }`），缩放只是把这段刻度放大铺满轨道，**不改任何时间点**；
-- 工具条 `.pl-zoombar`（`[data-probe=plot-zoom]`）：`−` `＋` 缩放、比例文字 `.pl-zpct`（`全部` / `×2.6`，`title` 里写着「当前显示 0 – 17.5」）、`◀` `▶` 平移、`实际用到`、`全部`；
-- **滚轮缩放**（以鼠标所在处为锚点）、**Shift + 滚轮平移**；`wheel` 监听挂在 `.pl-canvas` 上且 `{ passive: false }`（轨道每次重画，挂外层不用反复解绑）；
-- 视口外的情节加 `.out` 收起；轴两端出现 `‹` `›` 提示；整条线在视口内一个情节都没有时显示「这一屏没有情节（点「全部」或缩小看看）」；
-- 刻度步长随视口自动选 `1/2/5 × 10^n`，放得很大时一格是 0.2 甚至更细；
-- 拖动节点时**视口在 mousedown 那一刻冻结**（`vA/vB`），否则时间点一变整条轴重缩放，节点会漂；
-- **`实际用到`**：只收两端（`usedRange()`），中间空档一律保留；「使用范围本身 ≥ 全轴 70%」时就是全轴（按钮会给 toast「已经铺满整条轴」）；
-- 全轴的终点 `axisMax()` = 最大时间点 + 最多 0.5（按 0.5 向上取整），不再无限撑尾。
-
-### B. 暗线嵌套（分支套分支，任意层）
-
-- `plotLines[i].mergeInto` 现在真的能指向**另一条暗线**（原来 UI 里有下拉，但 `drawBranches` 只认主线）；
-- `mergeTarget(l)`：解析父线，**找不到 / 指向自己 / 成环 → 自动退回主线**（`isAncestor()` 挡环）；
-- `orderedSideLines()`：按父线做 DFS 排序（父在子前），缩进 `depthIn()`，同一层按数据顺序；
-- `laneRow()`：按层往右缩进 14px、名牌宽度自适应、前面加 `└` 肘形符号、title 写「第 N 层暗线 · 收敛进「X」」；
-- `drawBranches()`：对每条暗线找**它自己的父线**当基准（`geo(parent)` / `geo(l)`），端点圆点画在父线轴上，所以 A→B→C 三级也能连对；
-- `editLane()` 的「收敛回哪条线」下拉**排除自己和自己的子孙**（防止绕环），其余显示成 `└ 第 N 层 · 名字`；
-- `removeLane()`：删除时里面的情节移到**父线**（不再是写死的主线），它下面的子线**往上挂一层**（`x.mergeInto = l.mergeInto`），不会再出现孤儿。
-
-### C. 引出点 / 收敛点在轴上直接拖
-
-- SVG 树是 `pointer-events: none`，只给端点圆点开命中（`.pl-brdot[data-line]`，半径 5.6px ≈ 11×11 命中区，`cursor: ew-resize`，hover 放大到 r=7）；
-- `wireEndpointDots(svg)` 用 pointerdown 委托 → `startEndpointDrag(ev, lineId, kind)`，挂在 svg 上只挂一次（`svg.__epWired`）；
-- 拖动时轴上方浮出 `.pl-ephint`「引出点 6.8 / 收敛点 12」，**松手才落库**（`touch()`）；
-- 越界会被卡住并 toast 提示（引出点不能晚于收敛点，反之亦然）；
-- **单击端点圆点** = 打开这条暗线的端点设置（`editLane`）；**双击** = 改回跟随情节（`delete forkTp/mergeTp`）。
-
-## 三、验证（本轮脚本都在 `_scratch/`，跑完要删）
-
-### ⚠ 先说怎么跑起来（比上一轮多两个坑）
-
-1. **这台机器的 shell 里 `ELECTRON_RUN_AS_NODE=1`**：直接跑 `electron.exe` 会退化成纯 Node，报 `app.setPath` / `app.whenReady` undefined。启动器里必须 `delete env.ELECTRON_RUN_AS_NODE`。
-2. **不要用 `cmd /c ... > file 2>&1` 之类重定向**：Electron 的 stdout 接管道会整段憋住不输出，表现为「进程不退、日志全空」。用 Node 的 `spawn(..., { stdio: 'inherit' })`。
-3. DSH 的 workspace-write 沙箱下 Electron 起不来（mojo `platform_channel.cc` `0x5` access denied）；本会话已切到 danger-full-access。
-4. `--eval` 的脚本里**没有 `sleep`**，要自己定义；`Set-Content` 默认会写 BOM（Node 读 BOM 会生成 `\uFEFFawait`，报 `Invalid or unexpected token`）。
-
-`_scratch\launch.js` 已经有现成的启动器（已处理 1、2）：
-
-```powershell
-node E:\novel\_scratch\launch.js --disable-gpu --page=plot --eval=E:\novel\_scratch\t1.js `
-  --out=E:\novel\_scratch\t1.json --ud=E:\novel\_scratch\ud
+```
+主线（树干，整行一条渐变轴）
+  ●A 引出点 ──┐                        ┌── ●B 收敛点
+              ╰──(曲线)─── ●首 ─────── ●末 ─(曲线)──╯
+暗线行：        └──── 只在首末情节之间画一条短横线 ────┘      之外什么都没有
 ```
 
-> 每次跑之前 `Stop-Process -Name electron` 并删掉 `_scratch\ud`，否则上一次的数据会串进来。
-> `_scratch/run-tests.ps1` 是一次跑全部用例的批处理。
+- **A（引出点）和 B（收敛点）都画在父线（主线或上层暗线）的轴上**，横坐标就是引出/收敛时间点对应的刻度；
+  两轮前 B 被画在暗线行尾，这一轮改回父线轴。
+- 从 A 弯一条枝下来落到这条暗线的**第一个情节**；从**最后一个情节**再弯一条枝上去接 B。
+- 暗线自己那一行的横线**只画在「第一个情节 → 最后一个情节」之间**，并且再夹进 [引出点, 收敛点]，
+  绝不会长到两端之外（实现：`.pl-lane.side .pl-axis{display:none}` 默认隐藏，`layoutBranches` 量到内容后用
+  `left/right` 百分比显示这一段）。
+- **没有情节的暗线：整行不画线**（原来会拖一条横贯整行的长横杆，就是用户红 × 的位置），也不画枝。
+- 主线轴保持贯穿整行（它是树干）。
 
-### 本轮结果
+### 2. 顺带修掉的坐标 bug
+
+| bug | 现象 | 修法 |
+| --- | --- | --- |
+| `measureLane` 里 `left = x0 + u*used`（x0 与 u 都是绝对位置） | 所有情节节点整体右移约一倍 | `left = u*used` |
+| `sync()` 里 `left = px - 5.5`、拖动时 `left = pct*cw - 5.5` | 圆点比刻度左偏 5.5px | 节点是 0 尺寸锚点，直接写 `px` |
+| `X()`/拖拽里 `+D`（缩进）又减一次 | 树枝端点比暗线内容偏移一个缩进量（34px 这类） | 缩进在行上，`track.getBoundingClientRect()` 已经包含，去掉 D |
+| `viewport()` 用 `track.offsetLeft` | 轨道是行（`position:relative`）的子元素，`offsetLeft` 少了行 padding | 改成屏幕矩形相减 + `scrollLeft/Top` |
+| 同刻情节被强行推开（`minStep`）、整行按 `fit` 压窄 | 圆点离开刻度、拖拽漂移 | 取消位移与压窄：圆点严格按时间点，名字放不下就隐藏（`.txt-off`，hover 有提示） |
+
+### 3. 树枝形状
+
+`addBranch()` 只出 `M…C`（没有 `L/H/V`）：贴着树干那头切得陡、落到枝头那头放平，像从主干上长出去的一根枝；
+两端几乎同列时退化成「一朵往外鼓的树杈弧」（两段 `C/S`）。
+A、B 圆点是端点手柄（`data-line` + `data-end`），两个都能在父线轴上左右拖，双击复位为「跟随情节」。
+
+## 三、验证（脚本在 `_scratch/`，跑完请删）
+
+启动器：`node E:\novel\_scratch\launch.js --disable-gpu --page=plot --eval=... --out=... --ud=E:\novel\_scratch\ud`
+（每次跑前 `Stop-Process -Name electron`、删 `_scratch\ud`）
 
 | 脚本 | 覆盖 | 结果 |
 | --- | --- | --- |
-| `t0` | 圆点/轴线对齐、单击选中、双击新建、拖节点、列表筛选、AI 开关、废案抽屉、七页冒烟 | 全部通过，对齐偏差 **0.00px**；拖「雪夜」→ `7.83`，其它节点不动，拖完仍在轴线上（0.00px）；七页 0 报错 |
-| `t1` | 缩放工具条、滚轮放大/缩小、Shift 滚轮平移、`◀`、`实际用到`→`全部` 复位、缩放后拖节点 | 全部通过：×2.6 时视口 `5.33–12.17`、10 个节点收成 3 个、两端 `‹›` 出现；缩放后拖动得到 `7.22`（小数精度）；`全部` 复位后位置与初始完全一致；时间点数组未被改动 |
-| `t2` | 走真实按钮建暗线、设「收敛进另一条暗线」 | 通过，`mergeInto` 正确指向暗线 A |
-| `t3` | 端点手柄拖拽、越界卡住、双击复位、稀疏时间轴上 `实际用到` | 通过：引出点 112 → 拖到 115 被收敛点挡住、徽标 `115→115`、树枝起点 x 与圆点 cx 一致；双击收敛点后 `mergeTp` 被清空、徽标变 `115→?`；`实际用到` 把 `0–117.5` 收成 `99.72–117.5`（×6.6） |
-| `t4` | `实际用到` / `全部` 往返 | 通过：`0–1117.5` → `1099.72–1117.5` → 回 `0–1117.5`；真数据下无空白时给「已经铺满」提示 |
-| `t5` | **三级嵌套** 主线→A→B→C、环防护、数据里手写环、删中间层 | 通过：行序 `主线 > A > B > C`、缩进 `0/14/28`；B 的两端都落在 A 的 y 上、C 的都落在 B 的 y 上（±1px）；A 的下拉里不含 B/C；手写环不崩（退回主线）；删 B 后 C 自动挂到 A、B 里的情节移到 A |
-| `t6` | 全 UI 路径：建 A/B/C 线、看下拉层级、两种取点、保存 | 通过，`console.error` 为空 |
-| 打包 | `app.asar` 里 `plot.js` 与源码**逐字节一致**（108257 bytes、0 个 CRLF，8 个新符号全在） | 通过 |
-| 产物 | `win-unpacked\NovelFolio.exe` 与 `NovelFolio-0.1.0-portable.exe` 各跑一次冒烟 | 均 exit 0、0 报错；缩放条 `−|＋|◀|▶|实际用到|全部` 在、三级嵌套行 `主线 > 冒烟暗线 > 冒烟子线` 在、2 fork + 2 merge、4 个端点手柄、数据文件已写出 |
+| `v1.js` | 节点圆点压刻度、A/B 落在主线轴且横坐标=引出/收敛刻度、暗线横线=首末情节、横线不超出 A..B、无 `line/rect`、所有枝段都是曲线、空暗线不画线不画端点、拖动后/缩放后仍对齐 | **19 项全 PASS**：对齐差 0；A 447 / B 1066 与刻度完全一致；暗线横线 [566,836] = 首末情节；空暗线 `display:none`、0 个端点 |
+| `n2.js` | 三级嵌套（LB 收进 LA）：LB 的 A/B 应画在 LA 轴上、两条暗线的横线各自只覆盖自己的内容 | 通过：LB 的 A/B `onLAAxis:true`，LB 横线 [722,919] = 乙一/乙二，LA 横线 [499,1106] = 甲一/甲二 |
+| `r2.js` | 双击新建、单击选中、拖 A、拖 B、双击复位、滚轮缩放、列表筛选 | 全部通过（`新建情节` 弹窗、选中断剑、A 4→4.78、B 12→12.52、复位后 `forkTp` 被清空、全部/×1.1、筛选 2/12） |
+| `s2.js` | 七页冒烟 + 截图 | 0 报错；`shot3.png` 里暗线行的金线只有 x 712–1037（≈325px），主线轴仍是整行 |
+| 像素复核 | 对截图逐行找金色长段 | 只有 2 行是「主线轴整行」，暗线行那条只有 300 多像素（=内容段），两端外侧没有线 |
+| 打包 | `app.asar` 里的 `plot.js` 与源码一致 | 见下 |
 
-## 四、改动集中在哪（`app/renderer/js/pages/plot.js`，约 2017 行）
+## 四、改动集中在哪
+
+`app/renderer/js/pages/plot.js`（约 2320 行）：
 
 | 区域 | 关键函数 | 说明 |
 | --- | --- | --- |
-| 视口（新） | `axisMax` `usedRange` `viewSpan` `clampView` `initViewIfNeeded` `setView` | `zoomState={a,b}`；`b===Infinity` 表示「全轴」 |
-| 缩放动作（新） | `zoomBy` `zoomFit` `zoomUsed` `panBy` `onWheel` `zoomBar` | 工具条 + 滚轮 |
-| 坐标换算 | `pctK` `pctTp` `tpPct` `laneTicks` `laneSpots` `inView` | 全部改成走视口；`pctTp` 不再吸附整数 |
-| 嵌套（新） | `mergeTarget` `depthOf` `isAncestor` `orderedSideLines` `depthIn` | 父线解析、DFS 排序、缩进、环防护 |
-| 端点拖拽（新） | `wireEndpointDots` `startEndpointDrag` `resetEndpoint` `showEpHint` `addDot(…, lineId, kind)` | SVG 指针委托 + 实时读数 |
-| 渲染 | `renderTimeline` `laneRow` `drawBranches` `addBranch` `addStem` | 树枝按父线画 |
-| 拖节点 | `startDrag` | 用 mousedown 时刻冻结的 `vA/vB` 换算 |
-| 暗线管理 | `chapterSelect` `pickOnMain` `endpointField` `addLane` `editLane` `removeLane` | 删线改为移到父线、子线上移 |
+| 坐标 | `trackContent` `pctK` `clipTp` `measureLane.viewport` | 内容宽、时间→百分比、屏幕矩形定位 |
+| 节点 | `measureLane.sync` `laneRow.mItems` | 圆点严格按时间点；名字挤就隐藏 |
+| 树枝 | `layoutBranches` `addBranch` `addDot` | A→首情节、末情节→B、暗线横线裁到内容段 |
+| 缩进 | `layoutTreeIndent` `orderedSideLines` | 每行 padding-left 按树层级，兄弟错开 |
+| 交互 | `startDrag` `startEndpointDrag` | 都按内容区像素换算 |
 
-### 踩过的坑（别再踩）
+### 踩过的坑（新增）
 
-- 上一轮那几条仍然有效：`tlCard` **不能缓存节点**、`h()` 的 style 要写驼峰、`.pl-canvas` 的 `maxHeight`、合成 MouseEvent 的 `clientX:0`。
-- **`clampView()` 只用于「以锚点缩放」，不能拿来夹 `实际用到` 的结果**：窗口比轴长时它会把窗口撑成整条轴，`实际用到` 永远等于 `全部`（这个坑本轮踩了很久）。
-- **判断「有没有可省的空白」要用「使用范围 vs 全轴」比较**，不要用「左右留白加起来」：留白是按比例算的，数据越远留白看起来越小，结果是阈值永远过不了。
-- 调试时**给 A 赋值不代表 A 会执行**：本轮有两次把 `console.log` 塞进了早已被换掉的代码分支，看到「没有日志」就误判成「函数没跑」，白绕很多圈。加日志要加在**当前真正的那行**上。
-- 用 PowerShell 批量改 JS 时要小心 `String.Replace` 匹配不到（CRLF/缩进差异）——本轮就出现过一次「替换成功但只替换了半截」，留下语法错误。改完一定查 `braces` 平衡和 `console.log` 残留。
+- **比较坐标必须同一坐标系**：SVG 里是 canvas 内容坐标，DOM 量的是屏幕坐标；混用会得出「偏 34px」的假结论（本轮先踩了一次）。
+- `track.offsetLeft` 在「轨道是 `.pl-lane` 的子元素」时不包含行的 padding-left → 一律用 `getBoundingClientRect` 相减。
+- `.pl-node` 是 `width:0;height:0` 的锚点，圆点靠 `margin:-5.5px` 自居中，所以 `left` 要写锚点本身的位置，不能再减半个圆点。
+- 空暗线一定要单独处理（`blocks.length === 0`）：否则会留一条 `left:0;right:0` 的整行横线。
 
 ## 五、还能继续做的事
 
-- [ ] 情节时间轴**导出成图片 / PDF**（`webContents.capturePage` 已有现成工具）；
-- [ ] 时间轴**纵向**也挤（暗线多了要滚动），可以做成列表式虚拟滚动；
-- [ ] 端点拖拽目前只支持水平（时间点），配合缩放已经够用；
-- [ ] README 里「待办」一节的其他项。
+- [ ] 时间轴导出图片 / PDF、纵向虚拟滚动（前几轮遗留）；
+- [ ] 暗线很多时缩进会把轨道压得很窄，可以考虑折叠第 3 层以后的暗线；
+- [ ] 收敛点如果被改到最后一个情节之前，横线会跟着缩短（现在的行为），要不要提示由产品定；
+- [ ] README 的待办。
 
-## 六、历史（上一轮已完成，仍然有效）
+## 六、历史（前几轮，仍然有效）
 
-1. 主线时间轴把圆点串在轴线上（圆心与轴线偏差实测 0.40px）；
-2. 暗线有「引出点」「收敛点」，可键入时间点、选章节、轴上取点，保存前校验引出点 ≤ 收敛点；
-3. 引出点/收敛点以树状枝引出与收敛，未设收敛点时用虚线示意；
-4. 时间轴不吸附，拖动松手定格、只改被拖的那一条；
-5. 情节列表可按线筛选，点轴上情节列表跟随滚动高亮；
-6. 右下角 AI 情节构思助手；7. 章节页点情节在正文里标出对应段落。
+1. 主线时间轴圆点串在轴线上；2. 暗线引出点/收敛点可键入、选章节、轴上取点；3. 引出/收敛以树状枝示意；
+4. 时间轴不吸附，拖动松手定格；5. 情节列表筛选、点轴高亮；6. AI 构思助手；7. 章节页点情节在正文标段落；
+8. 横向缩放/平移（共用刻度、滚轮缩放、`实际用到`/`全部`）；9. 暗线嵌套（`mergeInto` 指向另一条暗线、环防护）；
+10. 端点圆点在父线轴上可拖（A/B 都能拖，双击复位）。

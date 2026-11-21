@@ -31,6 +31,12 @@ body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--paper);f
 .uchip .av{width:23px;height:23px;border-radius:7px;background:var(--seal);color:#fff;display:grid;place-items:center;font-size:11px}
 /* ---------- statusbar ---------- */
 .statusbar{height:24px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;font-size:10px;color:var(--muted);background:var(--panel);border-top:1px solid var(--line2)}
+/* 状态栏里的撤销 / 重做 */
+.hist{display:inline-flex;align-items:center;gap:1px;padding-right:12px;border-right:1px solid var(--line)}
+.hist-btn{height:18px;padding:0 6px;border:1px solid transparent;border-radius:5px;background:transparent;
+  font:inherit;font-size:10px;line-height:1;color:var(--sub);cursor:pointer;display:inline-flex;align-items:center;gap:2px}
+.hist-btn:hover:enabled{background:#F2EBDD;border-color:var(--line2);color:var(--ink)}
+.hist-btn:disabled{opacity:.32;cursor:default}
 /* ---------- view ---------- */
 #view{flex:1;min-height:0;overflow:auto;display:flex}
 #view::-webkit-scrollbar{width:10px;height:10px}

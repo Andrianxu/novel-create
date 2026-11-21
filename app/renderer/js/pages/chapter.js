@@ -88,10 +88,14 @@ injectStyle('chapter', `
 .ch-ai-opt input{width:12px;height:12px;accent-color:#2F6F63;margin:0}
 `);
 
-export default {
+const page = {
   id: 'chapter', label: '章节写作',
   statusText(doc) { return '稿件 ' + ((doc.manuscripts || []).length) + ' 篇 · 共 ' + ((doc.manuscripts || []).reduce((a, m) => a + words(m.content), 0)) + ' 字'; },
-  unmount() { if (this._cleanup) { this._cleanup(); this._cleanup = null; } },
+  unmount() {
+    if (this._cleanup) { this._cleanup(); this._cleanup = null; }
+    /* 右下角 AI 助手的 Ctrl+J 原来绑在 document 上，换页也不解绑，会越堆越多 */
+    if (this._keyOff) { this._keyOff(); this._keyOff = null; }
+  },
   mount(root, ctx) {
     const { doc, NF } = ctx;
     doc.manuscripts = doc.manuscripts || [];
@@ -333,10 +337,11 @@ export default {
       });
       side.appendChild(h('div', { style: { marginTop: 'auto' } },
         h('div', { class: 'tiny muted', style: { lineHeight: '1.7', padding: '8px 4px' } },
-          '写的时候按 Ctrl+S 立刻保存；关掉软件也会自动存。每 5 分钟生成一份备份，可在设置里恢复。')));
+          '写的时候按 Ctrl+S 立刻保存，按 Ctrl+Z 撤销上一步；关掉软件也会自动存。每 5 分钟生成一份备份，可在设置里恢复。')));
     }
 
     function renderMain() {
+      rememberCaret();
       clear(main);
       const m = cur();
       if (!m) {
@@ -345,7 +350,8 @@ export default {
       }
       const titleIn = h('input', { class: 'ch-title', value: m.title || '', placeholder: '章节标题' });
       titleIn.addEventListener('input', () => { m.title = titleIn.value; saveDebounced(); renderSideSoon(); });
-      const ed = h('textarea', { class: 'ch-editor', placeholder: '从这里开始写…', spellcheck: 'false' });
+      /* 正文的撤销走全篇那一套（app.js 的 Ctrl+Z）：连续打一段算一步，撤到打之前的样子 */
+      const ed = h('textarea', { class: 'ch-editor', placeholder: '从这里开始写…', spellcheck: 'false', autocomplete: 'off' });
       ed.value = m.content || '';
       edRef = ed;
       /* 高亮影子层：和 textarea 同样字号排版，只用来露底色 */
@@ -357,7 +363,12 @@ export default {
         const w = words(ed.value);
         cnt.textContent = w.toLocaleString() + ' 字 · ' + ed.value.split('\n').length + ' 段';
       };
-      ed.addEventListener('input', () => { m.content = ed.value; m.updatedAt = new Date().toISOString(); upd(); saveDebounced(); if (hlRef) paintHl(); });
+      ed.addEventListener('input', () => {
+        m.content = ed.value; m.updatedAt = new Date().toISOString(); upd(); if (hlRef) paintHl();
+        /* 不逐字记撤销：等手停下来由 saveDebounced 报一次，整段连续打字才算一步；
+         * 若作者没等就按了 Ctrl+Z，撤销入口会先补一次 save，一样撤得回来。 */
+        saveDebounced();
+      });
       ed.addEventListener('scroll', () => { if (hlLayer) hlLayer.scrollTop = ed.scrollTop; });
       upd();
       const delBtn = h('button', { class: 'btn xs', onclick: () => {
@@ -379,9 +390,30 @@ export default {
         cnt,
         h('span', {}, '自动保存'),
         h('span', { class: 'grow' }),
-        h('span', { class: 'tiny' }, 'Ctrl+S 立即保存')));
+        h('span', { class: 'tiny' }, 'Ctrl+S 立即保存 · Ctrl+Z 撤销')));
       setTimeout(() => ed.focus(), 30);
+      /* 撤销等操作让页面原地重画：把光标记住，画完放回去，撤过一次还能接着撤 */
+      restoreCaret(ed);
       if (aiReady && dock.classList.contains('open')) renderLog();
+    }
+
+    /* 编辑区的光标与滚动位置：重画前记一次，撤销后接着写不会跳回文首。
+     * 记在页面对象上而不是这个闭包里——撤销会让页面重挂一次，闭包变量会跟着丢。 */
+    const caretMem = page._caret || (page._caret = { id: null, start: 0, end: 0, top: 0 });
+    function rememberCaret() {
+      const e2 = edRef;
+      if (!e2 || !cur()) return;
+      caretMem.id = st.id;
+      caretMem.start = e2.selectionStart || 0;
+      caretMem.end = e2.selectionEnd || 0;
+      caretMem.top = e2.scrollTop || 0;
+    }
+    function restoreCaret(e2) {
+      if (caretMem.id !== st.id) return;
+      const n = (e2.value || '').length;
+      e2.setSelectionRange(Math.min(caretMem.start, n), Math.min(caretMem.end, n));
+      e2.scrollTop = caretMem.top || 0;
+      if (hlLayer) hlLayer.scrollTop = e2.scrollTop;
     }
 
     let sideTimer = null;
@@ -648,9 +680,11 @@ export default {
       aiReady = true;
       wrap.appendChild(dock);
       renderLog();
-      document.addEventListener('keydown', (ev) => {
+      const onKey = (ev) => {
         if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'j') { ev.preventDefault(); toggleDock(); setTimeout(() => ta.focus(), 30); }
-      });
+      };
+      document.addEventListener('keydown', onKey);
+      page._keyOff = () => document.removeEventListener('keydown', onKey);   /* 换页时解绑 */
     }
 
     /* 从情节页点「在章节里定位」之类跳过来时，直接选中对应章节：
@@ -669,3 +703,5 @@ export default {
     /* Ctrl/⌘+S 由外壳统一处理（app.js），这里不再重复绑定，避免双份 toast */
   }
 };
+
+export default page;
