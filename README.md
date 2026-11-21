@@ -124,6 +124,13 @@ novelfolio/
 | 智谱 GLM | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash` |
 | Kimi | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
 
+内置的只是快捷方式，**模型名那一栏本来就可以手填任意值**；想长期留着自己的服务，在「设置 → 模型接口」里点胶囊行末尾的「＋ 自定义模型」：
+
+- 填「名称 / Base URL / 模型名」三件事，点「保存并选用」后它就和内置预设一样待在常用服务里，点一下即可切换（本地 Ollama `http://127.0.0.1:11434/v1`、LM Studio、vLLM、one-api / new-api 这类中转都行）；
+- 同名再存一次就是改那一条，不会堆出重复项；胶囊右边的 ✕ 只删这条快捷方式，已经填好的地址、模型名和 API Key 都不动；
+- 模型名右侧的「读取模型列表」会请求该接口的 `GET /models`（OpenAI 兼容接口基本都有），把拿到的模型名放进输入框的候选里，点一下就能挑，不用背模型名；
+- 这些自定义项存在 `userData/config.json` 的 `llm.customModels` 里，和 Key 一样只在本机。
+
 ## 生图怎么接
 
 软件本身不训练模型，只负责「拼提示词 → 打开工具 → 收图入库」：

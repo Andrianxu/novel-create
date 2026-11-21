@@ -67,8 +67,7 @@ export default {
     const cfg = {
       baseUrl: llm.baseUrl || '', model: llm.model || '',
       temperature: llm.temperature != null ? llm.temperature : 0.3,
-      maxTokens: llm.maxTokens || 2000,
-      provider: llm.provider && llm.provider !== 'OpenAI 兼容接口' ? llm.provider : ''
+      maxTokens: llm.maxTokens || 2000
     };
     /* 自定义模型：存在本机 config.json 的 llm.customModels 里，和内置预设一样显示成胶囊 */
     let customs = Array.isArray(llm.customModels) ? llm.customModels
@@ -84,7 +83,8 @@ export default {
     const modelIn = h('input', { class: 'input', value: cfg.model, placeholder: 'deepseek-chat', list: 'nfModelList' });
     const tempIn = h('input', { class: 'input', type: 'number', step: '0.1', min: '0', max: '1.5', value: String(cfg.temperature) });
     const tokenIn = h('input', { class: 'input', type: 'number', step: '100', min: '200', max: '8000', value: String(cfg.maxTokens) });
-    const modelHint = h('div', { class: 'tiny muted' }, '可以手填任意模型名；点「读取列表」会向接口要一份可用模型（OpenAI 兼容的 /models）。');
+    const MODEL_HINT = '可以手填任意模型名；点「读取模型列表」会向接口要一份可用模型（OpenAI 兼容的 /models）。';
+    const modelHint = h('div', { class: 'tiny muted' }, MODEL_HINT);
 
     function sameUrl(a, b) {
       const n = u => String(u || '').trim().replace(/\/+$/, '').toLowerCase();
@@ -101,7 +101,9 @@ export default {
       baseIn.value = p.baseUrl || '';
       modelIn.value = p.model || '';
       renderChips();
-      if (p.custom) modelHint.textContent = '正在使用自定义模型「' + p.name + '」· 改完记得点「保存设置」';
+      modelHint.textContent = p.custom
+        ? '正在使用自定义模型「' + p.name + '」· 改完记得点「保存设置」'
+        : MODEL_HINT;
     }
     function renderChips() {
       clear(presetRow);
@@ -290,7 +292,7 @@ export default {
           '（经系统 DPAPI 加密），',
           h('b', {}, '不会写进项目目录、不会进 Git、也不会回传到界面或日志'),
           '。仓库里只有 .gitignore 和 .env.example，克隆下来的人必须自己填 Key 才能用拆书。'),
-        h('div', { class: 'presets-wrap' }, h('div', { class: 'tiny muted', style: { marginBottom: '5px' } }, '模型服务（都是 OpenAI 兼容接口，点一下切换；想加自己的用右边的虚线框）'), presetRow),
+        h('div', { class: 'presets-wrap' }, h('div', { class: 'tiny muted', style: { marginBottom: '5px' } }, '模型服务（都是 OpenAI 兼容接口，点一下切换；行尾的「＋ 自定义模型」可以加自己的）'), presetRow),
         h('div', { class: 'field' }, h('label', {}, '接口地址 Base URL'), baseIn),
         h('div', { class: 'field' },
           h('div', { class: 'field-h' }, h('label', {}, '模型名'), fetchBtn),
