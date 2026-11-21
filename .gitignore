@@ -25,7 +25,7 @@ previews/novelfolio-ui-preview.pdf
 previews/logo-*.png
 
 # ---- 可选的本地截图/草稿 ----
-screenshots/
+/screenshots/
 _scratch/
 previews/_scratch/
 _*.py
