@@ -6,13 +6,18 @@
   "description": "离线优先的中文长篇小说创作工作台：人物 · 世界观 · 情节 · 章节 · 拆书 · 导入",
   "main": "app/main.js",
   "author": "墨明",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "shot": "electron . --shot",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder --win portable",
-    "dist:nsis": "electron-builder --win nsis"
+    "postinstall": "node scripts/ensure-electron.js",
+    "electron:ensure": "node scripts/ensure-electron.js",
+    "start": "node scripts/ensure-electron.js && electron .",
+    "dev": "node scripts/ensure-electron.js && electron . --dev",
+    "shot": "node scripts/ensure-electron.js && electron . --shot",
+    "pack": "node scripts/ensure-electron.js && electron-builder --dir",
+    "dist": "node scripts/ensure-electron.js && electron-builder --win portable",
+    "dist:nsis": "node scripts/ensure-electron.js && electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^45.4.1",

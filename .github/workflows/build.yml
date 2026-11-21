@@ -13,10 +13,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - name: 安装依赖
+      - name: 安装依赖（postinstall 会自动准备 Electron 运行时）
         run: npm ci
+      - name: 确认 Electron 运行时
+        run: npm run electron:ensure
       - name: 打包免安装 exe
         run: npm run dist
         env:

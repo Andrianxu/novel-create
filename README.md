@@ -42,7 +42,14 @@ npm install
 npm start
 ```
 
-需要 Node.js 18+。首次启动会在用户数据目录生成一份演示数据（一本叫《临水问剑》的书），可以直接改，也可以「设置 → 导入 JSON」换成你自己的。
+需要 **Node.js 22.12+**（Electron 45 的运行时下载脚本要求这个版本）。`npm install` 会自动把 Electron 运行时下载到 `node_modules/electron/dist`；国内网络慢可以先设镜像：
+
+```powershell
+$env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+npm install
+```
+
+首次启动会在用户数据目录生成一份演示数据（一本叫《临水问剑》的书），可以直接改，也可以「设置 → 导入 JSON」换成你自己的。
 
 ### 打包成 Windows 程序
 
