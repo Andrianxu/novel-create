@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 240 240">
+  <rect x="0" y="0" width="240" height="240" rx="56" fill="#201C18"/>
+  <text x="52" y="172" font-family="STKaiti, KaiTi, serif" font-size="146" fill="#F6F1E6">卷</text>
+  <rect x="150" y="140" width="60" height="60" rx="8" fill="#A8322A"/>
+  <text x="180" y="184" font-family="STKaiti, KaiTi, serif" font-size="36" fill="#FFF6E8" text-anchor="middle">帙</text>
+</svg>

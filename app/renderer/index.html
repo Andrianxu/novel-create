@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none'">
+<title>卷帙 NovelFolio</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="boot" class="boot">正在打开书桌…</div>
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 240 240" aria-hidden="true">
+        <rect width="240" height="240" rx="56" fill="#F6F1E6"/>
+        <rect x="2" y="2" width="236" height="236" rx="54" fill="none" stroke="#DFD4BF" stroke-width="2"/>
+        <path d="M66 62 h74 q22 0 22 22 v34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
+        <path d="M174 178 h-74 q-22 0 -22 -22 v-34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
+        <path d="M120 88 l24 44 l-24 -13 l-24 13 Z" fill="#A8322A"/>
+      </svg>
+      <div class="brandtxt">
+        <div class="bn" id="bookTitle">卷帙</div>
+        <div class="bs">NOVELFOLIO</div>
+      </div>
+    </div>
+    <nav class="modes" id="nav"></nav>
+    <div class="grow"></div>
+    <div class="search" id="quickSearch">⌕ 搜索人物 / 情节 / 设定 <span class="kbd">Ctrl K</span></div>
+    <div class="uchip"><span class="av">墨</span><span id="authorName">墨明</span></div>
+  </header>
+  <main id="view"></main>
+  <footer class="statusbar">
+    <span id="statLeft">就绪</span>
+    <span class="grow"></span>
+    <span id="statRight"></span>
+  </footer>
+</div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

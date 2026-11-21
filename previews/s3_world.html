@@ -1,0 +1,572 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1600px;height:1000px;overflow:hidden;margin:0;background:#E7E0D2;background-image:radial-gradient(circle at 20% 0%,#F3ECDD 0,#E3DACA 55%,#D9CEBB 100%);
+ font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#201C18;padding:14px;-webkit-font-smoothing:antialiased}
+.grow{flex:1}
+.jade{color:#2F6F63}.gold{color:#B98A3C}.sealest{color:#A8322A}
+.pill{font-size:10px;padding:2px 8px;border-radius:999px;background:#F0E9DA;color:#5B5348;white-space:nowrap}
+.pill.jade{background:#E2EEEA;color:#23604F}.pill.gold{background:#F7EBD3;color:#8A6421}.pill.seal{background:#F6E3DF;color:#8E2A23}
+.link{color:#2F6F63;font-size:11px}
+.btn{font-size:11px;padding:6px 12px;border-radius:7px;border:1px solid #DFD4BF;background:#FFFCF5;color:#201C18;white-space:nowrap}
+.btn.pri{background:#201C18;color:#F6F1E6;border-color:#201C18}
+.btn.xs{font-size:10.5px;padding:3px 9px}
+.btn.xs.pri{background:#A8322A;border-color:#A8322A;color:#fff}
+.card{background:#FFFCF5;border:1px solid #EAE1CF;border-radius:11px}
+.win{height:972px;background:#F6F1E6;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(60,40,20,.28),0 0 0 1px rgba(60,40,20,.12)}
+.topbar{height:53px;padding:0 18px;display:flex;align-items:center;gap:18px;background:#FFFCF5;border-bottom:1px solid #DFD4BF;flex:none}
+.brandlogo{display:flex;align-items:center;gap:8px}
+.brandlogo .bn{font-size:13px;font-weight:700;letter-spacing:.16em;line-height:1.1}
+.brandlogo .bs{font-size:7.5px;letter-spacing:.28em;color:#8C8272;margin-top:2px}
+.modes{display:flex;gap:3px;background:#F1EADB;border-radius:9px;padding:3px}
+.mtab{padding:6px 13px;border-radius:6px;font-size:11.5px;color:#5B5348}
+.mtab.active{background:#201C18;color:#F6F1E6;font-weight:700}
+.gsearch{width:250px;height:30px;border-radius:8px;background:#F4EEE2;border:1px solid #EAE1CF;display:flex;align-items:center;gap:7px;padding:0 9px;font-size:11px;color:#8C8272}
+.gsearch .kbd{margin-left:auto;font-size:9px;border:1px solid #DFD4BF;border-radius:3px;padding:0 4px;background:#fff}
+.uchip{display:flex;align-items:center;gap:7px;font-size:11px;color:#5B5348}
+.uchip .av{width:23px;height:23px;border-radius:7px;background:#A8322A;color:#fff;display:grid;place-items:center;font-size:10px}
+.statusbar{height:23px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;font-size:9.5px;color:#8C8272;background:#FFFCF5;border-top:1px solid #DFD4BF}
+.body{flex:1;display:flex;min-height:0}
+/* ===== character ===== */
+.clist{width:214px;flex:none;background:#F1EADA;border-right:1px solid #DFD4BF;padding:11px 10px;display:flex;flex-direction:column;gap:3px}
+.clhead{display:flex;justify-content:space-between;font-size:11px;font-weight:700;padding:0 4px 4px}
+.clhead .plus{font-weight:400;color:#2F6F63;font-size:10px}
+.clsearch{height:27px;border-radius:7px;background:#FFFCF5;border:1px solid #EAE1CF;display:flex;align-items:center;padding:0 9px;font-size:10.5px;color:#8C8272;margin-bottom:3px}
+.cgroups{font-size:9.5px;letter-spacing:.12em;color:#8C8272;padding:7px 5px 3px}
+.crow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px}
+.crow.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF}
+.crow .av{width:27px;height:27px;border-radius:8px;color:#fff;display:grid;place-items:center;font-family:"STKaiti",serif;font-size:13px;flex:none}
+.crow b{display:block;font-size:11px}
+.crow small{font-size:9.5px;color:#8C8272}
+.clfoot{margin-top:auto;font-size:9.5px;line-height:1.7;color:#8C8272;background:#FFFCF5;border:1px dashed #DFD4BF;border-radius:8px;padding:8px}
+.cmain{flex:1;min-width:0;padding:9px 16px 0;display:flex;flex-direction:column;gap:9px}
+.crumbline{display:flex;align-items:center;gap:6px;font-size:11px;color:#8C8272;flex:none}
+.crumbline i{font-style:normal;opacity:.5;margin:0 2px}
+.crumbline b{color:#201C18}
+.hero{display:flex;gap:14px;flex:none}
+.portrait{width:198px;height:262px;flex:none;border-radius:11px;border:1px solid #C9B491;position:relative;overflow:hidden;
+ background:linear-gradient(150deg,#FFFDF8 0%,#F4E9D4 45%,#E2CEA9 100%);box-shadow:0 6px 18px rgba(90,66,40,.13)}
+.portrait .pcap{position:absolute;left:10px;top:8px;font-family:"STKaiti",serif;font-size:10.5px;letter-spacing:.1em;color:#4A3F34}
+.portrait .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.portrait .gl{font-family:"STXingkai","FZSTK",serif;font-size:90px;line-height:1;color:#7C291F}
+.portrait .ptxt{font-size:9px;letter-spacing:.26em;color:#7C291F}
+.portrait .seal{position:absolute;right:10px;bottom:30px;width:38px;height:38px;border:2px solid #A8322A;border-radius:3px;color:#A8322A;display:grid;place-items:center;font-family:"STKaiti",serif;font-size:9.5px;line-height:1.1;text-align:center}
+.portrait .ptools{position:absolute;left:0;right:0;bottom:0;height:23px;background:rgba(32,28,24,.6);color:#F6F1E6;font-size:9.5px;display:flex;align-items:center;justify-content:center}
+.info{flex:1;min-width:0;height:262px}
+.nameline{display:flex;align-items:baseline;gap:9px}
+.nameline h1{font-family:"STKaiti","KaiTi",serif;font-size:34px;line-height:1.05;letter-spacing:.06em}
+.nameline .sub{font-size:10.5px;color:#8C8272}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:7px}
+.fld{border-bottom:1px dotted #DCCFB6;padding-bottom:4px}
+.fld.span2{grid-column:span 2}
+.fld span{display:block;font-size:9px;letter-spacing:.08em;color:#8C8272}
+.fld b{display:block;font-size:11.5px;margin-top:2px}
+.endbar{margin-top:7px;font-size:11px;line-height:1.6;background:#F6EEDC;border:1px solid #E2D3B5;border-radius:8px;padding:6px 9px}
+.endbar .lab{font-size:9px;letter-spacing:.1em;color:#8C8272;margin-right:8px}
+.reline{display:flex;align-items:center;gap:6px;margin-top:6px}
+.reline .lab{font-size:9px;letter-spacing:.1em;color:#8C8272}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;background:#F7F1E3;border:1px solid #EAE1CF;border-radius:999px;padding:1px 7px 1px 1px}
+.chip i{width:15px;height:15px;border-radius:50%;color:#fff;font-style:normal;display:grid;place-items:center;font-size:8.5px;font-family:"STKaiti",serif}
+.chip small{color:#8C8272;font-size:8.5px}
+.tl{flex:none;background:#FFFCF5;border:1px solid #EAE1CF;border-radius:11px;padding:9px 14px 6px}
+.tlhead{display:flex;align-items:center;gap:8px;font-size:11px}
+.tlhead h3{font-size:12.5px}
+.legend{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;color:#5B5348}
+.legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.legend i.jade{background:#2F6F63}.legend i.gold{background:#B98A3C}.legend i.seal{background:#A8322A}
+.seg{font-size:10px;padding:3px 9px;border-radius:6px;color:#5B5348}
+.seg.on{background:#201C18;color:#F6F1E6}
+.track{position:relative;height:124px;margin-top:0}
+.axis{position:absolute;left:0;right:0;top:74px;height:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 62%,#A8322A);border-radius:2px}
+.era{position:absolute;top:20px;font-size:9px;letter-spacing:.08em;color:#8C8272}
+.tick{position:absolute;top:74px;width:11px;height:11px;margin-left:-5.5px;margin-top:-4.5px;border-radius:50%;background:#FFFCF5;border:2px solid #2F6F63}
+.tick.done{background:#2F6F63}
+.tick.later{border-style:dashed;border-color:#C9973C;background:#FFFCF5}
+.tick.ending{background:#A8322A;border-color:#A8322A;width:13px;height:13px;margin-left:-6.5px;margin-top:-5.5px}
+.tick.cur{box-shadow:0 0 0 4px rgba(47,111,99,.18)}
+.tick b{position:absolute;left:50%;transform:translateX(-50%);top:-19px;font-size:9.5px;font-weight:400;color:#201C18;white-space:nowrap}
+.tick s{position:absolute;left:50%;transform:translateX(-50%);top:11px;font-size:8.5px;color:#8C8272;text-decoration:none;white-space:nowrap}
+.tip{position:absolute;left:606px;top:16px;width:262px;background:#201C18;color:#F6F1E6;border-radius:9px;padding:8px 10px}
+.topt{display:flex;align-items:center;gap:6px;font-size:10.5px}
+.topt .pill{background:rgba(127,206,180,.18);color:#9FE0C9;font-size:9px}
+.tip .who{font-size:9px;color:#C9BCA6;margin-top:3px}
+.tip p{font-size:10px;line-height:1.55;margin-top:4px;color:#EDE4D3}
+.tip .hint{margin-top:5px;padding-top:4px;border-top:1px solid rgba(255,255,255,.14);font-size:8.5px;color:#B9AC96}
+.bottomrow{display:flex;gap:10px;flex:1;min-height:0}
+.detail{flex:1;min-width:0;padding:10px 12px;display:flex;flex-direction:column}
+.dhead{display:flex;align-items:center;gap:8px}
+.dhead h3{font-family:"STKaiti",serif;font-size:14px;letter-spacing:.04em}
+.detail p{font-size:11px;line-height:1.85;color:#332C25;margin-top:5px}
+.q{color:#7C291F;font-family:"STKaiti",serif;font-size:11.5px}
+.dmeta{margin-top:auto;display:flex;gap:14px;font-size:9px;color:#8C8272;padding-top:5px;border-top:1px dashed #EAE1CF}
+.dmeta b{color:#201C18}
+.upnext{width:280px;flex:none;padding:10px 12px}
+.uhead{display:flex;align-items:center;gap:8px}
+.uhead h3{font-size:12px}
+.uhead .link{margin-left:auto}
+.urow{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #EAE1CF}
+.urow:last-child{border-bottom:none}
+.nid{width:23px;height:19px;border-radius:5px;background:#F0E9DA;color:#5B5348;font-size:9.5px;display:grid;place-items:center;flex:none}
+.nid.end{background:#F6E3DF;color:#8E2A23}
+.urow b{display:block;font-size:10.5px}
+.urow small{font-size:9px;color:#8C8272}
+/* ===== world ===== */
+.wside{width:206px;flex:none;background:#F1EADA;border-right:1px solid #DFD4BF;padding:11px 10px;display:flex;flex-direction:column;gap:6px}
+.wside .pslabel{font-size:9px;letter-spacing:.12em;color:#8C8272}
+.psbox{height:30px;background:#201C18;color:#F6F1E6;border-radius:8px;display:flex;align-items:center;padding:0 10px;font-size:11px}
+.psbox .caret{margin-left:auto;font-size:9px}
+.pslist{background:#FFFCF5;border:1px solid #DFD4BF;border-radius:8px;padding:4px}
+.pslist div{padding:5px 8px;border-radius:6px;font-size:10.5px;display:flex;flex-direction:column;gap:1px}
+.pslist div b{font-size:8.5px;font-weight:400;color:#8C8272}
+.pslist div.on{background:#F4EDDF}
+.pslist div.add{color:#2F6F63;font-size:10px}
+.wfilter{display:flex;gap:3px;font-size:10px}
+.wfilter span{padding:4px 8px;border-radius:6px;color:#5B5348}
+.wfilter span.on{background:#201C18;color:#F6F1E6}
+.wgroup{font-size:9.5px;letter-spacing:.1em;color:#8C8272;padding:6px 4px 2px}
+.wrow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px}
+.wrow.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF}
+.wrow .ic{width:24px;height:24px;border-radius:7px;background:#E8DFCC;display:grid;place-items:center;font-size:11px;color:#6B5B48;flex:none}
+.wrow .ic.jade{background:#E2EEEA;color:#23604F}.wrow .ic.seal{background:#F6E3DF;color:#8E2A23}
+.wrow b{display:block;font-size:10.5px}
+.wrow small{font-size:9px;color:#8C8272}
+.wmain{flex:1;min-width:0;padding:9px 14px 0;display:flex;flex-direction:column;gap:8px}
+.mapcard{flex:1;min-height:0;display:flex;flex-direction:column;padding:9px 12px 8px;position:relative}
+.mhead{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px}
+.mhead h3{font-size:12.5px}
+.mapwrap{flex:1;min-height:0;border-radius:9px;overflow:hidden;border:1px solid #D9E2DD}
+.maphover{position:absolute;left:186px;top:74px;width:236px;background:#FFFCF5;border:1px solid #DFD4BF;border-radius:10px;padding:9px 11px;box-shadow:0 12px 28px rgba(70,50,25,.16)}
+.maphover .mh{display:flex;align-items:center;gap:7px;font-size:12px}
+.maphover .mhl{font-size:9.5px;color:#8C8272;margin-top:4px;line-height:1.6}
+.maphover .mhrow{font-size:9.5px;color:#5B5348;margin-top:5px;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.maphover .mhrow b{background:#F2ECDF;border-radius:4px;padding:1px 6px;font-weight:400;font-size:9.5px}
+.maphover .mhact{margin-top:6px}
+.wright{width:300px;flex:none;display:flex;flex-direction:column;gap:8px}
+.realm{flex:1;padding:9px 12px;display:flex;flex-direction:column}
+.chead{display:flex;align-items:center;gap:8px;font-size:11px}
+.chead h3{font-size:12px}
+.chead .link{margin-left:auto}
+.rlist{list-style:none;margin-top:6px;position:relative;flex:1}
+.rlist li{display:flex;align-items:center;gap:8px;font-size:10.5px;padding:2px 0 2px 18px;position:relative;color:#5B5348}
+.rlist li:before{content:"";position:absolute;left:4px;top:50%;margin-top:-3.5px;width:7px;height:7px;border-radius:50%;background:#fff;border:2px solid #D4C7AE}
+.rlist li.past{color:#8C8272}
+.rlist li.past:before{background:#2F6F63;border-color:#2F6F63}
+.rlist li.cur{background:#F2F8F6;border-radius:6px;color:#201C18;font-weight:700;padding-left:18px}
+.rlist li.cur:before{background:#fff;border-color:#2F6F63}
+.rlist li.end:before{background:#A8322A;border-color:#A8322A}
+.rlist b{width:40px}
+.rlist span{font-size:9px;color:#8C8272;font-weight:400}
+.realmnote{font-size:9px;color:#8C8272;padding-top:6px;border-top:1px dashed #EAE1CF}
+.lore{padding:9px 12px}
+.lrow{font-size:10.5px;color:#5B5348;padding:5px 0;border-bottom:1px dashed #EAE1CF;display:flex;gap:7px;align-items:center}
+.lrow:last-child{border-bottom:none}
+.tag{font-size:9px;background:#EFE7D6;color:#6B5B48;border-radius:4px;padding:1px 6px;flex:none}
+.tag.seal{background:#F6E3DF;color:#8E2A23}
+/* ===== overview ===== */
+.shelf{width:196px;flex:none;background:#F1EADA;border-right:1px solid #DFD4BF;padding:11px 10px;display:flex;flex-direction:column;gap:5px}
+.shelfhead{display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.12em;color:#8C8272;padding:1px 5px 5px}
+.book{display:flex;gap:8px;padding:6px;border-radius:9px}
+.book.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF}
+.book .cov{width:30px;height:42px;border-radius:2px 5px 5px 2px;color:#fff;font-family:"STKaiti",serif;font-size:10px;line-height:1.1;display:grid;place-items:center;text-align:center;flex:none}
+.book .meta b{display:block;font-size:11px;margin-top:1px}
+.book .meta small{display:block;font-size:9px;color:#8C8272;margin-top:2px}
+.book .meta small.ok{color:#2F6F63}
+.shelfstat{display:flex;gap:5px;margin-top:4px}
+.shelfstat div{flex:1;background:#FFFCF5;border:1px solid #EAE1CF;border-radius:8px;padding:5px 4px;text-align:center}
+.shelfstat b{display:block;font-size:13px}
+.shelfstat small{font-size:8.5px;color:#8C8272}
+.quote{margin-top:auto;background:#FFFCF5;border:1px solid #EAE1CF;border-radius:9px;padding:9px}
+.quote .qh{font-size:8.5px;letter-spacing:.18em;color:#8C8272}
+.quote .qt{font-family:"STKaiti",serif;font-size:13px;margin-top:4px;color:#7C291F}
+.quote .qs{font-size:8.5px;color:#8C8272;margin-top:4px}
+.ommain{flex:1;min-width:0;padding:11px 16px 0;display:flex;flex-direction:column;gap:9px}
+.phead{display:flex;align-items:flex-end;gap:14px;flex:none}
+.pagetitle{font-size:21px}
+.pagesub{font-size:10.5px;color:#8C8272;margin-top:4px}
+.headacts{margin-left:auto;display:flex;gap:7px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;flex:none}
+.stat{background:#FFFCF5;border:1px solid #EAE1CF;border-radius:10px;padding:9px 11px}
+.stat.hot{background:#FFF8EC;border-color:#E6D3B2}
+.stat .sl{font-size:9.5px;color:#8C8272}
+.stat .sv{font-size:20px;font-weight:700;margin-top:2px}
+.stat .sv.sm{font-size:11.5px;line-height:1.5;margin-top:4px;font-weight:700}
+.stat .sv small{font-size:9px;color:#8C8272;font-weight:400}
+.stat .sd{font-size:9px;color:#8C8272;margin-top:4px}
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:9px;flex:none}
+.grid3{display:grid;grid-template-columns:1.05fr 1.05fr 1fr;gap:9px;flex:1;min-height:0}
+.ocard{padding:9px 11px;display:flex;flex-direction:column}
+.bars{display:flex;align-items:flex-end;gap:5px;height:92px;margin-top:4px}
+.bars i{flex:1;background:linear-gradient(180deg,#3D7F71,#245A4E);border-radius:2px 2px 0 0}
+.bars i.g{background:linear-gradient(180deg,#C79A4B,#A87A2E)}
+.axisx{display:flex;justify-content:space-between;font-size:8.5px;color:#8C8272;margin-top:5px}
+.prow{display:flex;align-items:center;gap:8px;margin:6px 0}
+.prow .vol{width:96px;font-size:10px}
+.prog{flex:1;height:7px;border-radius:4px;background:#EFE7D7;overflow:hidden}
+.prog i{display:block;height:100%;background:#2F6F63}
+.prog i.gold{background:#B98A3C}.prog i.seal{background:#A8322A}
+.prow .pct{font-size:9.5px;color:#8C8272;width:28px;text-align:right}
+.tipblock{margin-top:auto;font-size:9.5px;line-height:1.6;background:#FBF3E6;border:1px dashed #E0C79B;border-radius:8px;padding:6px 8px;color:#5B5348}
+.tipblock b{color:#8A6421}
+.castrow{display:flex;align-items:center;gap:8px;padding:4px 0}
+.castrow .av{width:26px;height:26px;border-radius:8px;color:#fff;display:grid;place-items:center;font-family:"STKaiti",serif;font-size:12px}
+.castrow .ci b{display:block;font-size:10.5px}
+.castrow .ci small{font-size:9px;color:#8C8272}
+.castrow .pill{margin-left:auto}
+.check{font-size:10px;color:#5B5348;padding:4px 0;display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+.dot.jade{background:#2F6F63}.dot.gold{background:#B98A3C}.dot.seal{background:#A8322A}
+.btnline{display:flex;gap:6px;margin-top:auto}
+.edgetxt{font-size:8px;fill:#8C8272}
+.nodetxt{font-size:8.5px;fill:#fff;text-anchor:middle;font-family:"Microsoft YaHei"}
+/* ===== import ===== */
+.imain{flex:1;min-width:0;padding:11px 20px 0;display:flex;flex-direction:column;gap:9px}
+.igrid{display:flex;gap:9px;flex:none}
+.dropzone{flex:1;border:1.5px dashed #CBB894;border-radius:11px;background:#FFFCF5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:140px}
+.dzicon{width:34px;height:34px;border-radius:10px;background:#201C18;color:#F6F1E6;display:grid;place-items:center;font-size:16px}
+.dztitle{font-size:13px;font-weight:700}
+.dzsub{font-size:9.5px;color:#8C8272}
+.dztypes{display:flex;gap:5px;margin-top:2px}
+.dztypes span{font-size:9px;border:1px solid #DFD4BF;border-radius:4px;padding:1px 6px;color:#5B5348;background:#fff}
+.ipanel{width:310px;flex:none;padding:9px 12px}
+.target{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed #EAE1CF}
+.target:last-of-type{border-bottom:none}
+.tgate{width:19px;height:19px;border-radius:6px;background:#F0E9DA;color:#5B5348;font-size:9.5px;display:grid;place-items:center;flex:none}
+.target b{font-size:11px}
+.target small{display:block;font-size:9px;color:#8C8272}
+.target .chk{margin-left:auto;width:17px;height:17px;border-radius:5px;display:grid;place-items:center;font-size:9px;background:#E4EFEB;color:#23604F}
+.autoopt{font-size:9.5px;color:#5B5348;display:flex;align-items:center;gap:6px;margin-top:5px}
+.chk2{width:12px;height:12px;border-radius:3px;background:#2F6F63;display:inline-block;color:#fff;font-size:8px;text-align:center;line-height:12px}
+.itable{width:100%;border-collapse:collapse;font-size:10px}
+.itable th{text-align:left;font-size:9px;color:#8C8272;font-weight:400;padding:5px 6px;border-bottom:1px solid #EAE1CF;letter-spacing:.05em}
+.itable td{padding:6px;border-bottom:1px dashed #EAE1CF;color:#5B5348;vertical-align:middle}
+.itable td:first-child{color:#201C18;font-weight:600}
+.fic{display:inline-grid;place-items:center;width:28px;height:17px;border-radius:4px;font-size:8px;color:#fff;margin-right:6px;font-weight:700;vertical-align:1px}
+.fic.xls{background:#2F6F63}.fic.csv{background:#B98A3C}.fic.docx{background:#4A5E8C}
+.itable tr.warn td{background:#FDF6E7}
+.miss{color:#A8322A}
+.pfoot{display:flex;align-items:center;gap:7px;padding:7px 2px;border-top:1px solid #EAE1CF;font-size:10px;color:#5B5348}
+/* ===== motion ===== */
+.mmain{flex:1;min-width:0;padding:11px 18px 0;display:flex;flex-direction:column;gap:9px}
+.mhead2{display:flex;align-items:flex-end;gap:16px;flex:none}
+.kicker{font-size:9.5px;letter-spacing:.18em;color:#A8322A}
+.stepdots{margin-left:auto;display:flex;gap:6px}
+.stepdots span{font-size:10px;border:1px solid #DFD4BF;border-radius:999px;padding:4px 10px;color:#8C8272;background:#FFFCF5}
+.stepdots span.on{background:#201C18;color:#F6F1E6;border-color:#201C18}
+.stage{display:flex;gap:9px;flex:1;min-height:0}
+.scol{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.miniwin{background:#FFFCF5;border:1px solid #EAE1CF;border-radius:11px;padding:10px;flex:1;display:flex;flex-direction:column;gap:8px}
+.mwhead{display:flex;align-items:center;gap:7px;font-size:12px}
+.mwsub{font-size:9px;color:#8C8272;margin-left:auto}
+.mwbody{display:flex;gap:10px;flex:1}
+.miniportrait{width:100px;height:132px;border-radius:8px;border:1px solid #C9B491;background:linear-gradient(150deg,#FFFDF8,#F4E9D4 45%,#E2CEA9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex:none}
+.miniportrait .gl{font-family:"STXingkai",serif;font-size:48px;color:#7C291F;line-height:1}
+.miniportrait .mt{font-size:8px;letter-spacing:.18em;color:#7C291F}
+.minifields{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;align-content:start}
+.minifields div span{display:block;font-size:8.5px;color:#8C8272}
+.minifields div b{display:block;font-size:10px;margin-top:1px;border-bottom:1px dotted #DFD4BF;padding-bottom:3px;font-weight:700}
+.minifields .w{grid-column:span 2}
+.note{font-size:9px;color:#8C8272;line-height:1.55;padding:0 3px}
+.note b{color:#5B5348}
+.mtrack{position:relative;height:52px;margin-top:2px}
+.maxis{position:absolute;left:0;right:0;top:22px;height:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 66%,#A8322A)}
+.mtrack .tick{top:22px;width:9px;height:9px;margin-left:-4.5px;margin-top:-3.5px;border-width:2px}
+.mtrack .tick span{position:absolute;left:50%;transform:translateX(-50%);top:-16px;font-size:9px;white-space:nowrap;color:#5B5348}
+.mcard{border:1px solid #DFD4BF;border-radius:9px;padding:8px 10px;background:#FFFDF8;box-shadow:0 8px 20px rgba(70,50,25,.09)}
+.mctop{display:flex;align-items:center;gap:7px;font-size:11px}
+.mcwho{font-size:9px;color:#8C8272;margin-top:3px}
+.mcard p{font-size:10px;line-height:1.7;margin-top:4px;color:#5B5348}
+.mcacts{display:flex;gap:5px;margin-top:6px;justify-content:flex-end}
+.mchips{display:flex;align-items:center;gap:5px;font-size:9px;color:#8C8272;margin-top:auto}
+.mchips i{width:17px;height:17px;border-radius:50%;color:#fff;font-style:normal;display:grid;place-items:center;font-size:8.5px;font-family:"STKaiti",serif}
+.dtext2{font-size:10px;line-height:1.85;color:#5B5348}
+.split{display:flex;gap:7px;font-size:10px;align-items:flex-start;padding-top:6px;border-top:1px dashed #EAE1CF}
+.split .lbl{color:#8C8272;flex:none;width:48px;font-size:9px;padding-top:1px}
+.split b{font-weight:400;color:#5B5348;font-size:9.5px}
+.pchips{display:flex;gap:5px;flex-wrap:wrap}
+.pchips i{font-style:normal;font-size:8.5px;color:#fff;border-radius:999px;padding:2px 7px}
+.mlink{height:28px;margin-top:auto;border-radius:7px;background:linear-gradient(90deg,rgba(47,111,99,.14),rgba(185,138,60,.14));display:grid;place-items:center;font-size:8.5px;color:#7C6E58;letter-spacing:.08em}
+.flowbar{display:flex;align-items:center;gap:6px;background:#FFFCF5;border:1px solid #EAE1CF;border-radius:11px;padding:8px 12px;flex:none}
+.fb{display:flex;align-items:center;gap:6px;font-size:10px}
+.fb .fnum{font-size:8.5px;color:#fff;background:#201C18;border-radius:4px;padding:1px 4px;font-family:Consolas,monospace}
+.fb small{font-size:9px;color:#8C8272}
+.farrow{color:#DFD4BF;font-size:12px}
+
+.maptabs{display:flex;gap:2px;background:#F1EADB;border-radius:7px;padding:2px}
+.maptabs span{font-size:10px;padding:3px 9px;border-radius:5px;color:#5B5348}
+.maptabs span.on{background:#201C18;color:#F6F1E6}
+.mapwrap{position:relative}
+.zoomer{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;background:rgba(255,252,245,.94);border:1px solid #D9CDB8;border-radius:8px;overflow:hidden;z-index:6}
+.zoomer div{width:25px;height:21px;display:grid;place-items:center;font-size:11px;color:#5B5348;border-bottom:1px solid #EAE1CF}
+.zoomer div:last-child{border-bottom:none}
+.zoomer .pct{font-size:8px;color:#8C8272}
+.lgbar{position:absolute;left:10px;bottom:10px;background:rgba(255,252,245,.94);border:1px solid #D9CDB8;border-radius:8px;padding:6px 10px;display:flex;gap:11px;align-items:center;font-size:8.5px;color:#5B5348;z-index:6}
+.lgbar i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px}
+.lgbar s{width:12px;height:0;border-top:2px solid #A88E6B;display:inline-block;margin-right:3px;vertical-align:2px;text-decoration:none}
+.lgbar s.dash{border-top-style:dashed}
+.lgbar s.riv{border-top:2px solid #7FA8B8;border-radius:2px}
+.maphover{left:452px;top:118px;width:244px;z-index:7}
+.lyr{display:flex;align-items:center;gap:7px;font-size:10px;color:#5B5348;padding:3px 5px}
+.lyr .sq{width:11px;height:11px;border-radius:3px;background:#2F6F63;color:#fff;font-size:7.5px;display:grid;place-items:center;flex:none}
+.lyr .sq.off{background:#FFFCF5;border:1px solid #CFC2A9;color:transparent}
+.regrow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px}
+.regrow.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF}
+.regrow b{display:block;font-size:10.5px}
+.regrow small{font-size:9px;color:#8C8272}
+.regrow .ar{width:9px;height:9px;border-radius:2px;flex:none;border:1px solid #C9B491}
+.wflex{flex:1;min-height:0;display:flex;gap:8px}
+.mapcard{flex:1;min-width:0;display:flex;flex-direction:column;padding:9px 12px 10px;position:relative}
+.mhead{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:6px;flex:none}
+.mhead h3{font-size:12.5px}
+.mhead .btn{padding:4px 9px;font-size:10px}
+.srow{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px dashed #EAE1CF;font-size:10.5px;color:#5B5348}
+.srow:last-child{border-bottom:none}
+.srow i{width:7px;height:7px;border-radius:50%;flex:none}
+.srow b{font-weight:400}
+.srow .num{margin-left:auto;font-size:9px;color:#8C8272}
+.srowbar{flex:1;height:5px;border-radius:3px;background:#EFE7D7;overflow:hidden;max-width:56px}
+.srowbar i{display:block;height:100%;border-radius:3px}
+.genbox{margin-top:auto;background:#FBF3E6;border:1px dashed #E0C79B;border-radius:8px;padding:7px 8px;font-size:9px;line-height:1.6;color:#5B5348}
+.genbox b{color:#8A6421}
+
+</style></head><body>
+<div class="win">
+<div class="topbar">
+  <div class="brandlogo">
+    <svg width="27" height="27" viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F6F1E6"/><rect x="2" y="2" width="236" height="236" rx="54" fill="none" stroke="#DFD4BF" stroke-width="2"/><path d="M66 62 h74 q22 0 22 22 v34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/><path d="M174 178 h-74 q-22 0 -22 -22 v-34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/><path d="M120 88 l24 44 l-24 -13 l-24 13 Z" fill="#A8322A"/></svg>
+    <div><div class="bn">卷帙</div><div class="bs">NOVELFOLIO</div></div>
+  </div>
+  <nav class="modes">
+    <span class="mtab">人物</span><span class="mtab active">世界观</span><span class="mtab">情节</span><span class="mtab">章节写作</span><span class="mtab">书籍分析</span><span class="mtab">导入导出</span>
+  </nav>
+  <div class="grow"></div>
+  <div class="gsearch">⌕ 搜索人物 / 情节 / 设定 <span class="kbd">Ctrl K</span></div>
+  <div class="uchip"><span class="av">墨</span>墨明工作室</div>
+</div>
+<div class="body">
+  <aside class="wside">
+    <div class="pslabel">当前位面</div>
+    <div class="psbox"><span>青冥界 · 三洲四海</span><span class="caret">▾</span></div>
+    <div class="pslist">
+      <div class="on">青冥界<b>3 洲 · 10 宗门 · 正文所在</b></div>
+      <div>黄泉界<b>1 洲 · 3 圣地 · 卷四登场</b></div>
+      <div>人间界<b>无地图 · 终章</b></div>
+      <div class="add">＋ 新建位面</div>
+    </div>
+    <div class="wgroup">本界板块 · 4</div>
+    <div class="regrow on"><span class="ar" style="background:#EFE2C6"></span><div><b>全域</b><small>三洲四海总览</small></div></div>
+    <div class="regrow"><span class="ar" style="background:#EFE2C6"></span><div><b>苍梧洲</b><small>东陆 · 4 宗门</small></div></div>
+    <div class="regrow"><span class="ar" style="background:#EFE2C6"></span><div><b>昆吾洲</b><small>西陆 · 3 宗门</small></div></div>
+    <div class="regrow"><span class="ar" style="background:#F0DCC4"></span><div><b>赤烬洲</b><small>南荒 · 2 宗门</small></div></div>
+    <div class="regrow"><span class="ar" style="background:#EDF1F0"></span><div><b>北境雪原</b><small>冰原 · 1 宗门</small></div></div>
+    <div class="wgroup">图层</div>
+    <div class="lyr"><span class="sq">✓</span>地形 · 山脉水系</div>
+    <div class="lyr"><span class="sq">✓</span>宗门节点</div>
+    <div class="lyr"><span class="sq">✓</span>势力关系</div>
+    <div class="lyr"><span class="sq off"></span>情节热点</div>
+    <div class="lyr"><span class="sq off"></span>疆域边界</div>
+    <div class="clfoot" style="margin-top:auto">地图数据存在本地，可整包导出为 PNG / SVG；也可导入自绘底图后在其上标注。</div>
+  </aside>
+  <main class="wmain">
+    <div class="crumbline"><span>世界观</span><i>›</i><span>地图</span><i>›</i><b>青冥界 · 三洲四海</b><span class="grow"></span><span class="btn">＋ 新建板块</span><span class="btn">⤓ 导入底图</span></div>
+    <div class="wflex">
+      <div class="mapcard card">
+        <div class="mhead"><h3>三洲四海 · 宗门分布</h3>
+          <div class="maptabs"><span class="on">全域</span><span>苍梧洲</span><span>昆吾洲</span><span>赤烬洲</span></div>
+          <span class="grow"></span>
+          <span class="btn">✧ 生成底图</span><span class="btn">＋ 标注宗门</span>
+        </div>
+        <div class="mapwrap">
+          <svg viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" style="display:block;position:absolute;inset:0">
+<defs>
+  <linearGradient id="sea" x1="0" y1="0" x2=".65" y2="1"><stop offset="0" stop-color="#CFE2DC"/><stop offset=".55" stop-color="#B6CFC9"/><stop offset="1" stop-color="#A3C1BB"/></linearGradient>
+  <linearGradient id="land" x1=".2" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#FBF5E9"/><stop offset=".6" stop-color="#F0E3C8"/><stop offset="1" stop-color="#E4D3B2"/></linearGradient>
+  <pattern id="grat" width="62.5" height="66.6" patternUnits="userSpaceOnUse"><path d="M62.5 0H0V66.6" fill="none" stroke="#9DBAB3" stroke-width=".7"/></pattern>
+  <pattern id="sand" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".9" fill="#C9A878" opacity=".75"/><circle cx="6.5" cy="6" r=".7" fill="#C9A878" opacity=".6"/></pattern>
+  <filter id="soft" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur stdDeviation="7"/></filter>
+</defs>
+<rect width="1000" height="800" fill="url(#sea)"/>
+<rect width="1000" height="800" fill="url(#grat)" opacity=".75"/>
+<g opacity=".5" stroke="#A9C4BE" fill="none" stroke-width="1">
+  <path d="M0 132 C160 118 300 150 460 132 C620 114 780 146 1000 128"/>
+  <path d="M0 528 C180 512 340 548 520 530 C700 512 840 546 1000 526"/>
+</g>
+<g opacity=".5"><path d="M861 292 C859.5 304.5 855.5 315.8 852.3 328.4 C849.2 340.9 849.9 356.4 842.2 367.3 C834.5 378.2 817.8 382.7 806.1 393.9 C794.5 405.1 787.3 427.9 772.3 434.4 C757.3 440.9 734.4 433.6 716 432.7 C697.6 431.9 678.2 434.1 661.7 429.4 C645.1 424.7 627.2 415.6 616.5 404.5 C605.8 393.4 607.5 374.3 597.6 362.7 C587.7 351 569.5 346.2 557 334.4 C544.5 322.7 518.8 305.2 522.4 292 C526.1 278.8 569.7 269.2 578.9 255.4 C588.1 241.7 568.2 218.5 577.7 209.5 C587.2 200.4 623.2 214.1 635.7 201.3 C648.3 188.4 639.5 137.8 652.9 132.5 C666.3 127.2 696.4 166.1 716 169.7 C735.6 173.3 754.2 152.2 770.5 154.2 C786.8 156.2 803.4 170.2 813.7 181.6 C823.9 193 824.2 210.7 832.2 222.6 C840.2 234.6 856.7 241.6 861.5 253.2 C866.3 264.7 862.5 279.5 861 292Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/><path d="M372.5 344 C375 358.5 360.1 377.3 351.8 390.4 C343.5 403.4 327.2 404.8 322.6 422.4 C318.1 440 334.3 488.8 324.7 495.9 C315.1 503 280.5 468.9 265 465 C249.6 461 243.9 468.8 232 472.1 C220.1 475.4 206.7 484.5 193.6 484.7 C180.5 484.8 164.1 481.5 153.3 473 C142.4 464.4 136.2 446.9 128.5 433.5 C120.8 420.1 109.9 407.3 107 392.3 C104.1 377.4 111.3 360.2 111 344 C110.7 327.8 103.3 310.7 105.2 295 C107.1 279.2 113 260.2 122.5 249.3 C131.9 238.3 150.8 239.5 161.9 229.2 C173 218.8 177.5 197.6 189.2 187.2 C200.9 176.8 219.5 160.3 232 166.7 C244.5 173.1 251.8 216.5 264.3 225.6 C276.8 234.7 297.1 214.7 306.9 221.3 C316.6 228 317.8 251.8 322.7 265.5 C327.7 279.2 328.4 290.4 336.7 303.5 C345 316.6 370 329.5 372.5 344Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/><path d="M720.1 662 C728 669.8 780.9 682.1 780.4 688.9 C780 695.6 735.4 698.4 717.3 702.7 C699.2 707 687.1 710.1 671.9 714.6 C656.6 719 642.5 728.5 625.7 729.3 C608.8 730.1 590.9 720.1 570.7 719.5 C550.4 718.9 521 728.1 504.4 725.5 C487.7 722.9 474 711.9 470.7 704.1 C467.3 696.2 491 685.3 484.3 678.3 C477.7 671.2 439.4 668.6 431 662 C422.7 655.4 425.3 644.7 434.3 638.5 C443.3 632.2 469.9 629.1 484.9 624.7 C500 620.4 509.7 614.8 524.4 612.4 C539.1 610 557.6 610.2 573.1 610.2 C588.7 610.1 600.6 613 617.9 612.4 C635.1 611.7 664 603.3 676.7 606.1 C689.3 608.9 684.4 623.2 693.9 629.1 C703.3 635.1 728.9 636.5 733.3 642 C737.7 647.5 712.2 654.2 720.1 662Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/><g transform="translate(-34,-22) scale(0.9)"><path d="M563.5 94 C566.1 98.7 552.1 103.9 547.7 109.4 C543.4 114.9 547.9 124.6 537.3 127.1 C526.8 129.6 498.6 123.3 484.4 124.3 C470.2 125.4 464 132.2 452 133.3 C440 134.3 423.4 133.2 412.6 130.9 C401.8 128.5 392.2 123.4 387.2 119.1 C382.3 114.8 390.6 109.3 383.1 105.1 C375.6 100.9 349.3 98.8 342.3 94 C335.3 89.2 334.5 80.7 341.2 76.2 C347.9 71.7 371 70.5 382.6 67.1 C394.2 63.6 399.2 58.3 410.8 55.4 C422.4 52.5 438.5 49.4 452 49.5 C465.5 49.7 481.1 53.3 492.1 56.5 C503 59.7 511.1 64.4 517.7 68.5 C524.4 72.6 524.5 76.9 532.1 81.1 C539.7 85.4 560.8 89.3 563.5 94Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/></g><path d="M425.3 200 C426.5 202.5 423.6 206.9 420.8 208.9 C417.9 211 412.2 210.2 408.4 212.3 C404.6 214.4 401.6 221.5 398 221.6 C394.4 221.7 390.1 215.4 386.9 213.1 C383.6 210.8 381.5 209.8 378.5 207.6 C375.6 205.5 370.1 202.9 369.3 200 C368.4 197.1 371.3 193.4 373.5 190.4 C375.7 187.3 378.4 183.5 382.5 181.8 C386.6 180.1 393.3 179.6 398 180.1 C402.7 180.7 408 182.8 410.6 185.1 C413.3 187.4 411.5 191.3 413.9 193.7 C416.4 196.2 424.2 197.5 425.3 200Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/><path d="M911.3 468 C910.8 471.8 910.6 475.7 908.2 478.8 C905.8 481.9 901.5 484.5 897.1 486.7 C892.7 488.8 887 491.9 882 491.9 C877 491.9 871.5 488.7 867 486.6 C862.5 484.4 858.1 482.2 855 479.1 C852 476 847.2 471.1 848.6 468 C850.1 464.9 860.2 463.1 863.6 460.4 C866.9 457.7 865.9 453.7 868.9 451.9 C872 450 878 449.1 882 449.5 C886 450 887.9 453.6 892.8 454.6 C897.7 455.7 908.5 453.6 911.6 455.8 C914.7 458 911.9 464.2 911.3 468Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/><path d="M137.3 612 C138.1 614.8 142.1 619.2 140.5 621.3 C139 623.4 131.8 623.4 128.1 624.5 C124.3 625.5 121.3 627.8 118 627.7 C114.7 627.6 111.3 625.4 108.2 624.1 C105.2 622.7 100.7 621.6 99.7 619.5 C98.7 617.5 101.8 614.3 102.2 612 C102.6 609.7 101.1 607.5 102.1 605.4 C103.1 603.4 105.3 600.7 107.9 599.6 C110.6 598.4 114.5 598.7 118 598.5 C121.5 598.3 125.9 597.5 128.9 598.5 C131.9 599.5 134.4 602.4 135.9 604.6 C137.3 606.9 136.6 609.2 137.3 612Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/><path d="M879.2 176 C879.4 177.8 875 180.1 872.9 181.6 C870.8 183 868.8 183.2 866.6 184.6 C864.5 186.1 862.5 190 860 190.4 C857.5 190.8 854 188.4 851.5 187 C849 185.7 846.1 184.3 845.1 182.5 C844.1 180.6 845.8 178.3 845.5 176 C845.3 173.7 842.5 170.6 843.5 168.9 C844.6 167.1 849 165.6 851.8 165.3 C854.5 165.1 857 167.8 860 167.5 C863 167.2 867.6 163 869.6 163.6 C871.5 164.2 869.9 169 871.5 171 C873.1 173.1 878.9 174.2 879.2 176Z" fill="none" stroke="#8FB3AB" stroke-width="17" filter="url(#soft)"/></g>
+<path d="M861 292 C859.5 304.5 855.5 315.8 852.3 328.4 C849.2 340.9 849.9 356.4 842.2 367.3 C834.5 378.2 817.8 382.7 806.1 393.9 C794.5 405.1 787.3 427.9 772.3 434.4 C757.3 440.9 734.4 433.6 716 432.7 C697.6 431.9 678.2 434.1 661.7 429.4 C645.1 424.7 627.2 415.6 616.5 404.5 C605.8 393.4 607.5 374.3 597.6 362.7 C587.7 351 569.5 346.2 557 334.4 C544.5 322.7 518.8 305.2 522.4 292 C526.1 278.8 569.7 269.2 578.9 255.4 C588.1 241.7 568.2 218.5 577.7 209.5 C587.2 200.4 623.2 214.1 635.7 201.3 C648.3 188.4 639.5 137.8 652.9 132.5 C666.3 127.2 696.4 166.1 716 169.7 C735.6 173.3 754.2 152.2 770.5 154.2 C786.8 156.2 803.4 170.2 813.7 181.6 C823.9 193 824.2 210.7 832.2 222.6 C840.2 234.6 856.7 241.6 861.5 253.2 C866.3 264.7 862.5 279.5 861 292Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/><path d="M372.5 344 C375 358.5 360.1 377.3 351.8 390.4 C343.5 403.4 327.2 404.8 322.6 422.4 C318.1 440 334.3 488.8 324.7 495.9 C315.1 503 280.5 468.9 265 465 C249.6 461 243.9 468.8 232 472.1 C220.1 475.4 206.7 484.5 193.6 484.7 C180.5 484.8 164.1 481.5 153.3 473 C142.4 464.4 136.2 446.9 128.5 433.5 C120.8 420.1 109.9 407.3 107 392.3 C104.1 377.4 111.3 360.2 111 344 C110.7 327.8 103.3 310.7 105.2 295 C107.1 279.2 113 260.2 122.5 249.3 C131.9 238.3 150.8 239.5 161.9 229.2 C173 218.8 177.5 197.6 189.2 187.2 C200.9 176.8 219.5 160.3 232 166.7 C244.5 173.1 251.8 216.5 264.3 225.6 C276.8 234.7 297.1 214.7 306.9 221.3 C316.6 228 317.8 251.8 322.7 265.5 C327.7 279.2 328.4 290.4 336.7 303.5 C345 316.6 370 329.5 372.5 344Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/><path d="M720.1 662 C728 669.8 780.9 682.1 780.4 688.9 C780 695.6 735.4 698.4 717.3 702.7 C699.2 707 687.1 710.1 671.9 714.6 C656.6 719 642.5 728.5 625.7 729.3 C608.8 730.1 590.9 720.1 570.7 719.5 C550.4 718.9 521 728.1 504.4 725.5 C487.7 722.9 474 711.9 470.7 704.1 C467.3 696.2 491 685.3 484.3 678.3 C477.7 671.2 439.4 668.6 431 662 C422.7 655.4 425.3 644.7 434.3 638.5 C443.3 632.2 469.9 629.1 484.9 624.7 C500 620.4 509.7 614.8 524.4 612.4 C539.1 610 557.6 610.2 573.1 610.2 C588.7 610.1 600.6 613 617.9 612.4 C635.1 611.7 664 603.3 676.7 606.1 C689.3 608.9 684.4 623.2 693.9 629.1 C703.3 635.1 728.9 636.5 733.3 642 C737.7 647.5 712.2 654.2 720.1 662Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/><g transform="translate(-34,-22) scale(0.9)"><path d="M563.5 94 C566.1 98.7 552.1 103.9 547.7 109.4 C543.4 114.9 547.9 124.6 537.3 127.1 C526.8 129.6 498.6 123.3 484.4 124.3 C470.2 125.4 464 132.2 452 133.3 C440 134.3 423.4 133.2 412.6 130.9 C401.8 128.5 392.2 123.4 387.2 119.1 C382.3 114.8 390.6 109.3 383.1 105.1 C375.6 100.9 349.3 98.8 342.3 94 C335.3 89.2 334.5 80.7 341.2 76.2 C347.9 71.7 371 70.5 382.6 67.1 C394.2 63.6 399.2 58.3 410.8 55.4 C422.4 52.5 438.5 49.4 452 49.5 C465.5 49.7 481.1 53.3 492.1 56.5 C503 59.7 511.1 64.4 517.7 68.5 C524.4 72.6 524.5 76.9 532.1 81.1 C539.7 85.4 560.8 89.3 563.5 94Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/></g><path d="M425.3 200 C426.5 202.5 423.6 206.9 420.8 208.9 C417.9 211 412.2 210.2 408.4 212.3 C404.6 214.4 401.6 221.5 398 221.6 C394.4 221.7 390.1 215.4 386.9 213.1 C383.6 210.8 381.5 209.8 378.5 207.6 C375.6 205.5 370.1 202.9 369.3 200 C368.4 197.1 371.3 193.4 373.5 190.4 C375.7 187.3 378.4 183.5 382.5 181.8 C386.6 180.1 393.3 179.6 398 180.1 C402.7 180.7 408 182.8 410.6 185.1 C413.3 187.4 411.5 191.3 413.9 193.7 C416.4 196.2 424.2 197.5 425.3 200Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/><path d="M911.3 468 C910.8 471.8 910.6 475.7 908.2 478.8 C905.8 481.9 901.5 484.5 897.1 486.7 C892.7 488.8 887 491.9 882 491.9 C877 491.9 871.5 488.7 867 486.6 C862.5 484.4 858.1 482.2 855 479.1 C852 476 847.2 471.1 848.6 468 C850.1 464.9 860.2 463.1 863.6 460.4 C866.9 457.7 865.9 453.7 868.9 451.9 C872 450 878 449.1 882 449.5 C886 450 887.9 453.6 892.8 454.6 C897.7 455.7 908.5 453.6 911.6 455.8 C914.7 458 911.9 464.2 911.3 468Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/><path d="M137.3 612 C138.1 614.8 142.1 619.2 140.5 621.3 C139 623.4 131.8 623.4 128.1 624.5 C124.3 625.5 121.3 627.8 118 627.7 C114.7 627.6 111.3 625.4 108.2 624.1 C105.2 622.7 100.7 621.6 99.7 619.5 C98.7 617.5 101.8 614.3 102.2 612 C102.6 609.7 101.1 607.5 102.1 605.4 C103.1 603.4 105.3 600.7 107.9 599.6 C110.6 598.4 114.5 598.7 118 598.5 C121.5 598.3 125.9 597.5 128.9 598.5 C131.9 599.5 134.4 602.4 135.9 604.6 C137.3 606.9 136.6 609.2 137.3 612Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/><path d="M879.2 176 C879.4 177.8 875 180.1 872.9 181.6 C870.8 183 868.8 183.2 866.6 184.6 C864.5 186.1 862.5 190 860 190.4 C857.5 190.8 854 188.4 851.5 187 C849 185.7 846.1 184.3 845.1 182.5 C844.1 180.6 845.8 178.3 845.5 176 C845.3 173.7 842.5 170.6 843.5 168.9 C844.6 167.1 849 165.6 851.8 165.3 C854.5 165.1 857 167.8 860 167.5 C863 167.2 867.6 163 869.6 163.6 C871.5 164.2 869.9 169 871.5 171 C873.1 173.1 878.9 174.2 879.2 176Z" fill="url(#land)" stroke="#A88E6B" stroke-width="1.7" stroke-linejoin="round"/>
+<g><path d="M620.3 216.1L624.4 205.5L628.4 216.1Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M641.8 214.8L646.1 203.4L650.5 214.8Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M658.9 216.7L664 203.4L669.1 216.7Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M680.9 220.1L684.6 210.5L688.3 220.1Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M697.2 218.4L702.1 205.7L707 218.4Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M716.4 218.2L722.3 202.9L728.2 218.2Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M736 223.6L741.2 210.1L746.3 223.6Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M756.5 222.7L761.4 210L766.3 222.7Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M776.6 223.1L781.8 209.6L787 223.1Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M795.2 223.8L801.2 208.1L807.3 223.8Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M669.4 252.3L672.2 245.2L675.1 252.3Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M686.3 254.3L690.5 243.9L694.6 254.3Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M703.6 255.4L707.8 244.9L712 255.4Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M722.5 261.6L726.5 251.6L730.5 261.6Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M738.4 264.9L743.1 253.2L747.8 264.9Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M756.6 266.6L760.8 256.2L764.9 266.6Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M153.9 261L158.3 249.6L162.7 261Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M168.8 264.1L172.6 254.2L176.5 264.1Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M182.5 268.1L187.8 254.2L193.2 268.1Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M197.2 274.8L201.8 263L206.3 274.8Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M212.7 274.9L216.7 264.5L220.7 274.9Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M226.6 280.7L231.5 268L236.4 280.7Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M241.1 285L246.8 270.1L252.6 285Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M258.6 287.5L262.3 277.8L266.1 287.5Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M273.1 292L276.9 282.1L280.7 292Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M284.7 295L289.7 281.9L294.8 295Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M192.6 216.3L197 205.3L201.4 216.3Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M202 221.4L206.9 209L211.9 221.4Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M214.1 223.4L217.9 213.9L221.7 223.4Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M229.4 229.7L234.2 217.8L238.9 229.7Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M238.5 233.8L242.9 223L247.2 233.8Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M513.1 634.4L518.3 621.7L523.5 634.4Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M540.2 638.3L543.6 630L547 638.3Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M561.4 638.9L565.1 629.9L568.8 638.9Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M587 641.4L591.4 630.6L595.8 641.4Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M610.2 640.9L614.3 630.9L618.3 640.9Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M632.3 643.8L637.9 630.3L643.4 643.8Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M654.4 648L659.5 635.5L664.6 648Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M420.6 76.9L424.9 67.3L429.2 76.9Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M437.2 79.8L441.8 69.6L446.3 79.8Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M451.6 83.1L456.3 72.7L460.9 83.1Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M464.5 81.6L468.2 73.3L471.9 81.6Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><path d="M485.6 85L488.5 78.5L491.3 85Z" fill="#D8C8AB" stroke="#B1976F" stroke-width=".65" stroke-linejoin="round"/><circle cx="565.7" cy="335.1" r="1.5" fill="#9CB48F" opacity="0.7"/><circle cx="550.3" cy="356" r="2.3" fill="#9CB48F" opacity="0.5"/><circle cx="566.9" cy="338.6" r="2.4" fill="#9CB48F" opacity="0.7"/><circle cx="563.4" cy="355.9" r="1.9" fill="#9CB48F" opacity="0.5"/><circle cx="588.7" cy="347.1" r="1.3" fill="#9CB48F" opacity="0.7"/><circle cx="578.9" cy="362.5" r="2.2" fill="#9CB48F" opacity="0.5"/><circle cx="563.4" cy="365" r="2.2" fill="#9CB48F" opacity="0.5"/><circle cx="581" cy="343.3" r="1.9" fill="#9CB48F" opacity="0.8"/><circle cx="588.5" cy="348.4" r="1.8" fill="#9CB48F" opacity="0.9"/><circle cx="594.7" cy="357.7" r="1.4" fill="#9CB48F" opacity="0.8"/><circle cx="554" cy="355.1" r="2.1" fill="#9CB48F" opacity="0.6"/><circle cx="583.6" cy="360.8" r="2.2" fill="#9CB48F" opacity="0.5"/><circle cx="559.9" cy="359" r="1.3" fill="#9CB48F" opacity="0.7"/><circle cx="559.2" cy="332.7" r="2.2" fill="#9CB48F" opacity="0.7"/><circle cx="584" cy="340.5" r="2.1" fill="#9CB48F" opacity="0.8"/><circle cx="569.9" cy="334.8" r="1.8" fill="#9CB48F" opacity="0.7"/><circle cx="597.9" cy="354.5" r="2.5" fill="#9CB48F" opacity="0.8"/><circle cx="563.4" cy="356.9" r="2.4" fill="#9CB48F" opacity="0.7"/><circle cx="570.5" cy="332.7" r="2.4" fill="#9CB48F" opacity="0.5"/><circle cx="556.4" cy="346.2" r="1.2" fill="#9CB48F" opacity="0.7"/><circle cx="562.5" cy="349.3" r="1.8" fill="#9CB48F" opacity="0.8"/><circle cx="564.5" cy="339.6" r="1.3" fill="#9CB48F" opacity="0.8"/><circle cx="795.5" cy="319.8" r="1.6" fill="#9CB48F" opacity="0.9"/><circle cx="791.1" cy="317.2" r="1.9" fill="#9CB48F" opacity="0.8"/><circle cx="813.2" cy="313.6" r="1.4" fill="#9CB48F" opacity="0.8"/><circle cx="818.8" cy="330.9" r="1.8" fill="#9CB48F" opacity="0.7"/><circle cx="799.5" cy="335" r="2.2" fill="#9CB48F" opacity="0.7"/><circle cx="821.8" cy="332.5" r="1.9" fill="#9CB48F" opacity="0.6"/><circle cx="802.5" cy="339.3" r="1.4" fill="#9CB48F" opacity="0.6"/><circle cx="804" cy="325.5" r="2.5" fill="#9CB48F" opacity="0.5"/><circle cx="822.6" cy="338" r="1.2" fill="#9CB48F" opacity="0.5"/><circle cx="816.7" cy="345.3" r="2.6" fill="#9CB48F" opacity="0.5"/><circle cx="805.9" cy="314.7" r="2.5" fill="#9CB48F" opacity="0.8"/><circle cx="811.7" cy="336.6" r="1.2" fill="#9CB48F" opacity="0.8"/><circle cx="820.9" cy="342.4" r="2.5" fill="#9CB48F" opacity="0.6"/><circle cx="811.6" cy="343.3" r="2.1" fill="#9CB48F" opacity="0.8"/><circle cx="802.9" cy="331.1" r="2.6" fill="#9CB48F" opacity="0.6"/><circle cx="819.9" cy="334.6" r="1.4" fill="#9CB48F" opacity="0.8"/><circle cx="819.7" cy="333" r="2.3" fill="#9CB48F" opacity="0.7"/><circle cx="797.6" cy="338.4" r="1.5" fill="#9CB48F" opacity="0.6"/><circle cx="229.3" cy="450.2" r="1.4" fill="#9CB48F" opacity="0.6"/><circle cx="197" cy="453" r="1.8" fill="#9CB48F" opacity="0.7"/><circle cx="209.7" cy="468.2" r="1.8" fill="#9CB48F" opacity="0.5"/><circle cx="209.8" cy="464.9" r="2.5" fill="#9CB48F" opacity="0.7"/><circle cx="202.2" cy="450.8" r="2.1" fill="#9CB48F" opacity="0.6"/><circle cx="215.7" cy="442.8" r="1.8" fill="#9CB48F" opacity="0.5"/><circle cx="203.6" cy="474.9" r="2.2" fill="#9CB48F" opacity="0.5"/><circle cx="234.8" cy="459.8" r="1.7" fill="#9CB48F" opacity="0.8"/><circle cx="229.4" cy="460.1" r="2.3" fill="#9CB48F" opacity="0.7"/><circle cx="224" cy="447.9" r="1.8" fill="#9CB48F" opacity="0.7"/><circle cx="222.5" cy="440.7" r="1.9" fill="#9CB48F" opacity="0.5"/><circle cx="203.7" cy="460.2" r="1.8" fill="#9CB48F" opacity="0.7"/><circle cx="219.5" cy="467.8" r="2.5" fill="#9CB48F" opacity="0.7"/><circle cx="226" cy="449.5" r="1.6" fill="#9CB48F" opacity="0.8"/><circle cx="232.4" cy="459.5" r="2.4" fill="#9CB48F" opacity="0.8"/><circle cx="212.4" cy="458.7" r="1.2" fill="#9CB48F" opacity="0.9"/><circle cx="227" cy="462.9" r="1.4" fill="#9CB48F" opacity="0.5"/><circle cx="220.4" cy="447" r="1.9" fill="#9CB48F" opacity="0.5"/><circle cx="200.4" cy="468" r="1.4" fill="#9CB48F" opacity="0.7"/><circle cx="210.4" cy="470.4" r="2.1" fill="#9CB48F" opacity="0.6"/><circle cx="261.4" cy="383.3" r="2.3" fill="#9CB48F" opacity="0.8"/><circle cx="270.6" cy="375.4" r="2" fill="#9CB48F" opacity="0.6"/><circle cx="276.9" cy="383.3" r="2.1" fill="#9CB48F" opacity="0.8"/><circle cx="269.8" cy="366.8" r="2.4" fill="#9CB48F" opacity="0.7"/><circle cx="266.3" cy="377.9" r="2.5" fill="#9CB48F" opacity="0.9"/><circle cx="251.8" cy="375.3" r="2.5" fill="#9CB48F" opacity="0.5"/><circle cx="264.8" cy="369.1" r="2.4" fill="#9CB48F" opacity="0.8"/><circle cx="274.3" cy="371.1" r="2" fill="#9CB48F" opacity="0.5"/><circle cx="254.2" cy="376.8" r="2.3" fill="#9CB48F" opacity="0.7"/><circle cx="256.7" cy="365.1" r="2" fill="#9CB48F" opacity="0.6"/><circle cx="250.9" cy="371.6" r="1.5" fill="#9CB48F" opacity="0.6"/><circle cx="267.3" cy="375.9" r="2.4" fill="#9CB48F" opacity="0.7"/><circle cx="274.3" cy="383.2" r="1.2" fill="#9CB48F" opacity="0.5"/><circle cx="260.9" cy="359.4" r="2.2" fill="#9CB48F" opacity="0.7"/><circle cx="716" cy="389.9" r="1.6" fill="#9CB48F" opacity="0.6"/><circle cx="706" cy="399" r="1.8" fill="#9CB48F" opacity="0.8"/><circle cx="690" cy="392.2" r="1.3" fill="#9CB48F" opacity="0.8"/><circle cx="711" cy="392.9" r="1.9" fill="#9CB48F" opacity="0.5"/><circle cx="692" cy="394.2" r="1.7" fill="#9CB48F" opacity="0.8"/><circle cx="710.5" cy="381.3" r="2.1" fill="#9CB48F" opacity="0.7"/><circle cx="710.8" cy="388.4" r="2.4" fill="#9CB48F" opacity="0.8"/><circle cx="701.3" cy="377.7" r="2.4" fill="#9CB48F" opacity="0.9"/><circle cx="705.9" cy="390.5" r="1.6" fill="#9CB48F" opacity="0.6"/><circle cx="705.6" cy="384.2" r="2.5" fill="#9CB48F" opacity="0.8"/><circle cx="697.7" cy="387" r="1.3" fill="#9CB48F" opacity="0.7"/><circle cx="693.1" cy="385.6" r="2.6" fill="#9CB48F" opacity="0.8"/><path d="M540 640 C580 620 660 622 700 646 C712 660 700 686 664 692 C612 700 552 694 528 676 C516 662 522 650 540 640Z" fill="url(#sand)" opacity=".85"/><ellipse cx="654" cy="332" rx="14" ry="8.5" fill="#BDD5D6" stroke="#9BBFC0" stroke-width="1"/><ellipse cx="222" cy="286" rx="10" ry="6.5" fill="#BDD5D6" stroke="#9BBFC0" stroke-width="1"/><path d="M700 196 C688 250 726 268 714 318 C704 362 742 388 736 424" fill="none" stroke="#9CC0CC" stroke-width="4.3" opacity=".35" stroke-linecap="round"/><path d="M700 196 C688 250 726 268 714 318 C704 362 742 388 736 424" fill="none" stroke="#7FA8B8" stroke-width="2.3" stroke-linecap="round"/><path d="M652 262 C664 288 690 300 708 316" fill="none" stroke="#9CC0CC" stroke-width="3.3" opacity=".35" stroke-linecap="round"/><path d="M652 262 C664 288 690 300 708 316" fill="none" stroke="#7FA8B8" stroke-width="1.3" stroke-linecap="round"/><path d="M246 200 C230 262 268 292 252 336 C240 372 224 402 214 470" fill="none" stroke="#9CC0CC" stroke-width="4.1" opacity=".35" stroke-linecap="round"/><path d="M246 200 C230 262 268 292 252 336 C240 372 224 402 214 470" fill="none" stroke="#7FA8B8" stroke-width="2.1" stroke-linecap="round"/><path d="M300 268 C288 300 258 312 252 336" fill="none" stroke="#9CC0CC" stroke-width="3.2" opacity=".35" stroke-linecap="round"/><path d="M300 268 C288 300 258 312 252 336" fill="none" stroke="#7FA8B8" stroke-width="1.2" stroke-linecap="round"/></g>
+<g stroke="#9C8A6C" stroke-width="1" stroke-dasharray="7 5" fill="none" opacity=".45">
+  <path d="M612 226 C660 268 686 306 668 360"/>
+  <path d="M760 300 C800 322 830 348 820 392"/>
+  <path d="M180 300 C196 348 236 372 292 380"/>
+</g>
+<g fill="none">
+  <path d="M232 332 C340 300 560 250 716 292" stroke="#2F6F63" stroke-width="1.3" stroke-dasharray="6 5" opacity=".55"/>
+  <path d="M716 292 C752 268 772 254 792 236" stroke="#A8322A" stroke-width="1.4" stroke-dasharray="2 4" opacity=".8"/>
+  <path d="M792 236 C862 180 900 240 882 468" stroke="#7C5C8C" stroke-width="1.2" stroke-dasharray="4 4" opacity=".5"/>
+  <path d="M596 654 C700 560 830 470 882 468" stroke="#A8322A" stroke-width="1.1" stroke-dasharray="3 5" opacity=".45"/>
+</g>
+<g font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">
+  <text x="452" y="252" font-size="9.5" fill="#3C6B5E" transform="rotate(-7 452 252)">盟约 · 三百年</text>
+  <text x="746" y="256" font-size="9" fill="#8E2A23">世仇</text>
+</g>
+<text x="838" y="596" font-size="17" fill="#7FA6B0" letter-spacing="11" font-family="STKaiti,serif" opacity=".85">无 界 海</text>
+<text x="96" y="176" font-size="15" fill="#7FA6B0" letter-spacing="9" font-family="STKaiti,serif" opacity=".8" transform="rotate(-8 96 176)">沧 溟</text>
+<g opacity=".75">
+  <circle cx="498" cy="486" r="9" fill="none" stroke="#7FA6B0" stroke-width="1.2"/>
+  <circle cx="498" cy="486" r="17" fill="none" stroke="#7FA6B0" stroke-width="1" stroke-dasharray="4 4"/>
+  <circle cx="498" cy="486" r="25" fill="none" stroke="#7FA6B0" stroke-width=".8" stroke-dasharray="2 6"/>
+  <text x="498" y="530" font-size="11" fill="#6E96A2" text-anchor="middle" font-family="STKaiti,serif" letter-spacing="4">归 墟</text>
+</g>
+<text x="716" y="418" font-size="22" fill="#8A7551" font-family="STKaiti,serif" text-anchor="middle" letter-spacing="8" opacity=".95">苍 梧 洲</text>
+<text x="232" y="500" font-size="20" fill="#8A7551" font-family="STKaiti,serif" text-anchor="middle" letter-spacing="7" opacity=".95">昆 吾 洲</text>
+<text x="596" y="742" font-size="18" fill="#8A5C46" font-family="STKaiti,serif" text-anchor="middle" letter-spacing="6" opacity=".95">赤 烬 洲</text>
+<text x="452" y="150" font-size="15" fill="#7A8A96" font-family="STKaiti,serif" text-anchor="middle" letter-spacing="5" opacity=".9">北境雪原</text>
+<g font-family="STKaiti,serif" font-size="12.5" fill="#8A7551" opacity=".8">
+  <text x="640" y="232">临水</text><text x="800" y="198">太虚</text><text x="744" y="344">浮云</text><text x="592" y="300">听潮</text>
+  <text x="190" y="236">昆吾</text><text x="286" y="382">散修</text><text x="544" y="650">烬北</text>
+</g>
+<g>
+    <circle cx="716" cy="292" r="22" fill="#2F6F63" opacity=".09"/>
+    <circle cx="716" cy="292" r="13" fill="none" stroke="#2F6F63" stroke-width="1.4" opacity=".5"/>
+    <circle cx="716" cy="292" r="9" fill="#2F6F63"/>
+    <text x="716" y="295.2" font-size="10" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">剑</text>
+    <text x="716" y="320" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">临水剑冢</text>
+    <text x="716" y="333" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">中立 · 弟子 1,200</text>
+  </g><g>
+    <circle cx="792" cy="236" r="20" fill="#A8322A" opacity=".09"/>
+    <circle cx="792" cy="236" r="11" fill="none" stroke="#A8322A" stroke-width="1.4" opacity=".5"/>
+    <circle cx="792" cy="236" r="7" fill="#A8322A"/>
+    <text x="792" y="239.2" font-size="8" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">秦</text>
+    <text x="792" y="262" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">太虚秦氏</text>
+    <text x="792" y="275" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">邪 · 元婴 3 人</text>
+  </g><g>
+    <circle cx="632" cy="352" r="18" fill="#5A6B8C" opacity=".09"/>
+    <circle cx="632" cy="352" r="9" fill="none" stroke="#5A6B8C" stroke-width="1.4" opacity=".5"/>
+    <circle cx="632" cy="352" r="5" fill="#5A6B8C"/>
+    <text x="632" y="355.2" font-size="6" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">楼</text>
+    <text x="632" y="376" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">听潮楼</text>
+    <text x="632" y="389" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">中立 · 情报</text>
+  </g><g>
+    <circle cx="786" cy="372" r="18" fill="#B98A3C" opacity=".09"/>
+    <circle cx="786" cy="372" r="9" fill="none" stroke="#B98A3C" stroke-width="1.4" opacity=".5"/>
+    <circle cx="786" cy="372" r="5" fill="#B98A3C"/>
+    <text x="786" y="375.2" font-size="6" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">寺</text>
+    <text x="786" y="396" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">青灯寺</text>
+    <text x="786" y="409" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">正道 · 僧众 400</text>
+  </g><g>
+    <circle cx="232" cy="332" r="19" fill="#2F6F63" opacity=".09"/>
+    <circle cx="232" cy="332" r="10" fill="none" stroke="#2F6F63" stroke-width="1.4" opacity=".5"/>
+    <circle cx="232" cy="332" r="6" fill="#2F6F63"/>
+    <text x="232" y="335.2" font-size="7" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">观</text>
+    <text x="232" y="357" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">浮云观</text>
+    <text x="232" y="370" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">正道 · 剑修</text>
+  </g><g>
+    <circle cx="176" cy="408" r="17" fill="#B98A3C" opacity=".09"/>
+    <circle cx="176" cy="408" r="8" fill="none" stroke="#B98A3C" stroke-width="1.4" opacity=".5"/>
+    <circle cx="176" cy="408" r="4" fill="#B98A3C"/>
+    <text x="176" y="411.2" font-size="5" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">盟</text>
+    <text x="176" y="431" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">散修盟</text>
+    <text x="176" y="444" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">中立 · 无定所</text>
+  </g><g>
+    <circle cx="296" cy="246" r="18" fill="#7C5C8C" opacity=".09"/>
+    <circle cx="296" cy="246" r="9" fill="none" stroke="#7C5C8C" stroke-width="1.4" opacity=".5"/>
+    <circle cx="296" cy="246" r="5" fill="#7C5C8C"/>
+    <text x="296" y="249.2" font-size="6" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">幽</text>
+    <text x="296" y="270" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">九幽引</text>
+    <text x="296" y="283" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">邪 · 炼魂</text>
+  </g><g>
+    <circle cx="596" cy="654" r="19" fill="#A8322A" opacity=".09"/>
+    <circle cx="596" cy="654" r="10" fill="none" stroke="#A8322A" stroke-width="1.4" opacity=".5"/>
+    <circle cx="596" cy="654" r="6" fill="#A8322A"/>
+    <text x="596" y="657.2" font-size="7" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">烬</text>
+    <text x="596" y="679" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">赤烬火宗</text>
+    <text x="596" y="692" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">邪 · 南荒霸主</text>
+  </g><g>
+    <circle cx="676" cy="668" r="17" fill="#7C5C8C" opacity=".09"/>
+    <circle cx="676" cy="668" r="8" fill="none" stroke="#7C5C8C" stroke-width="1.4" opacity=".5"/>
+    <circle cx="676" cy="668" r="4" fill="#7C5C8C"/>
+    <text x="676" y="671.2" font-size="5" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">骨</text>
+    <text x="676" y="691" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">万骨窟</text>
+    <text x="676" y="704" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">邪 · 散修聚集</text>
+  </g><g>
+    <circle cx="452" cy="90" r="18" fill="#5A6B8C" opacity=".09"/>
+    <circle cx="452" cy="90" r="9" fill="none" stroke="#5A6B8C" stroke-width="1.4" opacity=".5"/>
+    <circle cx="452" cy="90" r="5" fill="#5A6B8C"/>
+    <text x="452" y="93.2" font-size="6" fill="#FFFDF6" text-anchor="middle" font-family="STKaiti,serif" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">冰</text>
+    <text x="452" y="114" font-size="12.5" font-weight="700" fill="#2E2A26" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">玄冰宫</text>
+    <text x="452" y="127" font-size="9.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">中立 · 封山</text>
+  </g>
+<g opacity=".62"><circle cx="398" cy="200" r="7" fill="none" stroke="#7C7266" stroke-width="1.3" stroke-dasharray="3 3"/><text x="398" y="222" font-size="10.5" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">悬空岛 · 待标注</text></g>
+  <g opacity=".55"><circle cx="882" cy="468" r="6" fill="none" stroke="#7C7266" stroke-width="1.2" stroke-dasharray="3 3"/><text x="882" y="488" font-size="10" fill="#7C7266" text-anchor="middle" font-family="Microsoft YaHei" style="paint-order:stroke;stroke:#F8F3E7;stroke-width:3.4;stroke-linejoin:round">待标注</text></g>
+<g transform="translate(944,86)" opacity=".85">
+  <circle r="19" fill="none" stroke="#8A7551" stroke-width="1"/>
+  <path d="M0 -16 L5 0 L0 16 L-5 0Z" fill="#8A7551" opacity=".85"/>
+  <path d="M0 -16 L0 16" stroke="#F8F3E7" stroke-width=".8"/>
+  <text y="-23" font-size="9" fill="#8A7551" text-anchor="middle" font-family="Microsoft YaHei">北</text>
+</g>
+<g transform="translate(846,762)" opacity=".9">
+  <path d="M0 0 H34 M34 0 H68" stroke="#5B5348" stroke-width="2"/>
+  <path d="M0 -3 V3 M34 -2 V2 M68 -3 V3" stroke="#5B5348" stroke-width="2"/>
+  <text x="0" y="-6" font-size="8" fill="#5B5348" font-family="Microsoft YaHei">0</text>
+  <text x="68" y="-6" font-size="8" fill="#5B5348" font-family="Microsoft YaHei" text-anchor="end">六百里</text>
+</g>
+</svg>
+          <div class="zoomer"><div>＋</div><div class="pct">100%</div><div>－</div><div>⤢</div></div>
+          <div class="lgbar">
+            <span><i style="background:#2F6F63"></i>正道</span>
+            <span><i style="background:#B98A3C"></i>中立</span>
+            <span><i style="background:#A8322A"></i>邪道</span>
+            <span><i style="background:#5A6B8C"></i>隐世</span>
+            <span><s></s>盟约</span>
+            <span><s class="dash"></s>敌对</span>
+            <span><s class="riv"></s>水系</span>
+          </div>
+          <div class="maphover">
+            <div class="mh"><b>临水剑冢</b><span class="pill jade">中立</span></div>
+            <div class="mhl">剑修宗门 · 弟子 1,200 · 老祖 陶大士（化神）<br>苍梧洲 · 临水 · 第三峰</div>
+            <div class="mhrow"><span>人物</span><b>沈砚清</b><b>宁疏影</b><b>陶大士</b></div>
+            <div class="mhrow"><span>情节</span>剑冢失守（第10章）· 雪夜（第18章）</div>
+            <div class="mhact"><span class="link">打开宗门详情 ›</span></div>
+          </div>
+        </div>
+      </div>
+      <aside class="wright">
+        <div class="realm card" style="flex:0 0 340px">
+          <div class="chead"><h3>修为体系 · 九境</h3><span class="link">编辑 ›</span></div>
+          <ol class="rlist">
+            <li class="past"><b>练气</b><span>1–9 层 · 主角起点</span></li>
+            <li class="past"><b>筑基</b><span>初 / 中 / 后 · 云无咎</span></li>
+            <li class="cur"><b>金丹</b><span>当前战力上限</span></li>
+            <li><b>元婴</b><span>秦无涯 · 老祖级</span></li>
+            <li><b>化神</b><span>陶大士</span></li>
+            <li><b>炼虚</b><span>—</span></li>
+            <li><b>合体</b><span>—</span></li>
+            <li><b>大乘</b><span>传说</span></li>
+            <li class="end"><b>渡劫</b><span>终章 · 封天</span></li>
+          </ol>
+          <div class="realmnote">沈砚清：练气九层 → 筑基初期（第 26 章计划）</div>
+        </div>
+        <div class="card" style="flex:0 0 244px;padding:9px 12px;display:flex;flex-direction:column">
+          <div class="chead"><h3>势力一览</h3><span class="link">全部 10 ›</span></div>
+          <div class="srow"><i style="background:#2F6F63"></i><b>临水剑冢</b><span class="num">弟子 1,200</span></div>
+          <div class="srow"><i style="background:#A8322A"></i><b>太虚秦氏</b><span class="num">元婴 3</span></div>
+          <div class="srow"><i style="background:#2F6F63"></i><b>浮云观</b><span class="num">剑修 86</span></div>
+          <div class="srow"><i style="background:#B98A3C"></i><b>听潮楼</b><span class="num">情报 分号 9</span></div>
+          <div class="srow"><i style="background:#A8322A"></i><b>赤烬火宗</b><span class="num">南荒霸主</span></div>
+          <div class="srow"><i style="background:#7C5C8C"></i><b>九幽引</b><span class="num">炼魂 47</span></div>
+          <div class="srow"><i style="background:#5A6B8C"></i><b>玄冰宫</b><span class="num">封山中</span></div>
+        </div>
+        <div class="lore card" style="flex:1">
+          <div class="chead"><h3>关键设定</h3><span class="link">全部 18 ›</span></div>
+          <div class="lrow"><span class="tag">地理</span>三洲之间隔无界海，渡海需灵舟</div>
+          <div class="lrow"><span class="tag">灵脉</span>苍梧洲七条，秦氏独占其三</div>
+          <div class="lrow"><span class="tag seal">禁忌</span>界门不可双向开启</div>
+          <div class="lrow"><span class="tag">天时</span>雨夜剑鸣，三年一度</div>
+          <div class="genbox"><b>✧ 底图由你决定</b><br>程序生成的示意地图（现在这张）可以随便加板块、改海岸线；也可以用 SD / ComfyUI 生成的写实地图做底图，再在上面标注宗门——两种都行。</div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+<div class="statusbar"><span>位面 3 · 板块 4 · 宗门 10 · 九境</span><span class="grow"></span><span>方案 3 · 纸间书桌 · 世界观 · 多板块地图与修为体系 · 1600×1000</span></div>
+</div>
+</body></html>

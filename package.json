@@ -1,0 +1,52 @@
+{
+  "name": "novelfolio",
+  "productName": "卷帙 NovelFolio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "离线优先的中文长篇小说创作工作台：人物 · 世界观 · 情节 · 章节 · 拆书 · 导入",
+  "main": "app/main.js",
+  "author": "墨明",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "shot": "electron . --shot",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win portable",
+    "dist:nsis": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.novelfolio.app",
+    "productName": "NovelFolio",
+    "copyright": "MIT · 数据只保存在本机",
+    "directories": {
+      "output": "dist",
+      "buildResources": "logo"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "app/**/*",
+      "!app/**/*.map",
+      "package.json"
+    ],
+    "win": {
+      "icon": "logo/novelfolio-b.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "NovelFolio-${version}-portable.exe"
+    },
+    "compression": "normal"
+  },
+  "license": "MIT"
+}

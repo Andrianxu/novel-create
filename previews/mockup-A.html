@@ -1,0 +1,223 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>方案A 卷帙 · 人物</title>
+<style>
+
+/* ---------- shared design tokens ---------- */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1600px;height:1000px;overflow:hidden}
+body{font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;-webkit-font-smoothing:antialiased}
+.flex{display:flex}.col{flex-direction:column}.grow{flex:1}
+.muted{opacity:.62}
+.tiny{font-size:11px}.sm{font-size:12px}
+
+body{background:#F3EADB;color:#2E2A26;padding:18px}
+.win{border-radius:14px;overflow:hidden;box-shadow:0 22px 60px rgba(90,66,40,.28);height:964px;background:#FBF6EC;border:1px solid rgba(60,40,20,.14)}
+/* ribbon */
+.ribbon{height:30px;background:#2E2A26;color:#F6EEDF;display:flex;align-items:center;gap:22px;padding:0 18px;font-size:12px;letter-spacing:.04em}
+.ribbon .brand{font-weight:700;color:#E8C778}
+.ribbon .rite{margin-left:auto;opacity:.65}
+/* title bar */
+.titlebar{height:40px;display:flex;align-items:center;gap:12px;padding:0 16px;background:#EFE3CD;border-bottom:1px solid #DCCBB0;font-size:12px;color:#6B5B48}
+.dots{display:flex;gap:7px}.dots i{width:10px;height:10px;border-radius:50%;background:#C9B596;display:block}
+.tname{font-weight:600;color:#3A3129}
+/* tabs */
+.tabs{height:44px;display:flex;align-items:stretch;background:#2E2A26;color:#CFC3AF;font-size:14.5px}
+.tab{padding:0 26px;display:flex;align-items:center;gap:9px;position:relative;cursor:pointer}
+.tab.active{background:#FBF6EC;color:#2E2A26;font-weight:700}
+.tab.active:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:#B3261E}
+.tab .ic{font-size:16px;opacity:.9}
+.tabspacer{flex:1}
+.search{display:flex;align-items:center;gap:8px;margin:8px 14px 8px 0;padding:0 12px;border-radius:8px;background:rgba(255,255,255,.09);color:#BFB3A0;font-size:12.5px;width:250px}
+/* body */
+.body{display:flex;height:846px}
+.side{width:238px;background:#EFE3CD;border-right:1px solid #DCCBB0;padding:14px 12px}
+.side h4{font:700 11px/1 "Microsoft YaHei";letter-spacing:.14em;color:#8B755C;margin:4px 6px 10px}
+.side .item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;font-size:13.5px;color:#4A3F34;cursor:pointer}
+.side .item.active{background:#FBF6EC;box-shadow:inset 0 0 0 1px #DCC9AA;font-weight:700}
+.side .item .n{margin-left:auto;font-size:11px;color:#9A876F}
+.side .item .sw{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px;background:#E2D2B6;color:#6B5B48}
+.side .groupttl{font-size:11.5px;font-weight:700;color:#6B5B48;padding:10px 8px 6px;display:flex;align-items:center;gap:6px;border-top:1px dashed #D8C6A8;margin-top:12px}
+.side .char{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;font-size:10.5px;opacity:.85}
+.side .char.on{background:#D9C7A8}
+.face{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#FBF6EC;font-size:12px;font-weight:700;flex:none}
+.eq{margin-left:auto;color:#A8621B;font-weight:700}
+/* main */
+.main{flex:1;padding:18px 22px;overflow:hidden}
+.crumb{font-size:12px;color:#8B755C;margin-bottom:12px}
+.crumb b{color:#2E2A26}
+.hero{display:flex;gap:22px}
+.portrait{width:262px;height:352px;border-radius:10px;border:1px solid #2E2A26;background:
+  radial-gradient(120% 90% at 30% 15%,#FBF6EC 0%,#EBDCC2 40%,#DCC7A4 75%,#CBB28B 100%);
+  display:grid;place-items:center;position:relative;overflow:hidden;box-shadow:0 6px 18px rgba(90,66,40,.16)}
+.portrait .brush{position:absolute;inset:0;background:
+  repeating-linear-gradient(115deg,rgba(255,255,255,.22) 0 2px,transparent 2px 9px),
+  radial-gradient(80% 60% at 70% 90%,rgba(46,42,38,.16),transparent 70%)}
+.portrait .ph{position:relative;text-align:center}
+.portrait .ph .gl{font-family:"STXingkai","STXingkai SC","FZSTK",serif;font-size:110px;line-height:1;color:#7C291F;text-shadow:2px 3px 0 rgba(255,246,232,.6)}
+.portrait .seal{position:absolute;right:16px;bottom:16px;width:46px;height:46px;border:2px solid #B3261E;border-radius:4px;color:#B3261E;display:grid;place-items:center;font-family:"STKaiti",serif;font-size:11px;line-height:1.1;text-align:center;transform:rotate(-6deg);opacity:.9}
+.portrait .cap{position:absolute;left:14px;top:12px;font-family:"STKaiti",serif;font-size:15px;color:#4A3F34;letter-spacing:.16em}
+.basic{flex:1}
+.name{display:flex;align-items:baseline;gap:12px}
+.name h1{font-family:"STKaiti","KaiTi",serif;font-size:44px;letter-spacing:.08em;color:#2E2A26}
+.name .sub{font-size:13px;color:#8B755C}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;border:1px solid #C9B491;color:#6B5B48;margin-left:auto;background:#FBF6EC}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin-top:16px}
+.field{border-bottom:1px dotted #D6C4A6;padding-bottom:9px}
+.field .k{font-size:11.5px;color:#8B755C;letter-spacing:.1em}
+.field .v{font-size:15px;margin-top:4px;color:#2E2A26}
+.field .v em{font-style:normal;color:#A8621B;font-weight:700}
+.endbar{margin-top:14px;border-radius:10px;padding:12px 14px;background:linear-gradient(90deg,#F2E2C5,#FBF6EC);border:1px solid #DCC9AA;display:flex;gap:14px;align-items:flex-start}
+.endbar .lab{font-size:11px;color:#8B755C;letter-spacing:.12em;padding-top:2px;flex:none}
+.endbar .txt{font-size:13.5px;line-height:1.6;color:#3A3129}
+.relation{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.relation .lbl{font-size:11px;color:#8B755C;margin-right:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px;background:#FBF6EC;border:1px solid #DCC9AA;font-size:12px;color:#3A3129}
+.chip .av{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#FBF6EC;font-size:10px}
+.chip .rel{color:#8B755C;font-size:11px}
+/* timeline */
+.tl{margin-top:20px;border:1px solid #DCC9AA;border-radius:12px;background:#FFFDF8;padding:16px 20px 12px}
+.tlhead{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.tlhead h3{font-family:"STKaiti",serif;font-size:20px;letter-spacing:.1em}
+.legend{display:flex;gap:14px;font-size:11.5px;color:#6B5B48;align-items:center}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.segwrap{display:flex;gap:8px;margin-left:auto}
+.seg{font-size:11.5px;padding:4px 12px;border:1px solid #D6C4A6;border-radius:7px;color:#6B5B48}
+.seg.on{background:#2E2A26;color:#F6EEDF;border-color:#2E2A26}
+.track{position:relative;height:150px;margin-top:6px}
+.track .axis{position:absolute;left:0;right:0;top:62px;height:2px;background:linear-gradient(90deg,#3E7C6B,#C9973C 45%,#B3261E)}
+.track .axisghost{position:absolute;left:0;right:0;top:62px;height:14px;margin-top:-6px;background:repeating-linear-gradient(90deg,#E6D6B8 0 1px,transparent 1px 52px);opacity:.7}
+.era{position:absolute;top:14px;font-size:10.5px;color:#8B755C;letter-spacing:.1em;white-space:nowrap}
+.tick{position:absolute;top:62px;width:14px;height:14px;margin-left:-7px;margin-top:-6px;border-radius:50%;background:#FBF6EC;border:2.5px solid #3E7C6B;cursor:pointer}
+.tick.done{border-color:#3E7C6B;background:#3E7C6B}
+.tick.later{border-style:dashed;border-color:#C9973C;background:#FFFDF8}
+.tick.ending{border-color:#B3261E;background:#B3261E;width:17px;height:17px;margin-left:-8.5px;margin-top:-7.5px;box-shadow:0 0 0 4px rgba(179,38,30,.16)}
+.tick .lbl{position:absolute;transform:translateX(-50%);left:50%;font-size:11px;color:#3A3129;white-space:nowrap;top:-26px}
+.tick.down .lbl{top:14px;color:#6B5B48}
+.tick .tg{position:absolute;transform:translateX(-50%);left:50%;top:14px;font-size:9.5px;color:#8B755C;white-space:nowrap}
+.tip{position:absolute;left:600px;top:14px;width:296px;background:#2E2A26;color:#F6EEDF;border-radius:9px;padding:10px 12px;font-size:11.5px;line-height:1.55;box-shadow:0 10px 24px rgba(46,42,38,.3);z-index:5}
+.tip:after{content:"";position:absolute;left:60px;bottom:-6px;width:12px;height:12px;background:#2E2A26;transform:rotate(45deg)}
+.tip .t{font-weight:700;font-size:12.5px;color:#E8C778;display:flex;justify-content:space-between}
+.tip .who{color:#C9B491;font-size:10.5px;margin-top:3px}
+.tip .hint{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.16);font-size:10.5px}
+/* detail drawer */
+.bottom{display:flex;gap:14px;margin-top:12px}
+.detail{flex:1;border:1px solid #DCC9AA;border-radius:12px;background:#FFFDF8;padding:14px 16px;position:relative}
+.detail .ttl{display:flex;align-items:center;gap:10px}
+.detail .ttl b{font-family:"STKaiti",serif;font-size:19px;letter-spacing:.06em}
+.chipkind{font-size:10.5px;padding:2px 7px;border-radius:4px;background:#E7F0EC;color:#2F6255}
+.detail p{margin-top:8px;font-size:12.8px;line-height:1.8;color:#3A3129}
+.detail p .q{font-family:"STKaiti",serif;font-size:14px;color:#7C291F}
+.detail .meta{margin-top:9px;display:flex;gap:18px;font-size:11px;color:#8B755C;align-items:center}
+.detail .acts{margin-left:auto;display:flex;gap:8px}
+.btn{font-size:11.5px;padding:5px 12px;border-radius:7px;border:1px solid #C9B491;color:#3A3129;background:#FBF6EC}
+.btn.pri{background:#B3261E;color:#FFF6E8;border-color:#B3261E}
+.upnext{width:300px;border:1px dashed #C9973C;border-radius:12px;background:#FFFAEE;padding:14px 16px}
+.upnext h5{font-size:11px;letter-spacing:.14em;color:#A8621B;margin-bottom:8px}
+.upnext .row{display:flex;gap:8px;font-size:12px;color:#3A3129;padding:5px 0}
+.upnext .row .id{color:#B3261E;font-weight:700;flex:none}
+/* status bar */
+.status{height:26px;background:#EFE3CD;border-top:1px solid #DCCBB0;display:flex;align-items:center;gap:20px;padding:0 16px;font-size:11px;color:#6B5B48}
+</style></head><body>
+<div class="win">
+ <div class="ribbon"><span class="brand">◈ 卷帙 · NOVELFOLIO</span><span>墨明工作室</span><span>《临水问剑》</span><span class="rite">自动保存 · 12:04 · 本地库</span></div>
+ <div class="titlebar"><div class="dots"><i></i><i></i><i></i></div><span class="tname">临水问剑.nf  —  文档</span><span class="muted">·</span><span>32 章 · 18.4 万字</span><span style="margin-left:auto">≡</span></div>
+ <div class="tabs">
+   <div class="tab active"><span class="ic">◈</span>人物</div>
+   <div class="tab"><span class="ic">◎</span>世界观</div>
+   <div class="tab"><span class="ic">✎</span>情节编写</div>
+   <div class="tab"><span class="ic">⤓</span>导入导出</div>
+   <div class="tab"><span class="ic">◷</span>设置</div>
+   <div class="tabspacer"></div>
+   <div class="search">⌕ 搜索人物 / 情节 / 设定</div>
+ </div>
+ <div class="body">
+   <div class="side">
+     <h4>人物谱</h4>
+     <div class="item" style="padding:5px 6px 5px 10px">全部人物 <span class="n">47</span></div>
+     <div class="groupttl">主角</div>
+     <div class="char on"><span class="face" style="background:#7C291F">沈</span>沈砚清 <span class="eq">凝气</span></div>
+     <div class="groupttl">主要配角</div>
+     <div class="char"><span class="face" style="background:#3E7C6B">云</span>云无咎</div>
+     <div class="char"><span class="face" style="background:#8A6A2F">宁</span>宁疏影</div>
+     <div class="char"><span class="face" style="background:#4A4E69">洛</span>洛九霄</div>
+     <div class="groupttl">反派 · 宗门老祖</div>
+     <div class="char"><span class="face" style="background:#6B2B4A">秦</span>秦无涯</div>
+     <div class="char"><span class="face" style="background:#5A3B25">陶</span>陶大士</div>
+     <div style="margin-top:16px;padding:10px;border-radius:9px;background:#FBF6EC;border:1px solid #DCC9AA;font-size:11.5px;color:#6B5B48;line-height:1.7">
+       <b style="color:#3A3129">关系图</b><br>沈砚清 ⇢ 云无咎（同门）<br>沈砚清 ⇢ 秦无涯（宿敌）
+     </div>
+   </div>
+   <div class="main">
+     <div class="crumb">人物 <span class="muted">/</span> 主角 <span class="muted">/</span> <b>沈砚清</b></div>
+     <div class="hero">
+       <div class="portrait">
+         <div class="brush"></div>
+         <div class="cap">沈砚清 · 立绘</div>
+         <div class="ph"><div class="gl">沈</div><div style="letter-spacing:.5em;font-size:12px;color:#7C291F">暂无立绘 · 点此上传</div></div>
+         <div class="seal">临水<br>问剑</div>
+       </div>
+       <div class="basic">
+         <div class="name"><h1>沈砚清</h1><span class="sub">Shen Yanqing · 字 墨白</span><span class="tag">◈ 主角</span></div>
+         <div class="grid">
+           <div class="field"><div class="k">年龄</div><div class="v">十九 · 十七岁入临水</div></div>
+           <div class="field"><div class="k">身份</div><div class="v">临水剑冢 记名弟子 → 剑冢守夜人</div></div>
+           <div class="field" style="grid-column:span 2"><div class="k">人设</div><div class="v" style="font-size:13.5px;line-height:1.6">沉默寡言，执念极深。以“剑要听得见雨”为道，宁可断剑，不肯折节。</div></div>
+           <div class="field"><div class="k">目前修为</div><div class="v"><em>练气九层 → 筑基初期</em></div></div>
+           <div class="field"><div class="k">所属</div><div class="v">临水剑冢 · 第三峰</div></div>
+         </div>
+         <div class="endbar"><div class="lab">最终<br>结局</div><div class="txt">斩断界门，以剑意封天；坠入无界河，留下半柄断剑入世。后世称“听雨剑仙”。</div></div>
+         <div class="relation"><span class="lbl">相关人物</span>
+           <span class="chip"><span class="av" style="background:#3E7C6B">云</span>云无咎 <span class="rel">同门·生死交</span></span>
+           <span class="chip"><span class="av" style="background:#8A6A2F">宁</span>宁疏影 <span class="rel">所慕</span></span>
+           <span class="chip"><span class="av" style="background:#6B2B4A">秦</span>秦无涯 <span class="rel">宿敌</span></span>
+         </div>
+       </div>
+     </div>
+     <div class="tl">
+       <div class="tlhead"><h3>情节时间轴</h3>
+         <div class="legend"><span><i style="background:#3E7C6B"></i>已发生</span><span><i style="background:#FFFDF8;border:1.5px dashed #C9973C"></i>后续计划</span><span><i style="background:#B3261E"></i>结局节点</span></div>
+         <div class="segwrap"><span class="seg on">情节</span><span class="seg">修为</span><span class="seg">关系</span></div>
+       </div>
+       <div class="track">
+         <div class="axisghost"></div><div class="axis"></div>
+         <div class="era" style="left:0">卷一 · 雨夜入冢</div><div class="era" style="left:330px">卷二 · 问剑三峰</div><div class="era" style="left:690px">卷三 · 界门将开</div><div class="era" style="left:1060px">终章</div>
+         <div class="tick done" style="left:40px"><span class="lbl">雨夜入冢</span></div>
+         <div class="tick done" style="left:128px"><span class="lbl">初试剑心</span></div>
+         <div class="tick done down" style="left:214px"><span class="lbl">听雨断剑</span><span class="tg">第一章 · 断剑</span></div>
+         <div class="tick done" style="left:300px"><span class="lbl">拜入三峰</span></div>
+         <div class="tick done" style="left:386px"><span class="lbl">与云无咎结义</span></div>
+         <div class="tick done down" style="left:470px"><span class="lbl">剑冢失守</span><span class="tg">第十章 · 血誓</span></div>
+         <div class="tick done" style="left:556px"><span class="lbl">破境筑基</span></div>
+         <div class="tick done" style="left:642px"><span class="lbl">夜探秦府</span></div>
+         <div class="tick done down" style="left:728px"><span class="lbl">宁疏影之死</span><span class="tg">第十八章 · 雪夜</span></div>
+         <div class="tick later" style="left:814px"><span class="lbl">重铸听雨</span></div>
+         <div class="tick later" style="left:900px"><span class="lbl">界门初现</span></div>
+         <div class="tick later down" style="left:986px"><span class="lbl">三人对峙</span><span class="tg">计划 · 第二十七章</span></div>
+         <div class="tick later" style="left:1072px"><span class="lbl">斩秦无涯</span></div>
+         <div class="tick ending" style="left:1160px"><span class="lbl">封天坠河</span><span class="tg">终章</span></div>
+         <div class="tip" style="left:672px;top:8px">
+           <div class="t"><span>第十八章 · 雪夜</span><span>已发生</span></div>
+           <div class="who">沈砚清 · 宁疏影 · 秦无涯</div>
+           <div style="margin-top:6px">宁疏影为护剑心，以血引雷，化雪千里。沈砚清第一次真正执剑向人。</div>
+           <div class="hint">单击展开详细情节 · 双击跳转章节</div>
+         </div>
+       </div>
+     </div>
+     <div class="bottom">
+       <div class="detail">
+         <div class="ttl"><b>第十八章 · 雪夜</b><span class="chipkind">已发生 · 卷二</span>
+           <div class="acts"><span class="btn">编辑情节</span><span class="btn pri">跳转正文</span></div></div>
+         <p>雪落临水，三十六盏剑灯尽灭。宁疏影以血引雷，替沈砚清挡下秦无涯的一掌。<span class="q">“你若还听得见雨，就替我活下去。”</span>那一夜，他第一次拔剑向人，也第一次听不见剑声。</p>
+         <div class="meta"><span>发生地点：临水剑冢 · 第三峰</span><span>关联人物：<b>宁疏影</b> · <b>秦无涯</b></span><span>正文章节：第 18 章</span></div>
+       </div>
+       <div class="upnext">
+         <h5>后续发展情节</h5>
+         <div class="row"><span class="id">第27章</span><span>三人对峙：秦无涯揭开界门之秘</span></div>
+         <div class="row"><span class="id">第31章</span><span>重铸听雨剑，剑魂归来</span></div>
+         <div class="row"><span class="id">终 章</span><span>封天坠河 · 断剑入世</span></div>
+       </div>
+     </div>
+   </div>
+ </div>
+ <div class="status"><span>◈ 人物 47</span><span>情节节点 214</span><span>世界观 3 位面</span><span style="margin-left:auto">版本 v0.1 预览 · 方案A：卷帙</span></div>
+</div>
+</body></html>

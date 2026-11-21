@@ -1,0 +1,41 @@
+# ---- 依赖与构建产物 ----
+node_modules/
+dist/
+out/
+build/
+*.log
+
+# ---- 绝不能提交：本地数据、密钥、备份 ----
+data/
+*.nfdata.json
+*.nfbackup.json
+config.local.json
+secrets.json
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ---- 设计过程中的中间产物（保留 v2 定稿，其余不进仓库） ----
+previews/decksrc/
+previews/design3-*
+previews/novelfolio-ui-preview.pptx
+previews/novelfolio-ui-preview.pdf
+previews/logo-*.png
+
+# ---- 可选的本地截图/草稿 ----
+screenshots/
+_scratch/
+previews/_scratch/
+_*.py
+_*.ps1
+_*.txt
+_*.json
+!package.json
+!package-lock.json
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
