@@ -155,6 +155,13 @@ const FILTERS = [
 ];
 const STATUS_KEYS = ['done', 'later', 'ending'];
 
+/* 时间点怎么显示：整数原样，小数最多两位 */
+function fmtTp(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+}
+
 export default {
   id: 'plot', label: '情节',
   statusText(doc) {
@@ -173,6 +180,7 @@ export default {
     const touch = () => NF.save();
     const vols = () => (Array.isArray(doc.chapters) ? doc.chapters : []);
     const chars = () => (Array.isArray(doc.characters) ? doc.characters : []);
+    /* 按时间点排序；时间点相同的保持原数组次序（Array#sort 是稳定排序） */
     const byTime = () => doc.plots.slice().sort((a, b) => (Number(a.timePoint) || 0) - (Number(b.timePoint) || 0));
     const current = () => doc.plots.find(p => p.id === st.selId) || null;
     const nameOf = id => { const c = chars().find(x => x.id === id); return c ? c.name : ''; };
@@ -195,10 +203,23 @@ export default {
     }
     function chNum(s) {
       const t = String(s || '');
-      const ar = t.match(/(\d+)/);
+      /* 「第18章」「第18回」「18」 */
+      const ar = t.match(/第\s*(\d+)\s*[章回节]/);
       if (ar) return Number(ar[1]);
-      const cn = t.match(/第([〇零一二三四五六七八九十百]+)[章回]/);
-      return cn ? cnToInt(cn[1]) : 0;
+      const cn = t.match(/第\s*([〇零一二三四五六七八九十百]+)\s*[章回节]/);
+      if (cn) return cnToInt(cn[1]);
+      const bare = t.match(/(\d+)/);
+      return bare ? Number(bare[1]) : 0;
+    }
+
+    /* 下拉里一条稿件的写法：卷一 · 第五章 听雨断剑
+     * 卷名 / 章名都从「章节写作」里取，不拼编号，避免出现 0 这种码 */
+    function msLabel(m) {
+      const v = (doc.chapters || []).find(x => x.id === m.volumeId);
+      const vt = v && v.title ? String(v.title) : '';
+      const mt = m.title || '未命名章';
+      /* 卷名里常常已经含章名，重复的就不再叠一遍 */
+      return vt && mt.indexOf(vt.split(' · ')[0]) < 0 ? vt + ' · ' + mt : mt;
     }
 
     /* ================= 骨架 ================= */
@@ -264,49 +285,108 @@ export default {
     }
     function hideTip() { tip.classList.remove('on'); }
 
-    /* ---------- 时间轴 ↔ 时间点 的换算 ----------
-     * 轴是按情节自身的时间点等比铺开的：最左 = 最小时间点，最右 = 最大。
-     * 只有 1 个情节时没有参照，固定落在 50%。
-     * 拖动 / 双击新建都按这个换算回整数时间点，宁可相邻也不要凭空改别人的位置。 */
-    function axisRange() {
-      const tps = doc.plots.map(p => Number(p.timePoint) || 0);
-      const n = tps.length;
-      if (n <= 1) return { min: 0, max: 0, tp: n ? tps[0] : 0, step: 1 };
-      const min = Math.min(...tps), max = Math.max(...tps), span = max - min;
-      const step = Math.max(1, Math.round(span / 30));
-      return { min, max, tp: n, step };
+    /* ---------- 时间轴 ↔ 时间点的换算 ----------
+     * 轴按「排序后的位置」排布，不再把时间点假装成等距整数刻度：
+     * 时间点紧挨着的一簇会自然拉开（至少 1.4% 宽），离得远的一段会压缩，
+     * 这样一条离群情节不会把其它节点全挤到轴的最左边。
+     * 拖动 / 双击新建时，位置由「插到哪两个相邻节点之间」决定，
+     * 时间点在两者之间线性插值（允许小数），落定后再按顺序归一化（见 normalizeTimes）。 */
+    const GAP_LOOSE = 2;      /* 相邻间隔的平均值：约 2 → 满宽 */
+    const GAP_TIGHT = 1.4;    /* 最小间距（百分比） */
+    const tpNum = p => { const n = Number(p && p.timePoint); return isFinite(n) ? n : 0; };
+
+    /* 排序列表 → 每个节点的百分比坐标（4% ~ 96%） */
+    function layoutSpots(list) {
+      const n = list.length;
+      if (!n) return [];
+      if (n === 1) return [50];
+      const tps = list.map(tpNum);
+      const avg = tps.reduce((a, b) => a + b, 0) / n;
+      const z = [0];
+      for (let i = 1; i < n; i++) {
+        const d = Math.abs(tps[i] - tps[i - 1]);
+        let g;
+        if (!(avg > 0)) g = GAP_LOOSE;                      /* 老数据全是 0：等距 */
+        else g = Math.max(GAP_TIGHT, Math.min(GAP_LOOSE * 2, GAP_LOOSE * d / avg));
+        z.push(z[i - 1] + g);
+      }
+      const total = z[n - 1] || 1;
+      const base = z[0];
+      return z.map(v => 4 + ((v - base) / total) * 92);
     }
-    /* 把轴上的百分比换成时间点
-     * opts.free = true 时用于「双击新建」：允许落在两端之外，
-     * 否则两点之间的空白几乎吸不到任何新位置，新建的情节会全挤在已有点上。 */
-    function pctToTime(pct, opts) {
-      const R = axisRange();
-      const t = 4 + (pct / 100) * 92;
-      if (R.tp <= 1) return R.min;
-      const raw = R.max === R.min ? R.min : R.min + ((t - 4) / 92) * (R.max - R.min);
-      const snapped = Math.round(raw / R.step) * R.step;
-      if (!(opts && opts.free)) return Math.max(R.min, Math.min(R.max, snapped));
-      return Math.max(0, snapped);
-    }
-    function timeToPct(tp) {
-      const R = axisRange();
-      if (R.tp <= 1 || R.max === R.min) return 50;
-      return 4 + ((Math.max(R.min, Math.min(R.max, tp)) - R.min) / (R.max - R.min)) * 92;
+    function nodeSpots(list) { return layoutSpots(list); }
+
+    /* 轴上一点（百分比）落在哪两个相邻节点之间，以及插值比例
+     * 返回 { i, f }：i 是左边节点的下标，f 是 0~1 的比例 */
+    function locate(list, pct) {
+      const n = list.length;
+      const spots = layoutSpots(list);
+      const t = Math.max(spots[0], Math.min(spots[n - 1], 4 + (pct / 100) * 92));
+      let i = 0;
+      while (i < n - 2 && t > spots[i + 1]) i++;
+      const seg = spots[i + 1] - spots[i] || 1;
+      return { i, f: Math.max(0, Math.min(1, (t - spots[i]) / seg)) };
     }
 
-    /* 拖动过程中实时调整其它节点位置，松手才落盘 */
-    function previewSpots(list, drag, tp) {
-      const rest = doc.plots.filter(p => p.id !== drag.p.id).map(p => Number(p.timePoint) || 0);
-      const min = Math.min(tp, ...rest), max = Math.max(tp, ...rest);
-      const spots = list.map(p => {
-        const t = p.id === drag.p.id ? tp : (Number(p.timePoint) || 0);
-        if (min === max) {
-          if (p.id === drag.p.id) return 50;
-          return p.timePoint < tp ? 30 : 70;
-        }
-        return 4 + ((t - min) / (max - min)) * 92;
-      });
-      return spots;
+    /* 轴上一点 → 时间点（允许小数）：夹在相邻两个节点的时间点之间插值 */
+    function timeAtPct(list, pct) {
+      const n = list.length;
+      if (!n) return 1;
+      if (n === 1) return tpNum(list[0]);
+      const { i, f } = locate(list, pct);
+      const a = tpNum(list[i]), b = tpNum(list[i + 1]);
+      return a + (b - a) * f;
+    }
+    /* 轴上一点 → 如果在这一格新建，它前后的时间点该怎么取 */
+    function insertAtPct(list, pct) {
+      const n = list.length;
+      if (!n) return { index: 0, tp: 1 };
+      if (n === 1) return { index: pct >= 50 ? 1 : 0, tp: tpNum(list[0]) };
+      const { i, f } = locate(list, pct);
+      return { index: i + 1, tp: timeAtPct(list, pct), f };
+    }
+
+    /* 按顺序重新归一化时间点（"按情节先后自动修正"，而不是对齐已有整数锚点）：
+     * - 第一位保留原值（没有更早的邻居可参考），后面每一位在「原来的位置」附近取一个
+     *   不与邻居相撞的值：间隔宽就取整（1、2、3），挤在一起才用小数（0.5 → 0.1 → 0.02），
+     *   所以拖完一次只动前后几位，不会像等比放大那样越跑越远。
+     * - 严格递增、最小步长 0.02，保证拖到同一格也分得开。 */
+    const round2 = v => Math.round(v * 100) / 100;
+    /* 允许的最小步长：看着间隔 d 有多宽，越宽越慷慨 */
+    function stepFor(d) {
+      if (!(d > 0)) d = 1;
+      if (d >= 0.95) return 1;
+      if (d >= 0.6) return 0.5;
+      if (d >= 0.26) return 0.2;
+      if (d >= 0.11) return 0.1;
+      if (d >= 0.045) return 0.05;
+      return 0.02;
+    }
+    function normalizeTimes(list, startAt) {
+      if (!list.length) return;
+      if (startAt != null) list[0].timePoint = round2(Math.max(0, startAt));
+      else list[0].timePoint = round2(tpNum(list[0]));
+      for (let i = 1; i < list.length; i++) {
+        const want = round2(tpNum(list[i]));           /* 原来的位置 */
+        const prev = tpNum(list[i - 1]);
+        const gap = want - prev;
+        /* 位置本来就正经（比前一位大且留了空隙）就原样保留 —— 小数的照样是小数，
+         * 不会被「抹平」到整数；只有撞车 / 反序时才按顺序修正 */
+        if (gap >= 0.02) { list[i].timePoint = want; continue; }
+        const minStep = stepFor(Math.abs(gap) || 1);
+        list[i].timePoint = round2(prev + minStep);
+      }
+      /* 万一还是不够间距（后面全挤在一起），再补一遍 */
+      dedupeTimes(list);
+    }
+    /* 极度拥挤时兜底：保证严格递增（每次只加最小步长，不放大） */
+    function dedupeTimes(list) {
+      for (let i = 1; i < list.length; i++) {
+        let v = round2(tpNum(list[i]));
+        const prev = tpNum(list[i - 1]);
+        if (!(v > prev + 0.0001)) v = round2(prev + 0.02);
+        list[i].timePoint = v;
+      }
     }
 
     function renderTimeline() {
@@ -340,18 +420,18 @@ export default {
         });
       }
 
-      /* 时间点刻度：太密就不画，避免一片糊 */
-      const R = axisRange();
-      if (R.tp > 1 && R.max > R.min) {
-        const stepTp = Math.max(R.step, Math.ceil((R.max - R.min) / 8));
-        for (let tp = R.min; tp <= R.max; tp += stepTp) {
-          const left = timeToPct(tp) + '%';
+      const spots = nodeSpots(list);
+      /* 每段取一个刻度：段够宽就把两端的时间点标在节点下方，太挤就只在段中点标个「→」 */
+      if (list.length > 1) {
+        for (let i = 0; i < list.length; i++) {
+          const tp = tpNum(list[i]);
+          const left = spots[i] + '%';
           track.appendChild(h('span', { class: 'pl-tick', style: { left } }));
-          track.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, String(tp)));
+          if (i === 0 || spots[i] - spots[i - 1] >= 4.5) {
+            track.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, fmtTp(tp)));
+          }
         }
       }
-
-      const spots = nodeSpots(list);
       const nodes = [];
       list.forEach((p, i) => {
         const node = h('div', {
@@ -367,17 +447,21 @@ export default {
         nodes.push({ node, p });
       });
 
+      const pctOf = ev => {
+        const rect = track.getBoundingClientRect();
+        return Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+      };
       track.addEventListener('click', ev => {
         if (ev.target.closest('.pl-node')) return;
-        const rect = track.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
-        showGhostAt(track, pct, pctToTime(pct, { free: true }));
+        const pct = pctOf(ev);
+        const at = insertAtPct(list, pct);
+        showGhostAt(track, pct, fmtTp(at.tp), at);
       });
       track.addEventListener('dblclick', ev => {
         if (ev.target.closest('.pl-node')) return;   /* 双击节点 = 打开编辑，不新建 */
-        const rect = track.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
-        openForm(null, pctToTime(pct, { free: true }));
+        const pct = pctOf(ev);
+        const at = insertAtPct(list, pct);
+        openForm(null, at.tp, at);
       });
       tlCard.appendChild(track);
       trackEl = track;
@@ -387,14 +471,16 @@ export default {
     let ghostAt = null;   /* 单击空白处留下的「将在这里新建」提示 */
 
     /* 画一个虚线幽灵节点 + 时间点标签，告诉用户双击会落在哪 */
-    function showGhostAt(track, pct, tp) {
+    function showGhostAt(track, pct, tpText, at) {
       if (ghostAt && ghostAt.parentNode) ghostAt.remove();
       ghostAt = h('div', { class: 'pl-ghost', style: { left: pct + '%', display: '' } },
-        h('b', {}, '双击在此新建 · 时间点 ' + tp), h('i', {}));
+        h('b', {}, '双击在此新建 · 插在第 ' + (at && at.index != null ? at.index + 1 : '—') + ' 位 · 时间点约 ' + tpText), h('i', {}));
       track.appendChild(ghostAt);
     }
 
-    /* 拖动时间轴上的节点：实时预览，松手落盘 */
+    /* 拖动时间轴上的节点：不吸附，按鼠标位置实时重排 + 预览小数时间点，松手落盘。
+     * 关键：位置由「第几位」决定，时间点由相邻两个节点插值 —— 鼠标停在哪就落在哪，
+     * 不会被拽到整数锚点上；松手后按新顺序重新归一化，本来该是整数的还是整数。 */
     function startDrag(ev, p, list) {
       if (ev.button !== 0) return;
       ev.preventDefault();
@@ -404,46 +490,75 @@ export default {
       if (!track) return;
       const rect = track.getBoundingClientRect();
       const startX = ev.clientX;
-      drag = { p, moved: false, list, nodes: new Map() };
-      Array.from(track.querySelectorAll('.pl-node')).forEach((el, i) => {
-        drag.nodes.set(list[i].id, el);
-      });
+      const order = list.slice();                     /* 当前顺序（byTime 已排好） */
+      const fromIndex = order.findIndex(q => q.id === p.id);
+      drag = { p, moved: false, list: order, preview: null };
       const ghost = h('div', { class: 'pl-ghost' }, h('b', {}, ''), h('i', {}));
       track.appendChild(ghost);
       track.classList.add('dragging');
-      const self = drag.nodes.get(p.id);
-      if (self) self.classList.add('dragging');
+      const self = track.querySelector('.pl-node.on-drag') || null;
+
+      /* 只重排节点元素，不动 DOM 结构：按新顺序算坐标再贴上去 */
+      const nodeEls = new Map();
+      Array.from(track.querySelectorAll('.pl-node')).forEach((el, i) => nodeEls.set(order[i].id, el));
+      const myEl = nodeEls.get(p.id);
+      if (myEl) myEl.classList.add('dragging');
 
       const move = e => {
         if (!drag) return;
         if (Math.abs(e.clientX - startX) > 2) drag.moved = true;
         const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-        const tp = pctToTime(pct);
-        drag.tp = tp;
-        drag.pct = pct;
-        const spots = previewSpots(list, drag, tp);
-        list.forEach((q, i) => {
-          const el = drag.nodes.get(q.id);
+        /* 鼠标落在剩下 N-1 个节点的哪一格 → 我就是那一格 */
+        const rest = order.filter(q => q.id !== p.id);
+        let index = rest.length;
+        if (rest.length) {
+          const spotsRest = layoutSpots(rest);
+          const target = 4 + (pct / 100) * 92;
+          index = 0;
+          while (index < rest.length && spotsRest[index] < target) index++;
+        }
+        const preview = rest.slice();
+        preview.splice(index, 0, p);
+        drag.preview = preview;
+        drag.index = index;
+        /* 预览顺序 → 预览时间点（用真实相邻值插值，不落盘） */
+        const tps = preview.map(tpNum);
+        let tp;
+        if (preview.length === 1) tp = tps[0];
+        else if (index === 0) tp = round2(tps[1] - stepFor(Math.abs(tps[1] - tps[0]) || 1));
+        else if (index === preview.length - 1) tp = round2(tps[index - 1] + stepFor(Math.abs(tps[index - 1] - tps[index - 2]) || 1));
+        else tp = round2((tps[index - 1] + tps[index + 1]) / 2);
+        drag.tp = Math.max(0, tp);
+        const spots = layoutSpots(preview);
+        preview.forEach((q, i) => {
+          const el = nodeEls.get(q.id);
           if (el) el.style.left = spots[i] + '%';
         });
         ghost.style.left = pct + '%';
         const label = ghost.querySelector('b');
-        if (label) label.textContent = '时间点 ' + tp + (drag.moved ? '' : '');
+        if (label) label.textContent = '第 ' + (index + 1) + ' 位 · 时间点 ' + fmtTp(drag.tp);
         ghost.style.display = drag.moved ? '' : 'none';
       };
-      const up = e => {
+      const up = () => {
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', up);
         track.classList.remove('dragging');
         if (ghost.parentNode) ghost.remove();
-        if (self) self.classList.remove('dragging');
+        if (myEl) myEl.classList.remove('dragging');
         const d = drag; drag = null;
-        if (!d || !d.moved) { renderTimeline(); return; }
-        /* 防抖：落盘后重画，位置来自新的时间点 */
-        p.timePoint = d.tp;
+        if (!d || !d.moved || !d.preview) { renderTimeline(); return; }
+        /* 落盘：按预览顺序重排 doc.plots，再按顺序归一化时间点 */
+        const rest = doc.plots.filter(q => q.id !== p.id);
+        const seq = rest.slice();
+        seq.splice(d.index, 0, p);
+        /* 先用拖动预览算出来的时间点落位，再按顺序修正前后冲突 */
+        if (d.tp != null) p.timePoint = round2(d.tp);
+        doc.plots = seq;
+        normalizeTimes(seq);
         touch();
         renderAll();
-        toast('「' + p.title + '」已移到时间点 ' + d.tp, 'ok');
+        select(p.id);
+        toast('「' + p.title + '」已排到第 ' + (d.index + 1) + ' 位 · 时间点 ' + fmtTp(p.timePoint), 'ok');
       };
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', up);
@@ -574,19 +689,31 @@ export default {
     }
 
     /* ================= 新建 / 编辑表单 ================= */
-    /* presetTime：在时间轴上双击时传进来的时间点，新建时就落在那儿 */
-    function openForm(plot, presetTime) {
+    /* presetTime：在时间轴上双击时传进来的时间点，新建时就落在那儿
+     * at：双击位置算出来的插入位次 { index }，保存时按这个位次插进列表再归一化 */
+    function openForm(plot, presetTime, at) {
       const isNew = !plot;
       const model = isNew
         ? { id: uid('g'), title: '', chapter: '', chapterNo: 0, timePoint: presetTime == null ? nextTp() : presetTime, place: '', characterIds: [], status: 'later', summary: '' }
         : Object.assign({}, plot, { characterIds: (plot.characterIds || []).slice() });
 
       const titleIn = h('input', { class: 'input', value: model.title, placeholder: '例如：雪夜断桥' });
-      const chapIn = h('input', { class: 'input', value: model.chapter || '', placeholder: '例如：第31章', list: 'pl-chap-list' });
-      /* 候选来自「章节写作」里已有的稿件，手填也行（章号对得上就会关联） */
-      const chapList = h('datalist', { id: 'pl-chap-list' },
-        (doc.manuscripts || []).map(m => h('option', { value: String(chNum(m)), label: m.title })));
-      const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '1', value: String(model.timePoint == null ? nextTp() : model.timePoint) });
+      /* 章节：直接列出「章节写作」里的稿件，选中哪条就关联哪条（不带编号，不会出现 0|标题） */
+      const msList = (doc.manuscripts || []).slice();
+      const chapSel = h('select', { class: 'select', id: 'pl-chap-sel' });
+      chapSel.appendChild(h('option', { value: '' }, '（不指定章节）'));
+      /* 认章节：先比标题完全相同，再比章号（章号必须两边都非零，否则空值会误配到第一篇） */
+      const wantNo = chNum(model.chapter || '');
+      const sameChapter = m => (model.chapter && model.chapter === m.title) || (wantNo > 0 && chNum(m.title) === wantNo);
+      msList.forEach(m => {
+        chapSel.appendChild(h('option', { value: m.title, selected: !!sameChapter(m) }, msLabel(m)));
+      });
+      /* 老数据里的章节名不在稿件列表里：补一条，别把已有值弄丢 */
+      const matched = msList.some(sameChapter);
+      if (model.chapter && !matched) {
+        chapSel.appendChild(h('option', { value: model.chapter, selected: true }, model.chapter + '（原有，未对上稿件）'));
+      }
+      const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '0.01', value: String(model.timePoint == null ? nextTp() : round2(model.timePoint)) });
       const placeIn = h('input', { class: 'input', value: model.place || '', placeholder: '例如：临水 · 断桥' });
       const statusSel = h('select', { class: 'select' },
         STATUS_KEYS.map(k => h('option', { value: k, selected: k === model.status }, STATUS[k].label)));
@@ -610,7 +737,7 @@ export default {
         body: h('div', { class: 'col', style: { gap: '10px' } },
           h('div', { class: 'field' }, h('label', {}, '情节名'), titleIn),
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
-            h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '章节（对应章节写作里的稿件）'), chapIn, chapList),
+            h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '章节（对应章节写作里的稿件）'), chapSel),
             h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '时间点'), tpIn)),
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
             h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '地点'), placeIn),
@@ -619,22 +746,41 @@ export default {
           h('div', { class: 'field' }, h('label', {}, '相关人物'), pick),
           h('div', { class: 'tiny muted' },
             presetTime == null
-              ? '时间点决定节点在时间轴上的位置，数字越大越靠右；也可以在时间轴上直接拖动节点调整。'
-              : '已按你双击的位置预填时间点 ' + presetTime + '，可以在这里再改。')),
+              ? '时间点决定节点在时间轴上的次序，可以带小数；保存后会按前后顺序自动校正成不冲突的值。'
+              : '已按你双击的位置预填时间点 ' + fmtTp(presetTime) + '，可以在这里再改；保存后按前后顺序自动校正。')),
         okText: '保存',
         onOk: () => {
           const title = titleIn.value.trim();
           if (!title) { toast('请填写情节名', 'err'); return false; }
-          const chapter = chapIn.value.trim();
-          const digits = (chapter.match(/\d+/) || [])[0];
+          const chapter = chapSel.value || '';
+          /* 只认标题完全相同的那条；章号兜底要两个号都非零才算，否则会误配到第一篇 */
+          const chNo = chNum(chapter);
+          const hit = msList.find(m => m.title === chapter) || (chNo ? msList.find(m => chNum(m.title) === chNo) : null);
           model.title = title;
-          model.chapter = chapter;
-          model.chapterNo = digits ? Number(digits) : 0;
-          model.timePoint = Math.max(0, Number(tpIn.value) || 0);
+          model.chapter = hit ? hit.title : chapter;
+          model.chapterNo = hit ? chNum(hit.title) : chNo;
+          const tpVal = Number(tpIn.value);
+          model.timePoint = isFinite(tpVal) ? round2(Math.max(0, tpVal)) : nextTp();
           model.place = placeIn.value.trim();
           model.status = statusSel.value;
           model.summary = sumTa.value.trim();
-          if (isNew) doc.plots.push(model); else Object.assign(plot, model);
+          if (isNew) {
+            if (at && at.index != null) {
+              /* 双击位置决定的位次：插进去以后按顺序归一化，时间点自己算 */
+              const seq = byTime();
+              seq.splice(Math.max(0, Math.min(seq.length, at.index)), 0, model);
+              doc.plots = seq;
+              normalizeTimes(seq);
+            } else {
+              doc.plots.push(model);
+              normalizeTimes(byTime());
+            }
+          } else {
+            Object.assign(plot, model);
+            const seq = byTime();
+            /* 时间点被改成和邻居冲突时，按顺序推一推 */
+            normalizeTimes(seq);
+          }
           st.selId = model.id;
           touch();
           renderAll();

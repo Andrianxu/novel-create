@@ -35,6 +35,21 @@ injectStyle('chapter', `
 .ch-focus .ch-editor{font-size:19px;max-width:820px;margin:0 auto;padding-top:28px}
 .ch-focus .ch-top,.ch-focus .ch-foot{max-width:820px;margin:0 auto;width:100%}
 .ch-empty{flex:1;display:grid;place-items:center;color:#8C8272;font-size:12px}
+/* 正文里标出的情节对应内容：textarea 下面垫一层高亮影子，字色透明只露底色 */
+.ch-ed{position:relative;flex:1;min-height:0;display:flex}
+.ch-ed-hl{position:absolute;inset:0;overflow:hidden;pointer-events:none;padding:18px 2px;
+  font-family:var(--kai);font-size:17px;line-height:2.05;letter-spacing:.02em;white-space:pre-wrap;word-break:break-word;
+  color:transparent;background:transparent}
+.ch-ed-hl mark{background:rgba(201,151,60,.30);color:transparent;border-radius:3px;
+  box-shadow:0 0 0 1px rgba(201,151,60,.55);animation:chHlIn .5s ease}
+@keyframes chHlIn{from{background:rgba(201,151,60,.72)}to{background:rgba(201,151,60,.30)}}
+.ch-focus .ch-ed-hl{font-size:19px;max-width:820px;margin:0 auto;padding-top:28px}
+.ch-hlbar{display:flex;align-items:center;gap:8px;font-size:10.5px;color:#7A6A4E;background:#FBF3DF;
+  border:1px solid #E7D6AF;border-radius:8px;padding:5px 9px;margin:8px 0 0}
+.ch-hlbar b{font-weight:700;color:#201C18}
+.ch-hlbar .x{margin-left:auto;cursor:pointer;color:#A99C84;font-size:13px;line-height:1;padding:0 2px}
+.ch-hlbar .x:hover{color:var(--ink)}
+.ch-hlbar .miss{color:#A9542A}
 
 /* ---------- 右下角 AI 写作助手 ---------- */
 .ch-ai{position:fixed;right:18px;bottom:40px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
@@ -122,10 +137,12 @@ export default {
     /* 「第18章」「第十八章」「18」都能认出章号 */
     function chNum(v) {
       const t = String(v || '');
-      const ar = t.match(/(\d+)/);
+      const ar = t.match(/第\s*(\d+)\s*[章回节]/);
       if (ar) return Number(ar[1]);
-      const cn = t.match(/第([〇零一二三四五六七八九十百]+)[章回]/);
-      return cn ? cnToInt(cn[1]) : 0;
+      const cn = t.match(/第\s*([〇零一二三四五六七八九十百]+)\s*[章回节]/);
+      if (cn) return cnToInt(cn[1]);
+      const bare = t.match(/(\d+)/);
+      return bare ? Number(bare[1]) : 0;
     }
     const plotById = id => (doc.plots || []).find(p => p.id === id);
     const plotsSorted = () => (doc.plots || []).slice().sort((a, b) => (Number(a.timePoint) || 0) - (Number(b.timePoint) || 0));
@@ -145,9 +162,129 @@ export default {
       const hit = doc.manuscripts.find(m => m.volumeId === vid && manuscriptNo(m) === no);
       return hit ? hit.id : null;
     }
-    /* 跳转到情节页并选中它 */
-    function openPlot(id) {
-      NF.go('plot', { id });
+    /* ================= 点情节 → 在正文里标出对应内容 =================
+     * 不再跳到情节页：在正文 textarea 下面垫一层同样排版的影子（ch-ed-hl），
+     * 把命中的段落包进 <mark>，正文里那块底色就亮起来，且会把视角滚过去。 */
+    let hlLayer = null;      /* 正文下面的高亮影子层 */
+    let hlHost = null;       /* 放提示条的小容器 */
+    let hlRef = null;        /* { start, end, plotId } 当前标出的区间 */
+    let hlBar = null;        /* 正文上方的提示条 */
+
+    /* 在正文里找这一段情节对应的文字：
+     * 1) 摘要里的一句话 / 情节名，能在正文里原样找到 → 命中那句
+     * 2) 否则按关键词出现次数挑段落（关键词 = 情节名 + 摘要里的二字词 + 人物名） */
+    const PUNCT = /[\s，。！？、；：“”‘’（）《》…—·\-"'.,!?;:()\[\]{}]/;
+    function findRange(text, p) {
+      if (!text) return null;
+      const probes = [];
+      const sum = String(p.summary || '').trim();
+      const ttl = String(p.title || '').trim();
+      if (sum) {
+        sum.split(/[。！？\n；]/).map(s => s.trim()).filter(s => s.length >= 4).forEach(s => probes.push(s));
+      }
+      if (ttl.length >= 2) probes.push(ttl);
+      for (const pr of probes) {
+        const at = text.indexOf(pr);
+        if (at >= 0) return { start: at, end: at + pr.length, kind: 'quote', text: pr };
+      }
+      /* 关键词打分：按段落切 */
+      const kw = new Set();
+      if (ttl.length >= 2) kw.add(ttl);
+      (sum.match(/[\u4e00-\u9fa5]{2,4}/g) || []).forEach(w => { if (w.length >= 2) kw.add(w); });
+      (p.characterIds || []).forEach(id => { const c = (doc.characters || []).find(x => x.id === id); if (c && c.name) kw.add(c.name); });
+      const keys = Array.from(kw);
+      if (!keys.length) return null;
+      const paras = [];
+      let off = 0;
+      text.split('\n').forEach(line => {
+        if (line.trim()) paras.push({ start: off, end: off + line.length, line });
+        off += line.length + 1;
+      });
+      let best = null, bestScore = 0;
+      paras.forEach(pa => {
+        let sc = 0;
+        keys.forEach(k => { let i = pa.line.indexOf(k); while (i >= 0) { sc += k.length >= 3 ? 2 : 1; i = pa.line.indexOf(k, i + 1); } });
+        if (sc > bestScore) { bestScore = sc; best = pa; }
+      });
+      if (!best || !bestScore) return null;
+      return { start: best.start, end: best.end, kind: 'para', text: best.line };
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    /* 重画高亮影子 */
+    function paintHl() {
+      const box = hlLayer;
+      if (!box) return;
+      const ed2 = edRef;
+      if (!ed2) { clear(box); return; }
+      const val = ed2.value || '';
+      if (!hlRef) { clear(box); return; }
+      const s = Math.max(0, Math.min(val.length, hlRef.start));
+      const e2 = Math.max(s, Math.min(val.length, hlRef.end));
+      const before = escHtml(val.slice(0, s));
+      const hit = escHtml(val.slice(s, e2));
+      const after = escHtml(val.slice(e2));
+      /* textarea 末尾的换行会被吃掉，补一个换行让影子高度对齐 */
+      box.innerHTML = before + '<mark>' + hit + '</mark>' + after + '\n';
+    }
+    function scrollToHl() {
+      const ed2 = edRef;
+      if (!ed2 || !hlRef) return;
+      const val = ed2.value || '';
+      if (!val) return;
+      /* 用「影子层里 mark 的位置」换算成滚动距离：按行号估算更稳 */
+      const idx = Math.min(hlRef.start, val.length);
+      const upto = val.slice(0, idx);
+      const lines = upto.split('\n').length - 1;
+      const lineH = 2.05 * 17;
+      const top = Math.max(0, lines * lineH - ed2.clientHeight * 0.3);
+      ed2.scrollTop = top;
+      if (hlLayer) hlLayer.scrollTop = top;
+      ed2.blur();
+      ed2.focus({ preventScroll: true });
+      ed2.setSelectionRange(hlRef.start, hlRef.end);
+    }
+    function clearHl() {
+      hlRef = null;
+      if (hlLayer) clear(hlLayer);
+      if (hlBar && hlBar.parentNode) hlBar.remove();
+      hlBar = null;
+    }
+    /* 点侧栏情节：标正文 */
+    function focusPlot(p) {
+      if (!p) return;
+      /* 若这篇情节不在当前稿件里，先切到它对应的稿件 */
+      const curM = cur();
+      if (curM) {
+        const target = plotManuscript(p, curM.volumeId || st.vol);
+        if (target && target !== curM.id) {
+          const tm = doc.manuscripts.find(x => x.id === target);
+          if (tm) { st.id = tm.id; st.vol = tm.volumeId; renderSide(); renderMain(); }
+        }
+      }
+      const m2 = cur();
+      const text = (m2 && m2.content) || '';
+      const r = findRange(text, p);
+      if (!r) {
+        clearHl();
+        toast('这一章正文里还没找到「' + (p.title || '该情节') + '」对应的内容，先写出来再点我', 'err');
+        return;
+      }
+      hlRef = { start: r.start, end: r.end, plotId: p.id };
+      paintHl();
+      scrollToHl();
+      renderHlBar(p, r);
+    }
+    function renderHlBar(p, r) {
+      if (hlBar && hlBar.parentNode) hlBar.remove();
+      hlBar = h('div', { class: 'ch-hlbar' },
+        h('b', {}, '情节「' + p.title + '」'),
+        h('span', {}, r.kind === 'quote' ? '已在正文里标出对应文字' : '正文里没找到原句，已标出最相关的一段'),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'x', title: '取消标记', onclick: () => { clearHl(); if (hlHost && hlHost.parentNode) hlHost.style.display = 'none'; } }, '✕'));
+      if (hlHost) { clear(hlHost); hlHost.appendChild(hlBar); hlHost.style.display = ''; }
     }
 
     function renderSide() {
@@ -177,8 +314,8 @@ export default {
             if (mine.length) {
               side.appendChild(h('div', { class: 'ch-plots' }, mine.map(p => h('div', {
                 class: 'ch-plot ' + plotStatusCls(p),
-                title: (p.summary || p.title) + ' · 时间点 ' + (p.timePoint == null ? '—' : p.timePoint) + '（点击去情节页）',
-                onclick: () => openPlot(p.id)
+                title: (p.summary || p.title) + ' · 时间点 ' + (p.timePoint == null ? '—' : p.timePoint) + '（点击在正文里标出）',
+                onclick: () => focusPlot(p)
               }, h('i', {}), h('span', {}, p.title), h('small', {}, plotStatusLabel(p))))));
             }
           });
@@ -188,8 +325,8 @@ export default {
             side.appendChild(h('div', { class: 'ch-vplot', style: { cursor: 'default', fontSize: '9px', letterSpacing: '.1em' } }, '本卷情节（未对上章节）'));
             volPlots.forEach(p => side.appendChild(h('div', {
               class: 'ch-vplot',
-              title: (p.summary || p.title) + '（点击去情节页）',
-              onclick: () => openPlot(p.id)
+              title: (p.summary || p.title) + '（点击在正文里标出）',
+              onclick: () => focusPlot(p)
             }, h('i', { style: { width: '6px', height: '6px', borderRadius: '50%', background: p.status === 'ending' ? 'var(--seal)' : p.status === 'later' ? '#C9973C' : 'var(--jade)', flex: 'none' } }), h('span', {}, p.title), h('small', { style: { marginLeft: 'auto', fontSize: '9px', color: '#A99C84' } }, p.chapter || ''))));
           }
         }
@@ -211,12 +348,17 @@ export default {
       const ed = h('textarea', { class: 'ch-editor', placeholder: '从这里开始写…', spellcheck: 'false' });
       ed.value = m.content || '';
       edRef = ed;
+      /* 高亮影子层：和 textarea 同样字号排版，只用来露底色 */
+      const hl = h('div', { class: 'ch-ed-hl', 'aria-hidden': 'true' });
+      hlLayer = hl;
+      hlHost = h('div', { style: { display: 'none' } });
       const cnt = h('span', {}, '');
       const upd = () => {
         const w = words(ed.value);
         cnt.textContent = w.toLocaleString() + ' 字 · ' + ed.value.split('\n').length + ' 段';
       };
-      ed.addEventListener('input', () => { m.content = ed.value; m.updatedAt = new Date().toISOString(); upd(); saveDebounced(); });
+      ed.addEventListener('input', () => { m.content = ed.value; m.updatedAt = new Date().toISOString(); upd(); saveDebounced(); if (hlRef) paintHl(); });
+      ed.addEventListener('scroll', () => { if (hlLayer) hlLayer.scrollTop = ed.scrollTop; });
       upd();
       const delBtn = h('button', { class: 'btn xs', onclick: () => {
         if (!confirm('把这篇移入废案篓？内容会保留，可以恢复。')) return;
@@ -231,7 +373,8 @@ export default {
         h('span', { class: 'pill' }, ago(m.updatedAt)),
         h('button', { class: 'btn xs', onclick: () => { st.focus = !st.focus; wrap.classList.toggle('ch-focus', st.focus); } }, '专注'),
         delBtn));
-      main.appendChild(ed);
+      main.appendChild(hlHost);
+      main.appendChild(h('div', { class: 'ch-ed' }, hl, ed));
       main.appendChild(h('div', { class: 'ch-foot' },
         cnt,
         h('span', {}, '自动保存'),
