@@ -9,7 +9,9 @@ const DEFAULTS = {
     model: 'gpt-4o-mini',
     temperature: 0.3,
     maxTokens: 2000,
-    provider: 'OpenAI 兼容接口'
+    provider: 'OpenAI 兼容接口',
+    /* 用户自己加的服务：{ id, name, baseUrl, model }，只存本机 config.json */
+    customModels: []
   },
   privacy: {
     sendFullText: false,

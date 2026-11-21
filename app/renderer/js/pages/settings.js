@@ -17,6 +17,13 @@ injectStyle('settings', `
 .presets{display:flex;gap:5px;flex-wrap:wrap}
 .presets span{font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid #DFD4BF;background:#FFFCF5;color:#5B5348;cursor:pointer}
 .presets span.on{background:#201C18;color:#F6F1E6;border-color:#201C18}
+.presets span.add{border-style:dashed;background:#FBF3E6;color:#8A6421}
+.presets span.add:hover{border-color:#C2A97D;background:#F7EBD3}
+.presets span.xdel{border:0;background:transparent;padding:0 0 0 5px;font-size:10px;line-height:1;color:#A8322A;opacity:.6}
+.presets span.xdel:hover{opacity:1}
+.presets span.on .xdel{color:#F6F1E6;opacity:.7}
+.field-h{display:flex;align-items:center;gap:8px}
+.field-h>label{flex:1;font-size:10px;letter-spacing:.08em;color:var(--muted)}
 .kbadge{display:inline-flex;align-items:center;gap:6px;font-size:11px}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
 .set-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #EAE1CF;font-size:12px}
@@ -36,6 +43,9 @@ const PRESETS = [
   { id: 'moonshot', name: 'Kimi', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' }
 ];
 
+/* IPC 报错会带一串「Error invoking remote method 'xxx': Error:」前缀，界面上只留人话部分 */
+const ipcErr = e => String((e && e.message) || e || '').replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, '');
+
 export default {
   id: 'settings', label: '设置',
   statusText() { return '接口、密钥与本地数据'; },
@@ -54,42 +64,191 @@ export default {
 
     /* ---------- 模型接口 ---------- */
     const llm = S.llm || {};
-    const cfg = { baseUrl: llm.baseUrl || '', model: llm.model || '', temperature: llm.temperature != null ? llm.temperature : 0.3, maxTokens: llm.maxTokens || 2000 };
+    const cfg = {
+      baseUrl: llm.baseUrl || '', model: llm.model || '',
+      temperature: llm.temperature != null ? llm.temperature : 0.3,
+      maxTokens: llm.maxTokens || 2000,
+      provider: llm.provider && llm.provider !== 'OpenAI 兼容接口' ? llm.provider : ''
+    };
+    /* 自定义模型：存在本机 config.json 的 llm.customModels 里，和内置预设一样显示成胶囊 */
+    let customs = Array.isArray(llm.customModels) ? llm.customModels
+      .filter(m => m && m.baseUrl && m.model)
+      .map(m => ({
+        id: m.id || 'cm' + Math.random().toString(36).slice(2, 8),
+        name: m.name || m.model, baseUrl: m.baseUrl, model: m.model
+      })) : [];
 
     const presetRow = h('div', { class: 'presets' });
     const baseIn = h('input', { class: 'input', value: cfg.baseUrl, placeholder: 'https://api.deepseek.com/v1' });
-    const modelIn = h('input', { class: 'input', value: cfg.model, placeholder: 'deepseek-chat' });
+    const modelList = h('datalist', { id: 'nfModelList' });
+    const modelIn = h('input', { class: 'input', value: cfg.model, placeholder: 'deepseek-chat', list: 'nfModelList' });
     const tempIn = h('input', { class: 'input', type: 'number', step: '0.1', min: '0', max: '1.5', value: String(cfg.temperature) });
     const tokenIn = h('input', { class: 'input', type: 'number', step: '100', min: '200', max: '8000', value: String(cfg.maxTokens) });
+    const modelHint = h('div', { class: 'tiny muted' }, '可以手填任意模型名；点「读取列表」会向接口要一份可用模型（OpenAI 兼容的 /models）。');
 
-    PRESETS.forEach(p => {
-      const sp = h('span', { class: cfg.baseUrl === p.baseUrl ? 'on' : '' }, p.name);
-      sp.onclick = () => {
-        baseIn.value = p.baseUrl; modelIn.value = p.model;
-        Array.from(presetRow.children).forEach(c => c.classList.remove('on'));
-        sp.classList.add('on');
-      };
-      presetRow.appendChild(sp);
-    });
+    function sameUrl(a, b) {
+      const n = u => String(u || '').trim().replace(/\/+$/, '').toLowerCase();
+      return n(a) === n(b);
+    }
+    function allEntries() {
+      return PRESETS.concat(customs.map(c => ({ custom: true, id: c.id, name: c.name, baseUrl: c.baseUrl, model: c.model })));
+    }
+    function matchedEntry() {
+      const url = baseIn.value, model = modelIn.value.trim();
+      return allEntries().find(e => sameUrl(e.baseUrl, url) && e.model === model) || null;
+    }
+    function applyEntry(p) {
+      baseIn.value = p.baseUrl || '';
+      modelIn.value = p.model || '';
+      renderChips();
+      if (p.custom) modelHint.textContent = '正在使用自定义模型「' + p.name + '」· 改完记得点「保存设置」';
+    }
+    function renderChips() {
+      clear(presetRow);
+      const hit = matchedEntry();
+      const hitKey = hit ? (hit.baseUrl + '|' + hit.model + '|' + hit.name) : '';
+      allEntries().forEach(p => {
+        const sp = h('span', { class: (hitKey === p.baseUrl + '|' + p.model + '|' + p.name) ? 'on' : '', title: p.name + ' · ' + p.baseUrl + ' · ' + p.model }, p.name);
+        sp.onclick = () => applyEntry(p);
+        if (p.custom) {
+          sp.dataset.custom = p.id;
+          const del = h('span', { class: 'xdel', title: '删除这条自定义模型' }, '✕');
+          del.onclick = ev => { ev.stopPropagation(); askRemove(p); };
+          sp.appendChild(del);
+        }
+        presetRow.appendChild(sp);
+      });
+      const add = h('span', { class: 'add', title: '添加自定义模型：任意 OpenAI 兼容接口都行' }, '＋ 自定义模型');
+      add.onclick = () => openCustomDialog();
+      presetRow.appendChild(add);
+    }
 
+    function askRemove(p) {
+      modal({
+        title: '删除自定义模型',
+        body: h('div', {},
+          h('p', { class: 'small' }, '不再保留「' + p.name + '」这个常用项？'),
+          h('p', { class: 'tiny muted' }, '只删掉这一条；已经填好的接口地址、模型名和 API Key 都不会动。')),
+        okText: '删除',
+        onOk: async () => {
+          const next = customs.filter(c => c.id !== p.id);
+          try {
+            NF.settings = await window.nf.settings.set({ llm: { customModels: next } });
+            customs = next;
+            renderChips();
+            toast('已删除「' + p.name + '」', 'ok');
+          } catch (e) { toast(e.message, 'err'); return false; }
+        }
+      });
+    }
+
+    function openCustomDialog() {
+      const cur = matchedEntry();
+      const curCustom = cur && cur.custom ? customs.find(c => c.id === cur.id) : null;
+      const nameIn = h('input', { class: 'input', value: curCustom ? curCustom.name : '', placeholder: '给它起个名字，例如 本地 Ollama' });
+      const urlIn = h('input', { class: 'input', value: baseIn.value.trim(), placeholder: 'http://127.0.0.1:11434/v1' });
+      const idIn = h('input', { class: 'input', value: modelIn.value.trim(), placeholder: 'qwen2.5:7b' });
+      const err = h('div', { class: 'tiny', style: { color: '#A8322A', minHeight: '15px' } }, '');
+      const body = h('div', { class: 'col', style: { gap: '10px' } },
+        h('div', { class: 'set-note' },
+          h('b', {}, '自定义模型：'),
+          '任何 OpenAI 兼容接口都能接——本地 Ollama（',
+          h('code', { class: 'mono tiny' }, 'http://127.0.0.1:11434/v1'),
+          '）、LM Studio、vLLM，或者 one-api / new-api 这类中转站。填好后它会出现在上面的常用服务里，点一下就切过去；这条记录只存本机。'),
+        h('div', { class: 'field' }, h('label', {}, '名称（显示在常用服务里）'), nameIn),
+        h('div', { class: 'field' }, h('label', {}, '接口地址 Base URL'), urlIn),
+        h('div', { class: 'field' }, h('label', {}, '模型名（接口的 model 字段）'), idIn),
+        err);
+      modal({ title: '添加自定义模型', body, okText: '保存并选用', width: '620px', onOk: async () => {
+        const baseUrl = urlIn.value.trim();
+        const model = idIn.value.trim();
+        const name = nameIn.value.trim() || model;
+        if (!baseUrl) { err.textContent = '请填接口地址'; return false; }
+        if (/\s/.test(baseUrl)) { err.textContent = '接口地址里不能有空格'; return false; }
+        if (!model) { err.textContent = '请填模型名；不知道名字就先点「读取模型列表」'; return false; }
+        const idx = customs.findIndex(c => c.name === name || (sameUrl(c.baseUrl, baseUrl) && c.model === model));
+        const entry = {
+          id: idx >= 0 ? customs[idx].id : 'cm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          name, baseUrl, model
+        };
+        const next = customs.slice();
+        if (idx >= 0) next[idx] = entry; else next.push(entry);
+        try {
+          /* 存成常用项的同时，把当前选择也切过去：按钮上写的是「保存并选用」 */
+          NF.settings = await window.nf.settings.set({
+            llm: { customModels: next, baseUrl, model, provider: name }
+          });
+          customs = next;
+          applyEntry(entry);
+          toast('已保存并选用「' + name + '」', 'ok');
+        } catch (e) { err.textContent = e.message; return false; }
+      } });
+      setTimeout(() => (nameIn.value ? idIn : nameIn).focus(), 40);
+    }
+
+    const fetchBtn = h('button', { class: 'btn xs', onclick: async () => {
+      if (fetchBtn.disabled) return;
+      const typedKey = keyIn.value.trim();
+      fetchBtn.disabled = true;
+      const label = fetchBtn.textContent;
+      fetchBtn.textContent = '读取中…';
+      try {
+        const r = await window.nf.llm.models({ baseUrl: baseIn.value.trim(), apiKey: typedKey });
+        clear(modelList);
+        (r.models || []).forEach(mid => modelList.appendChild(h('option', { value: mid })));
+        if (!r.models || !r.models.length) {
+          modelHint.textContent = '接口没有返回模型列表，直接手填模型名就行。';
+          toast('接口没给模型列表，手填模型名即可', 'err');
+        } else {
+          modelHint.textContent = '接口返回 ' + r.models.length + ' 个模型 · 点「模型名」输入框可挑选 · 也可以手填';
+          if (!modelIn.value.trim()) modelIn.value = r.models[0];
+          renderChips();
+          toast('读到 ' + r.models.length + ' 个模型', 'ok');
+        }
+      } catch (e) {
+        modelHint.textContent = '读取模型列表失败：' + ipcErr(e).slice(0, 120);
+        toast('读取失败：' + ipcErr(e), 'err');
+      }
+      fetchBtn.textContent = label;
+      fetchBtn.disabled = false;
+    } }, '读取模型列表');
+
+    baseIn.addEventListener('change', renderChips);
+    modelIn.addEventListener('change', renderChips);
+    renderChips();
+
+    const keyPill = h('span', { class: 'pill ' + (S.hasApiKey ? 'jade' : 'seal') }, S.hasApiKey ? '可用' : '未配置');
     const keyIn = h('input', { class: 'input', type: 'password', placeholder: S.hasApiKey ? '已保存：' + S.keyMasked + '（留空则不修改）' : 'sk-…' });
     const keyState = h('span', { class: 'kbadge' },
       h('span', { class: 'dot', style: { background: S.hasApiKey ? '#2F6F63' : '#A8322A' } }),
       S.hasApiKey ? '已配置 ' + S.keyMasked : '未配置');
     const testOut = h('div', { class: 'tiny muted' }, '');
 
+    function refreshKeyBadge() {
+      const cur = NF.settings || {};
+      keyState.innerHTML = '';
+      keyState.appendChild(h('span', { class: 'dot', style: { background: cur.hasApiKey ? '#2F6F63' : '#A8322A' } }));
+      keyState.appendChild(document.createTextNode(cur.hasApiKey ? '已配置 ' + cur.keyMasked : '未配置'));
+      keyIn.value = '';
+      keyIn.placeholder = cur.hasApiKey ? '已保存：' + cur.keyMasked + '（留空则不修改）' : 'sk-…';
+      keyPill.textContent = cur.hasApiKey ? '可用' : '未配置';
+      keyPill.className = 'pill ' + (cur.hasApiKey ? 'jade' : 'seal');
+    }
+
     const saveBtn = h('button', { class: 'btn pri', onclick: async () => {
       saveBtn.disabled = true;
       try {
         if (keyIn.value.trim()) await window.nf.settings.setApiKey(keyIn.value.trim());
+        const hit = matchedEntry();
         NF.settings = await window.nf.settings.set({
-          llm: { baseUrl: baseIn.value.trim(), model: modelIn.value.trim(), temperature: parseFloat(tempIn.value) || 0.3, maxTokens: parseInt(tokenIn.value, 10) || 2000 }
+          llm: {
+            baseUrl: baseIn.value.trim(), model: modelIn.value.trim(),
+            temperature: parseFloat(tempIn.value) || 0.3, maxTokens: parseInt(tokenIn.value, 10) || 2000,
+            provider: hit ? hit.name : '自定义接口',
+            customModels: customs
+          }
         });
-        keyIn.value = '';
-        keyState.innerHTML = '';
-        keyState.appendChild(h('span', { class: 'dot', style: { background: NF.settings.hasApiKey ? '#2F6F63' : '#A8322A' } }));
-        keyState.appendChild(document.createTextNode(NF.settings.hasApiKey ? '已配置 ' + NF.settings.keyMasked : '未配置'));
-        keyIn.placeholder = NF.settings.hasApiKey ? '已保存：' + NF.settings.keyMasked + '（留空则不修改）' : 'sk-…';
+        refreshKeyBadge();
         toast('接口设置已保存（只存在本机）', 'ok');
       } catch (e) { toast(e.message, 'err'); }
       saveBtn.disabled = false;
@@ -99,15 +258,17 @@ export default {
       testBtn.disabled = true;
       testOut.textContent = '正在连接…';
       try {
-        await window.nf.settings.setApiKey(keyIn.value.trim() || '');
+        /* 只在真的填了新 Key 时才写：留空表示沿用本机已保存的那把，不能顺手把它清掉 */
+        if (keyIn.value.trim()) await window.nf.settings.setApiKey(keyIn.value.trim());
         await window.nf.settings.set({ llm: { baseUrl: baseIn.value.trim(), model: modelIn.value.trim() } });
         NF.settings = await window.nf.settings.get();
+        refreshKeyBadge();
         const r = await window.nf.llm.test();
         testOut.textContent = '连接成功 · 模型返回「' + r.reply + '」· ' + r.baseUrl;
         toast('接口可用', 'ok');
       } catch (e) {
-        testOut.textContent = '连接失败：' + e.message;
-        toast('接口不可用：' + e.message, 'err');
+        testOut.textContent = '连接失败：' + ipcErr(e);
+        toast('接口不可用：' + ipcErr(e), 'err');
       }
       testBtn.disabled = false;
     } }, '测试连接');
@@ -115,14 +276,12 @@ export default {
     const clearKeyBtn = h('button', { class: 'btn', onclick: async () => {
       await window.nf.settings.clearApiKey();
       NF.settings = await window.nf.settings.get();
-      keyState.innerHTML = '';
-      keyState.appendChild(h('span', { class: 'dot', style: { background: '#A8322A' } }));
-      keyState.appendChild(document.createTextNode('未配置'));
+      refreshKeyBadge();
       toast('已清除本机保存的 Key', 'ok');
     } }, '清除 Key');
 
     left.appendChild(h('div', { class: 'card' },
-      h('div', { class: 'set-h' }, h('h3', {}, '模型接口（拆书用）'), h('span', { class: 'pill ' + (S.hasApiKey ? 'jade' : 'seal') }, S.hasApiKey ? '可用' : '未配置')),
+      h('div', { class: 'set-h' }, h('h3', {}, '模型接口（拆书用）'), keyPill),
       h('div', { class: 'set-b' },
         h('div', { class: 'set-note safe' },
           h('b', {}, '关于隐私：'),
@@ -131,9 +290,11 @@ export default {
           '（经系统 DPAPI 加密），',
           h('b', {}, '不会写进项目目录、不会进 Git、也不会回传到界面或日志'),
           '。仓库里只有 .gitignore 和 .env.example，克隆下来的人必须自己填 Key 才能用拆书。'),
-        h('div', { class: 'presets-wrap' }, h('div', { class: 'tiny muted', style: { marginBottom: '5px' } }, '常用服务（都是 OpenAI 兼容接口）'), presetRow),
+        h('div', { class: 'presets-wrap' }, h('div', { class: 'tiny muted', style: { marginBottom: '5px' } }, '模型服务（都是 OpenAI 兼容接口，点一下切换；想加自己的用右边的虚线框）'), presetRow),
         h('div', { class: 'field' }, h('label', {}, '接口地址 Base URL'), baseIn),
-        h('div', { class: 'field' }, h('label', {}, '模型名'), modelIn),
+        h('div', { class: 'field' },
+          h('div', { class: 'field-h' }, h('label', {}, '模型名'), fetchBtn),
+          modelIn, modelList, modelHint),
         h('div', { class: 'krow' },
           h('div', { class: 'field' }, h('label', {}, '温度 temperature'), tempIn),
           h('div', { class: 'field' }, h('label', {}, '单次最大 token'), tokenIn)),

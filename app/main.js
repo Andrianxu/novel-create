@@ -176,6 +176,7 @@ ipcMain.handle('llm:test', async () => {
   return { ok: true, model: r.model, reply: (r.content || '').trim().slice(0, 40), baseUrl: llm.normalizeBase(cfg.baseUrl) };
 });
 ipcMain.handle('llm:chat', (e, messages, opts) => llm.chat(messages, opts || {}));
+ipcMain.handle('llm:models', (e, opts) => llm.listModels(opts || {}));
 
 /* ---------------- book (拆书) ---------------- */
 let cancelFlag = false;

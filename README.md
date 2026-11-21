@@ -4,6 +4,8 @@
 
 界面是「纸间书桌」风格：暖纸底、墨色字、印章红点缀、楷体标题。
 
+> **下载 Windows 版**：[卷帙 NovelFolio v0.1.0 · 免安装 exe](https://github.com/Andrianxu/novel-create/releases/latest)（约 105 MB，双击即用，无需装 Node）
+>
 > 设计稿在 `previews/`（界面预览 + 演示文稿），Logo 与图标在 `logo/`，实际运行截图在 `docs/screenshots/`。
 
 ## 界面

@@ -62,6 +62,42 @@ async function chat(messages, opts) {
   throw lastErr || new Error('请求失败');
 }
 
+/* 读接口的模型列表：OpenAI 兼容的 GET /models
+ * 返回 { baseUrl, models: ['模型名', ...] }，只用来帮用户填「模型名」，不落盘 */
+async function listModels(opts) {
+  const cfg = S.getConfig().llm;
+  const key = (opts && opts.apiKey) || await S.getApiKey();
+  if (!key) throw new Error('还没有配置 API Key（设置 → 模型接口）');
+  const base = normalizeBase(opts && opts.baseUrl ? opts.baseUrl : cfg.baseUrl);
+  const url = base + '/models';
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), (opts && opts.timeout) || 20000);
+  let res, text;
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + key, Accept: 'application/json' },
+      signal: ac.signal
+    });
+    text = await res.text();
+  } catch (e) {
+    if (/abort/i.test(String(e))) throw new Error('读取模型列表超时（' + url + '）');
+    throw new Error('连不上 ' + url + '：' + redact(e.message || String(e)));
+  } finally { clearTimeout(timer); }
+  if (!res.ok) throw new Error('HTTP ' + res.status + '：' + redact(text).slice(0, 200));
+  let j;
+  try { j = JSON.parse(text); } catch (e) { throw new Error('接口返回的不是 JSON：' + redact(text).slice(0, 160)); }
+  const raw = Array.isArray(j) ? j : (Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : []));
+  const models = [];
+  for (const it of raw) {
+    const id = typeof it === 'string' ? it : (it && (it.id || it.model || it.name)) || '';
+    const name = String(id || '').trim();
+    if (name && models.indexOf(name) < 0) models.push(name);
+    if (models.length >= 400) break;
+  }
+  return { baseUrl: base, models };
+}
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /* 从模型输出里稳健地取出 JSON */
@@ -89,4 +125,4 @@ function extractJson(text) {
   throw new Error('JSON 不完整');
 }
 
-module.exports = { chat, extractJson, normalizeBase, redact };
+module.exports = { chat, listModels, extractJson, normalizeBase, redact };

@@ -31,7 +31,8 @@ contextBridge.exposeInMainWorld('nf', {
   },
   llm: {
     test: () => call('llm:test'),
-    chat: (messages, opts) => call('llm:chat', messages, opts)
+    chat: (messages, opts) => call('llm:chat', messages, opts),
+    models: (opts) => call('llm:models', opts)
   },
   book: {
     create: (file) => call('book:create', file),
