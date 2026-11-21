@@ -21,10 +21,10 @@ injectStyle('plot', `
 .pl-lg i.ending{width:7px;height:7px;border-radius:1.5px;background:var(--seal);transform:rotate(45deg)}
 .pl-hint{margin-left:auto;font-size:10px;color:var(--muted)}
 .pl-track{position:relative;height:104px;margin-top:6px}
-.pl-axis{position:absolute;left:0;right:0;top:58px;height:2px;border-radius:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 58%,#A8322A)}
+.pl-axis{position:absolute;left:0;right:0;top:50%;margin-top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 58%,#A8322A)}
 .pl-vol{position:absolute;top:24px;bottom:18px;border-left:1px dashed #E6DAC4}
 .pl-volname{position:absolute;top:82px;font-size:9.5px;color:#B6A98F;white-space:nowrap;letter-spacing:.04em}
-.pl-node{position:absolute;top:58px;width:0;height:0;cursor:pointer}
+.pl-node{position:absolute;top:50%;width:0;height:0;cursor:pointer;z-index:2}
 .pl-node i{position:absolute;left:0;top:0;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;border:2px solid var(--jade);background:#FFFCF5;display:block;transition:box-shadow .12s}
 .pl-node.done i{background:var(--jade)}
 .pl-node.later i{border-color:#C9973C;border-style:dashed;background:#FFFCF5}
@@ -35,9 +35,9 @@ injectStyle('plot', `
 .pl-node.on i{box-shadow:0 0 0 4px rgba(47,111,99,.22)}
 .pl-node.later.on i{box-shadow:0 0 0 4px rgba(201,151,60,.26)}
 .pl-node.ending.on i{box-shadow:0 0 0 4px rgba(168,50,42,.24)}
-.pl-node b{position:absolute;left:0;bottom:9px;transform:translateX(-50%);font-size:10px;font-weight:400;color:#201C18;white-space:nowrap;line-height:1.2;padding:0 2px}
+.pl-node b{position:absolute;left:0;bottom:8px;transform:translateX(-50%);font-size:10px;font-weight:400;color:#201C18;white-space:nowrap;line-height:1.2;padding:0 2px}
 .pl-node.on b{color:#7C291F}
-.pl-node s{position:absolute;left:0;top:10px;transform:translateX(-50%);font-size:9px;color:#8C8272;text-decoration:none;white-space:nowrap}
+.pl-node s{position:absolute;left:0;top:9px;transform:translateX(-50%);font-size:9px;color:#8C8272;text-decoration:none;white-space:nowrap}
 .pl-track{cursor:crosshair}
 .pl-track.dragging{cursor:grabbing}
 .pl-node{cursor:grab;user-select:none}
@@ -46,9 +46,9 @@ injectStyle('plot', `
 .pl-node.dragging i{box-shadow:0 0 0 6px rgba(47,111,99,.2);transform:scale(1.25)}
 .pl-node.dragging.later i{transform:scale(1.25)}
 .pl-node.dragging b{color:#7C291F}
-.pl-tick{position:absolute;top:58px;width:1px;height:7px;margin-top:-3px;background:#D8CBB2;pointer-events:none}
-.pl-tick.tp-label{top:66px;height:auto;margin-top:0;background:none;font-size:8.5px;color:#B6A98F;transform:translateX(-50%);white-space:nowrap}
-.pl-ghost{position:absolute;top:58px;width:0;height:0;pointer-events:none;z-index:4}
+.pl-tick{position:absolute;top:50%;width:1px;height:7px;margin-top:-3px;background:#D8CBB2;pointer-events:none}
+.pl-tick.tp-label{top:calc(50% + 7px);height:auto;margin-top:0;background:none;font-size:8.5px;color:#B6A98F;transform:translateX(-50%);white-space:nowrap}
+.pl-ghost{position:absolute;top:50%;width:0;height:0;pointer-events:none;z-index:4}
 .pl-ghost i{position:absolute;left:0;top:0;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;border:2px dashed var(--seal);background:#FFFCF5}
 .pl-ghost b{position:absolute;left:0;bottom:12px;transform:translateX(-50%);font-size:10px;font-weight:400;color:var(--seal);white-space:nowrap;background:#FFFCF5;border:1px dashed #E0B9A8;border-radius:5px;padding:0 5px;line-height:1.5}
 .pl-track .pl-drop-hint{position:absolute;right:0;top:0;font-size:9.5px;color:var(--muted)}
@@ -71,17 +71,10 @@ injectStyle('plot', `
 .pl-merge.pend{background:transparent;border:1px dashed #DCC9A2;color:#A08A5C}
 .pl-laneacts{flex:none;width:70px;display:flex;gap:3px;justify-content:flex-end}
 .pl-laneacts .btn{padding:1px 5px;font-size:9.5px;line-height:1.5}
-.pl-lane .pl-track{flex:1;min-width:0;height:52px;margin-top:0}
-.pl-lane.side .pl-track{height:44px}
-.pl-axis.side{top:26px;height:2px;background:linear-gradient(90deg,#D9C39A,#C9973C);}
-.pl-lane .pl-node{top:26px}
-.pl-lane.main .pl-node{top:26px}
-.pl-lane .pl-node b{bottom:8px}
-.pl-lane .pl-node s{top:9px}
-.pl-lane .pl-tick{top:26px}
-.pl-lane .pl-tick.tp-label{top:33px}
-.pl-lane .pl-ghost{top:26px}
-.pl-laneempty{position:absolute;left:8px;top:19px;font-size:9.5px;color:#C3B79F;pointer-events:none}
+.pl-lane .pl-track{flex:1;min-width:0;height:56px;margin-top:0;overflow:visible}
+.pl-lane.side .pl-track{height:48px}
+.pl-axis.side{background:linear-gradient(90deg,#D9C39A,#C9973C)}
+.pl-laneempty{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:9.5px;color:#C3B79F;pointer-events:none}
 .pl-lane-pill{font-size:9.5px;padding:0 7px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   background:#E2EEEA;color:#23604F;justify-self:start}
 .pl-lane-pill.side{background:#F7EBD3;color:#8A6421}
@@ -94,8 +87,9 @@ injectStyle('plot', `
 .pl-br.merge{stroke:#2F6F63;stroke-dasharray:none;opacity:.85}
 .pl-br.stem{stroke:#C9973C;stroke-dasharray:3 3;opacity:.55}
 .pl-brdot{stroke-width:1.5}
-.pl-brdot.fork{fill:#FFFCF5;stroke:#C9973C}
+.pl-brdot.fork{fill:#FFFCF5;stroke:#C9973C;stroke-width:1.8}
 .pl-brdot.merge{fill:#2F6F63;stroke:#2F6F63}
+.pl-brdot.pending{fill:#FFFCF5;stroke:#CBB894;stroke-dasharray:2 1.5}
 .pl-lane{position:relative;z-index:1;background:transparent}
 .pl-lane.on{background:rgba(47,111,99,.045)}
 .pl-track .pl-tick.tp-label{font-size:8px;color:#C0B49B}
@@ -104,6 +98,19 @@ injectStyle('plot', `
 .pl-lanefilter{font-size:10px;height:22px;padding:0 4px;border:1px solid var(--line2);border-radius:6px;
   background:#FFFDF8;color:#5B5348;max-width:170px;cursor:pointer;font-family:inherit}
 .pl-lanefilter:hover{border-color:#CBB894}
+
+/* ---- 暗线的引出点 / 收敛点 ---- */
+.pl-ep{flex:1;min-width:0;border:1px solid var(--line2);border-radius:9px;padding:8px 10px;background:#FFFDF8;display:flex;flex-direction:column;gap:6px}
+.pl-ep>label{font-size:10.5px;color:#7A6A4E;letter-spacing:.04em;font-weight:700}
+.pl-eprow{display:flex;align-items:center;gap:6px}
+.pl-eplab{font-size:9.5px;color:#A99C84;width:34px;flex:none}
+.pl-eprow .input,.pl-eprow .select{flex:1;min-width:0;height:26px;font-size:11.5px;padding:2px 7px}
+.pl-eprow .btn{flex:none;white-space:nowrap}
+.pl-pickhint{position:absolute;left:50%;top:2px;transform:translateX(-50%);z-index:20;
+  font-size:11px;background:var(--ink);color:var(--paper);padding:4px 12px;border-radius:999px;
+  box-shadow:0 6px 18px rgba(40,30,20,.28)}
+.pl-track.picking{outline:2px dashed #C9973C;outline-offset:2px;cursor:crosshair}
+.pl-track.picking .pl-node{pointer-events:none}
 .pl-lrow.flash{animation:plFlash .9s ease}
 @keyframes plFlash{0%{background:#F3E4C4;box-shadow:inset 3px 0 0 var(--seal)}100%{background:transparent}}
 
@@ -286,8 +293,6 @@ export default {
     const onLane = (lane, list) => (list || doc.plots).filter(p => laneOf(p) === lane);
     /* 暗线要收敛到哪条线（默认主线）；主线自己不需要 */
     const mergeTarget = l => (!l || l.kind === 'main') ? null : (lineById(l.mergeInto) || mainLine());
-    /* 暗线是否已经收敛（有收敛章 / 收敛情节） */
-    const converged = l => !!(l && (l.convergeChapter || l.convergePlot || l.convergedAt));
     /* 这条线上的情节（按时间点排序） */
     const lanePlots = lane => byTime().filter(p => laneOf(p) === lane);
     /* 它在自己那条线上排第几 */
@@ -332,14 +337,16 @@ export default {
     }
 
     /* ================= 骨架 ================= */
+    /* 时间轴卡片节点：只在 mount 时建一次；后面要重画就现找 DOM（页面重绘会换节点） */
+    let tlCardEl;
     const wrap = h('div', { class: 'pl-wrap' });
     const head = h('div', { class: 'pl-head', 'data-probe': 'plot-head' });
-    const tlCard = h('div', { class: 'card pl-tl', 'data-probe': 'plot-axis' });
+    tlCardEl = h('div', { class: 'card pl-tl', 'data-probe': 'plot-axis' });
     const listCard = h('div', { class: 'card pl-list', 'data-probe': 'plot-list' });
     const detailCard = h('div', { class: 'card pl-detail', 'data-probe': 'plot-detail' });
     const tip = h('div', { class: 'pl-tip' });
     wrap.appendChild(head);
-    wrap.appendChild(tlCard);
+    wrap.appendChild(tlCardEl);
     wrap.appendChild(h('div', { class: 'pl-cols' }, listCard, detailCard));
     wrap.appendChild(tip);
     root.appendChild(wrap);
@@ -454,15 +461,20 @@ export default {
       return { spots: out, items: arr, max };
     }
 
+    /* 时间轴卡片：页面重绘会换掉节点，所以每次都现找，别缓存旧节点 */
+    const tlCard = () => document.querySelector('.pl-tl');
+
     /* ================= 时间轴（主线 + 暗线，树状引出 / 收敛） ================= */
     function renderTimeline() {
-      clear(tlCard);
+      /* 只清卡片里的内容，别动卡片本身 */
+      if (!document.querySelector('.pl-tl')) return;
+      clear(tlCard());
       hideTip();
       ghostAt = null;
       const all = byTime();
       const ln = lines();
 
-      tlCard.appendChild(h('div', { class: 'pl-tlhead' },
+      tlCard().appendChild(h('div', { class: 'pl-tlhead' },
         h('h3', {}, '时间轴'),
         h('span', { class: 'pl-lg' }, h('i', {}), '已发生'),
         h('span', { class: 'pl-lg' }, h('i', { class: 'later' }), '后续计划'),
@@ -475,7 +487,8 @@ export default {
       const main = mainLine();
       const sideLines = ln.filter(l => l.kind !== 'main');
       const board = h('div', { class: 'pl-board' });
-      const canvas = h('div', { class: 'pl-canvas' });
+      /* 暗线多了就让它自己滚，别把整个情节页撑爆 */
+      const canvas = h('div', { class: 'pl-canvas', style: { maxHeight: 'calc(100vh - 340px)', overflowY: 'auto' } });
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('class', 'pl-branches');
       canvas.appendChild(svg);
@@ -491,7 +504,7 @@ export default {
 
       /* 画树枝：暗线从主线的「引出点」分出去，收敛回主线的「收敛点」 */
       board.appendChild(canvas);
-      tlCard.appendChild(board);
+      tlCard().appendChild(board);
 
       /* 尺寸拿到之后才画 SVG（要真实坐标） */
       requestAnimationFrame(() => drawBranches(svg, rows, main, sideLines));
@@ -503,86 +516,82 @@ export default {
     function drawBranches(svg, rows, main, sideLines) {
       if (!svg || !rows.length) return;
       const box = svg.parentNode.getBoundingClientRect();
-      if (!box.width) return;
+      if (!box.width || !rows[0] || !rows[0].track) return;
       svg.setAttribute('width', String(box.width));
       svg.setAttribute('height', String(box.height));
       svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
       clear(svg);
       const mainRow = rows[0];
       const mainBox = mainRow.track.getBoundingClientRect();
+      /* 主线的时间点刻度：所有暗线的两个端点都按这套刻度换算成横向位置 */
       const max = laneMax(main.id);
       const X = pct => mainBox.left - box.left + (pct / 100) * mainBox.width;
-      const Y = r => {
+      const axisY = r => {
         const b2 = r.track.getBoundingClientRect();
-        return b2.top - box.top + 26;          /* 轨道轴线的高度 */
+        return b2.top - box.top + b2.height / 2;      /* 轴线在轨道正中 */
       };
-      const yMain = Y(mainRow);
+      const yMain = axisY(mainRow);
 
       sideLines.forEach((l, i) => {
         const row = rows[i + 1];
-        if (!row) return;
+        if (!row || !row.track) return;
+        const ySide = axisY(row);
         const arr = lanePlots(l.id);
-        const ySide = Y(row);
-        /* ---- 引出（分叉）----
-         * 分叉点在主线上：取暗线第一个情节的时间点（还没有情节就取 0）。
-         * 暗线自己的起点在同一时间点的位置上，所以画一条从主线竖直/微斜下来的枝。 */
-        const firstTp = arr.length ? tpNum(arr[0]) : 0;
-        const forkX = X(tpPct(firstTp, max));
-        const startX = forkX;
-        addBranchPath(svg, forkX, yMain, startX, ySide, 'fork', 0);
+
+        /* 暗线自己那一行从哪儿画到哪儿：离树枝最近的那个情节 */
+        const lo = arr.length ? tpNum(arr[0]) : forkTpOf(l);
+        const hi = arr.length ? tpNum(arr[arr.length - 1]) : mergeTpOf(l);
+        const loX = X(tpPct(lo, max));
+        const hiX = X(tpPct(hi, max));
+
+        /* ---- 引出点：主线 forkTp 处 → 暗线起点（树状分叉） ---- */
+        const forkX = X(tpPct(forkTpOf(l), max));
+        addBranch(svg, forkX, yMain, loX, ySide, 'fork');
         addDot(svg, forkX, yMain, 'fork');
 
-        /* ---- 收敛 ----
-         * 已经标记收敛：从暗线末端弯回主线上的收敛点。 */
-        if (converged(l)) {
-          const lastTp = arr.length ? tpNum(arr[arr.length - 1]) : firstTp;
-          const endX = arr.length ? X(tpPct(lastTp, max)) : startX;
-          let convTp = lastTp;
-          if (l.convergePlot) {
-            const cp = doc.plots.find(x => x.id === l.convergePlot);
-            if (cp) convTp = tpNum(cp);
-          } else if (l.convergeChapter) {
-            const no = chNum(l.convergeChapter);
-            const hit = lanePlots(mergeTarget(l) ? mergeTarget(l).id : main.id).find(x => chNum(x.chapter) === no);
-            if (hit) convTp = tpNum(hit);
-          }
-          const toX = X(tpPct(convTp, max));
-          addBranchPath(svg, endX, ySide, toX, yMain, 'merge', i + 1);
-          addDot(svg, toX, yMain, 'merge');
+        /* ---- 收敛点：暗线末端 → 主线 mergeTp 处（树状合并） ---- */
+        const mergeX = X(tpPct(mergeTpOf(l), max));
+        if (hasMerge(l)) {
+          addBranch(svg, hiX, ySide, mergeX, yMain, 'merge');
+          addDot(svg, mergeX, yMain, 'merge');
         } else {
-          /* 还没收敛：末端画个开口的小三角，表示这条枝还悬着 */
-          const lastTp = arr.length ? tpNum(arr[arr.length - 1]) : firstTp;
-          const endX = arr.length ? X(tpPct(lastTp, max)) : startX;
-          addBranchPath(svg, startX, ySide, endX, ySide, 'stem', i + 1);
+          /* 还没设收敛点：先用虚线示意打算并回主线 */
+          addBranch(svg, hiX, ySide, mergeX, yMain, 'pending');
+          addDot(svg, mergeX, yMain, 'pending');
         }
+
+        /* 暗线自身的主干：起点到末端之间那根横杆 */
+        addStem(svg, loX, hiX, ySide, 'side');
       });
     }
-    /* 树状枝：一条水平段（暗线自己的轨道）+ 两段竖直弯头，像树杈 */
-    function addBranchPath(svg, x0, y0, x1, y1, cls, idx) {
+
+    /* 树状枝：从 (x0,y0) 弯到 (x1,y1)，像树杈那样先顺着走再拐过去 */
+    function addBranch(svg, x0, y0, x1, y1, cls) {
       const NS = 'http://www.w3.org/2000/svg';
       const path = document.createElementNS(NS, 'path');
       let d;
-      if (cls === 'stem') {
+      if (Math.abs(x1 - x0) < 1.5) {
         d = 'M ' + x0 + ' ' + y0 + ' L ' + x1 + ' ' + y1;
       } else {
-        /* 先沿主线 / 暗线竖直拐一小段，再走水平，再竖直落到对面轴线 */
-        const bend = Math.min(26, Math.abs(y1 - y0) / 2) * (y1 > y0 ? 1 : -1);
         const mx = (x0 + x1) / 2;
-        if (Math.abs(x1 - x0) < 2) {
-          d = 'M ' + x0 + ' ' + y0 + ' L ' + x1 + ' ' + y1;
-        } else {
-          d = 'M ' + x0 + ' ' + y0 +
-            ' C ' + mx + ' ' + y0 + ', ' + mx + ' ' + y1 + ', ' + x1 + ' ' + y1;
-        }
+        d = 'M ' + x0 + ' ' + y0 + ' C ' + mx + ' ' + y0 + ', ' + mx + ' ' + y1 + ', ' + x1 + ' ' + y1;
       }
       path.setAttribute('d', d);
       path.setAttribute('class', 'pl-br ' + cls);
       svg.appendChild(path);
     }
+    function addStem(svg, x0, x1, y, cls) {
+      const NS = 'http://www.w3.org/2000/svg';
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', String(x0)); line.setAttribute('y1', String(y));
+      line.setAttribute('x2', String(x1)); line.setAttribute('y2', String(y));
+      line.setAttribute('class', 'pl-brstem ' + cls);
+      svg.appendChild(line);
+    }
     function addDot(svg, x, y, cls) {
       const NS = 'http://www.w3.org/2000/svg';
       const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y)); c.setAttribute('r', '3');
+      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y)); c.setAttribute('r', '3.6');
       c.setAttribute('class', 'pl-brdot ' + cls);
       svg.appendChild(c);
     }
@@ -601,8 +610,9 @@ export default {
         h('span', { class: 'pl-lanedot' }),
         h('span', { class: 'pl-lanename' }, l.title || (isMain ? '主线' : '暗线')),
         isMain ? null : h('span', { class: 'pl-lanecnt' }, mine.length ? mine.length + ' 节' : '空'),
-        !isMain && converged(l) ? h('span', { class: 'pl-merge' }, '已收敛') : null,
-        !isMain && !converged(l) ? h('span', { class: 'pl-merge pend' }, '分叉中') : null);
+        !isMain ? h('span', { class: 'pl-merge' + (hasMerge(l) ? '' : ' pend'),
+          title: '引出点 ' + fmtTp(forkTpOf(l)) + ' → 收敛点 ' + fmtTp(mergeTpOf(l)) },
+          fmtTp(forkTpOf(l)) + '→' + (hasMerge(l) ? fmtTp(mergeTpOf(l)) : '?')) : null);
       row.appendChild(tag);
 
       const track = h('div', { class: 'pl-track', 'data-lane': l.id });
@@ -643,6 +653,7 @@ export default {
       };
       track.addEventListener('click', ev => {
         if (ev.target.closest('.pl-node')) return;
+        if (track.classList.contains('picking')) return;   /* 正在轴上取点 */
         st.lane = l.id;
         const pct = pctOf(ev);
         showGhostAt(track, pct, fmtTp(pctTp(pct, max)));
@@ -656,12 +667,9 @@ export default {
       row.appendChild(track);
 
       row.appendChild(h('div', { class: 'pl-laneacts' },
-        !isMain ? h('button', { class: 'btn xs', title: '重命名 / 设置收敛去路', onclick: e => { e.stopPropagation(); editLane(l); } }, '设置') : null,
         !isMain ? h('button', {
-          class: 'btn xs',
-          title: converged(l) ? '取消收敛标记' : '标记这条暗线已经收敛回主线'
-          , onclick: e => { e.stopPropagation(); convergeLane(l); }
-        }, converged(l) ? '已收敛' : '收敛') : null,
+          class: 'btn xs', title: '改名字、引出点、收敛点', onclick: e => { e.stopPropagation(); editLane(l); }
+        }, '引出/收敛') : null,
         !isMain ? h('button', {
           class: 'btn xs', title: '删除这条暗线（里面的情节会移到主线）'
           , onclick: e => { e.stopPropagation(); removeLane(l); }
@@ -695,23 +703,34 @@ export default {
       const rect = track.getBoundingClientRect();
       /* 拖动期间刻度上限锁死（否则时间点一变，整条轴重新缩放，节点就漂了） */
       const max = laneMax(laneOf(p));
-      const startX = ev.clientX;
+      /* 用 mousedown 那一刻的鼠标位置算起点（合成事件常常不带 clientX，movementX 兜底） */
+      const startX = Number(ev.clientX) || rect.left + rect.width / 2;
+      const restX = [];      /* 其它节点原来停在哪儿，松手后原样还回去 */
+      const startY = Number(ev.clientY) || rect.top + rect.height / 2;
       drag = { p, moved: false };
       const myEl = nodeEl;
       track.classList.add('dragging');
       if (myEl) myEl.classList.add('dragging');
       /* 拖动期间把这条线的其它节点淡一点，突出正在拖的 */
-      Array.from(track.querySelectorAll('.pl-node')).forEach(el => { if (el !== myEl) el.classList.add('dim'); });
+      Array.from(track.querySelectorAll('.pl-node')).forEach(el => {
+        if (el === myEl) return;
+        el.classList.add('dim');
+        restX.push({ el, left: el.style.left });
+      });
 
-      const pctOf = e => Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      let lastX = startX;
       const move = e => {
         if (!drag) return;
-        if (Math.abs(e.clientX - startX) > 2) drag.moved = true;
-        const pct = pctOf(e);
+        const x = Number(e.clientX) || (lastX + (Number(e.movementX) || 0));
+        lastX = x;
+        if (Math.abs(x - startX) > 2) drag.moved = true;
+        const pct = Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100));
         drag.pct = pct;
         drag.tp = round2(pctTp(pct, max));
         /* 节点就是跟着鼠标走，不吸附、不回弹 */
         if (myEl) myEl.style.left = pct + '%';
+        /* 别的节点一动不动（取点提示浮层会插进轨道里，别让它把布局挤歪） */
+        restX.forEach(o => { o.el.style.left = o.left; });
       };
       const up = e => {
         window.removeEventListener('mousemove', move);
@@ -776,7 +795,7 @@ export default {
       clear(listCard);
       const all = byTime();
       /* 下拉：主线 / 全部 / 每条暗线 分开看 */
-      const filterSel = h('select', { class: 'pl-lanefilter', 'data-probe': 'plot-lane-filter' });
+      const filterSel = h('select', { class: 'pl-lanefilter', id: 'plot-lane-filter', 'data-probe': 'plot-lane-filter' });
       filterSel.appendChild(h('option', { value: 'all' }, '全部时间线' + (lines().length > 1 ? '' : '')));
       lines().forEach(l => {
         filterSel.appendChild(h('option', {
@@ -1076,57 +1095,159 @@ export default {
       renderAiLog();
     }
 
-    /* ================= 暗线（额外的时间轴） =================
-     * 一条暗线就是一条并行的支线时间轴，最后可以「收敛」回主线：
-     * 标记收敛后，暗线上的情节仍然各自独立，只是视觉上知道这条线已经并回主线了。 */
+    /* ---------- 暗线两端的端点 ---------- */
+    /* 有收敛点就算「能并回主线」；引出点缺省用暗线第一个情节的位置 */
+    const hasMerge = l => l && l.mergeTp != null && l.mergeTp !== '';
+    const forkTpOf = l => {
+      if (l && l.forkTp != null && l.forkTp !== '') return Number(l.forkTp);
+      const arr = l ? lanePlots(l.id) : [];
+      return arr.length ? tpNum(arr[0]) : 0;
+    };
+    const mergeTpOf = l => {
+      if (hasMerge(l)) return Number(l.mergeTp);
+      const arr = l ? lanePlots(l.id) : [];
+      return arr.length ? tpNum(arr[arr.length - 1]) : forkTpOf(l);
+    };
+
+    /* ================= 暗线（从主线引出 → 收敛回主线） =================
+     * 一条暗线有两个端点，都落在主线上：
+     *   forkTp / forkChapter —— 引出点：暗线从主线的这个时间点分出去（树状分叉）
+     *   mergeTp / mergeChapter —— 收敛点：暗线的结果在这个时间点并回主线（树状合并）
+     * 两端都可以手填时间点、选章节，也可以直接点「在时间轴上点」，然后在主线上点一下取点。 */
+
+    /* 章节下拉：选项来自「章节写作」里的稿件 */
+    function chapterSelect(value) {
+      const sel = h('select', { class: 'select' });
+      sel.appendChild(h('option', { value: '' }, '（不指定章节）'));
+      (doc.manuscripts || []).forEach(m => {
+        sel.appendChild(h('option', { value: m.title, selected: value === m.title }, msLabel(m)));
+      });
+      if (value && !(doc.manuscripts || []).some(m => m.title === value)) {
+        sel.appendChild(h('option', { value, selected: true }, value + '（原有）'));
+      }
+      sel.value = value || '';
+      return sel;
+    }
+
+    /* 在主线轴上点一下取时间点：打开一个覆盖层，点哪儿就把 tp 写到回调里 */
+    function pickOnMain(cb) {
+      const mainLane = mainLine();
+      const track = trackEl || document.querySelector('.pl-track');
+      if (!track) { toast('找不到主线轨道', 'err'); return; }
+      const max = laneMax(mainLane.id);
+      /* 钉在卡片顶部，点一下就知道要干嘛 */
+      const banner = h('div', { class: 'pl-pickhint' }, '在主线上点一下取它的时间点（Esc 取消）');
+      const card = document.querySelector('.pl-card') || document.body;
+      card.insertBefore(banner, card.firstChild);
+      track.classList.add('picking');
+      let done = false;
+      const finish = ok => {
+        if (done) return;
+        done = true;
+        track.classList.remove('picking');
+        if (banner.parentNode) banner.remove();
+        track.removeEventListener('mousedown', onDown, true);
+        track.removeEventListener('click', onClick, true);
+        window.removeEventListener('keydown', onEsc, true);
+        if (!ok) toast('已取消取点', 'err');
+      };
+      const tpAt = ev => {
+        const r = track.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(100, ((ev.clientX - r.left) / (r.width || 1)) * 100));
+        return round2(pctTp(pct, max));
+      };
+      /* mousedown 就吃掉，免得落到情节节点上开始拖拽 */
+      const onDown = ev => { ev.preventDefault(); ev.stopPropagation(); };
+      const onClick = ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        const tp = tpAt(ev);
+        finish(true);           /* 先拆监听，再回填，避免触发行上的单击幽灵 */
+        cb(tp);
+      };
+      const onEsc = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); ev.preventDefault(); finish(false); } };
+      track.addEventListener('mousedown', onDown, true);
+      track.addEventListener('click', onClick, true);
+      window.addEventListener('keydown', onEsc, true);
+    }
+
+/* 一个「时间点 + 章节 + 在轴上取点」的小组合控件 */
+    function endpointField(label, tpValue, chValue, tip) {
+      const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '1', value: String(fmtTp(tpValue)) });
+      const chSel = chapterSelect(chValue);
+      const pickBtn = h('button', {
+        class: 'btn xs', type: 'button', title: tip || '在主线上点一下取时间点'
+      }, '轴上取点');
+      const wrap = h('div', { class: 'pl-ep' },
+        h('label', {}, label),
+        h('div', { class: 'pl-eprow' },
+          h('span', { class: 'pl-eplab' }, '时间点'), tpIn, pickBtn),
+        h('div', { class: 'pl-eprow' },
+          h('span', { class: 'pl-eplab' }, '章节'), chSel));
+      pickBtn.addEventListener('click', () => pickOnMain(tp => {
+        tpIn.value = String(fmtTp(tp));
+        toast((tip || '时间点') + '取为 ' + fmtTp(tp), 'ok');
+      }));
+      return { wrap, tpIn, chSel };
+    }
+
+    /* 新建暗线：名字 + 引出点 + 收敛点 */
     function addLane() {
       const nameIn = h('input', { class: 'input', placeholder: '例如：云无咎的身世' });
+      const mainId = (mainLine() || {}).id;
+      const mainMax = laneMax(mainId);
+      const fork = endpointField('引出点（暗线从这里分出去）', 0, '', '引出点');
+      const merge = endpointField('收敛点（暗线在这里并回主线）', mainMax, '', '收敛点');
       modal({
-        title: '开一条暗线', width: '520px',
-        body: h('div', { class: 'col', style: { gap: '10px' } },
+        title: '开一条暗线', width: '620px',
+        body: h('div', { class: 'col', style: { gap: '12px' } },
           h('div', { class: 'field' }, h('label', {}, '暗线名'), nameIn),
+          h('div', { class: 'row', style: { gap: '12px', alignItems: 'flex-start' } }, fork.wrap, merge.wrap),
           h('div', { class: 'tiny muted' },
-            '暗线是另一条并行的时间轴，用来放主线里不方便提前交代的线索（身世、阴谋、伏笔）。' +
-            '它和主线共用同一个板子，只是各自一条泳道；写完之后可以在线下点「收敛」标记它并回主线。')),
+            '引出点是这条暗线在主线上「分叉出去」的位置，收敛点是它「并回主线」的位置，两处都会画成树状枝。' +
+            '可以在时间轴上点，也可以直接填时间点、选章节。')),
         okText: '创建',
         onOk: () => {
           const t = (nameIn.value || '').trim();
           if (!t) { toast('请填写暗线名', 'err'); return false; }
-          const l = { id: uid('ln'), title: t, kind: 'side', note: '', mergeInto: '', convergeChapter: '', convergePlot: '', convergedAt: '' };
+          const fTp = Number(fork.tpIn.value), mTp = Number(merge.tpIn.value);
+          if (isFinite(fTp) && isFinite(mTp) && fTp > mTp) { toast('引出点不能晚于收敛点', 'err'); return false; }
+          const l = {
+            id: uid('ln'), title: t, kind: 'side', note: '', mergeInto: '',
+            forkTp: isFinite(fTp) ? round2(Math.max(0, fTp)) : 0, forkChapter: fork.chSel.value || '',
+            mergeTp: isFinite(mTp) ? round2(Math.max(0, mTp)) : mainMax, mergeChapter: merge.chSel.value || ''
+          };
           doc.plotLines.push(l);
           st.lane = l.id;
           touch();
           renderAll();
-          toast('已开一条暗线「' + t + '」，双击它在的轨道就能往里加情节', 'ok');
+          toast('已开暗线「' + t + '」，双击这条暗线可以往里加情节', 'ok');
         }
       });
       setTimeout(() => nameIn.focus(), 40);
     }
 
+    /* 修改暗线的名字、引出点、收敛点 */
     function editLane(l) {
       if (!l) return;
+      const mainId = (mainLine() || {}).id;
       const nameIn = h('input', { class: 'input', value: l.title || '' });
-      const noteIn = h('textarea', { class: 'ta', style: { minHeight: '62px' } }, l.note || '');
-      /* 收敛目标：默认主线，也可以并到另一条暗线 */
+      const noteIn = h('textarea', { class: 'ta', style: { minHeight: '56px' } }, l.note || '');
+      const fork = endpointField('引出点（从主线分出去）', l.forkTp != null ? l.forkTp : 0, l.forkChapter || '');
+      const merge = endpointField('收敛点（并回主线）', l.mergeTp != null ? l.mergeTp : laneMax(mainId), l.mergeChapter || '');
+      /* 收敛到哪条线（默认主线；也可以并到另一条暗线） */
       const intoSel = h('select', { class: 'select' });
       intoSel.appendChild(h('option', { value: '' }, '主线'));
       lines().filter(x => x.id !== l.id).forEach(x => {
         intoSel.appendChild(h('option', { value: x.id, selected: l.mergeInto === x.id }, x.title || '未命名'));
       });
-      /* 收敛章节：从章节写作里挑一篇 */
-      const chSel = h('select', { class: 'select' });
-      chSel.appendChild(h('option', { value: '' }, '（还没定）'));
-      (doc.manuscripts || []).forEach(m => {
-        chSel.appendChild(h('option', { value: m.title, selected: l.convergeChapter === m.title }, msLabel(m)));
-      });
       modal({
-        title: '暗线设置', width: '580px',
-        body: h('div', { class: 'col', style: { gap: '10px' } },
+        title: '暗线设置 · ' + (l.title || '未命名'), width: '620px',
+        body: h('div', { class: 'col', style: { gap: '12px' } },
           h('div', { class: 'field' }, h('label', {}, '暗线名'), nameIn),
-          h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
-            h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '最后收敛到'), intoSel),
-            h('div', { class: 'field', style: { flex: '1.6' } }, h('label', {}, '收敛于哪一章'), chSel)),
-          h('div', { class: 'field' }, h('label', {}, '这条线讲了什么（备注）'), noteIn)),
+          h('div', { class: 'row', style: { gap: '12px', alignItems: 'flex-start' } }, fork.wrap, merge.wrap),
+          h('div', { class: 'row', style: { gap: '12px', alignItems: 'flex-start' } },
+            h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '收敛回哪条线'), intoSel),
+            h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '备注'), noteIn))),
         okText: '保存',
         onOk: () => {
           const t = (nameIn.value || '').trim();
@@ -1134,54 +1255,17 @@ export default {
           l.title = t;
           l.note = noteIn.value.trim();
           l.mergeInto = intoSel.value || '';
-          l.convergeChapter = chSel.value || '';
-          touch();
-          renderAll();
+          const fTp = Number(fork.tpIn.value), mTp = Number(merge.tpIn.value);
+          if (isFinite(fTp) && isFinite(mTp) && fTp > mTp) { toast('引出点不能晚于收敛点', 'err'); return false; }
+          if (isFinite(fTp)) l.forkTp = round2(Math.max(0, fTp));
+          if (isFinite(mTp)) l.mergeTp = round2(Math.max(0, mTp));
+          l.forkChapter = fork.chSel.value || '';
+          l.mergeChapter = merge.chSel.value || '';
+          touch(); renderAll();
           toast('暗线已更新', 'ok');
         }
       });
       setTimeout(() => nameIn.focus(), 40);
-    }
-
-    function convergeLane(l) {
-      if (!l) return;
-      if (converged(l)) {
-        l.convergedAt = ''; l.convergeChapter = ''; l.convergePlot = '';
-        touch(); renderAll();
-        toast('已取消「' + l.title + '」的收敛标记', 'ok');
-        return;
-      }
-      /* 收敛点默认取这条线最后一个情节 */
-      const mine = lanePlots(l.id);
-      const last = mine[mine.length - 1];
-      const chSel = h('select', { class: 'select' });
-      chSel.appendChild(h('option', { value: '' }, '（还没定）'));
-      (doc.manuscripts || []).forEach(m => {
-        chSel.appendChild(h('option', { value: m.title }, msLabel(m)));
-      });
-      if (last && last.chapter) chSel.appendChild(h('option', { value: last.chapter, selected: true }, last.chapter + '（这条线最后一节）'));
-      if (last && last.chapter) chSel.value = last.chapter;
-      const plotSel = h('select', { class: 'select' });
-      plotSel.appendChild(h('option', { value: '' }, '（还没定）'));
-      mine.forEach(p => plotSel.appendChild(h('option', { value: p.id, selected: !!last && p.id === last.id }, p.title)));
-      if (last) plotSel.value = last.id;
-      modal({
-        title: '「' + l.title + '」收敛到主线', width: '540px',
-        body: h('div', { class: 'col', style: { gap: '10px' } },
-          h('p', { class: 'small sub', style: { margin: 0, lineHeight: '1.85' } },
-            '标记这条暗线已经并回主线。收敛后它的情节照常保留，只是时间轴上会显示「已收敛」，提醒你这条线索已经交代清楚。'),
-          h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
-            h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '收敛于哪一章'), chSel),
-            h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '收敛于哪一节'), plotSel))),
-        okText: '标记已收敛',
-        onOk: () => {
-          l.convergeChapter = chSel.value || '';
-          l.convergePlot = plotSel.value || '';
-          l.convergedAt = new Date().toISOString();
-          touch(); renderAll();
-          toast('「' + l.title + '」已标记为收敛到主线', 'ok');
-        }
-      });
     }
 
     function removeLane(l) {
@@ -1191,14 +1275,12 @@ export default {
         title: '删除暗线「' + l.title + '」', width: '480px',
         body: h('div', { class: 'col' },
           h('p', { class: 'small sub', style: { margin: 0, lineHeight: '1.85' } },
-            '这条暗线上有 ' + mine.length + ' 个情节，删除后它们会移到主线末尾，不会丢。'),
-          h('p', { class: 'tiny muted', style: { margin: 0 } }, '只想不再显示它的话，可以留着不填内容。')),
+            '这条暗线上有 ' + mine.length + ' 个情节，删除后它们会移到主线，不会丢。')),
         okText: '删除并移到主线',
         onOk: () => {
           const mainId = (mainLine() || {}).id;
-          mine.forEach(p => { p.lane = mainId; });
+          mine.forEach(p => { p.lane = ''; });   /* 空 = 跟主线走 */
           doc.plotLines = doc.plotLines.filter(x => x.id !== l.id);
-          /* 别的暗线若指向它，改回主线 */
           lines().forEach(x => { if (x.mergeInto === l.id) x.mergeInto = ''; });
           if (st.lane === l.id) st.lane = mainId;
           touch(); renderAll();
