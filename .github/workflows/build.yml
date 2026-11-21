@@ -42,6 +42,7 @@ jobs:
           $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
           if (-not $exe) { throw '没找到打包产物' }
           $mb = [math]::Round($exe.Length/1MB,1)
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
           $notes = @"
           卷帙 NovelFolio $tag —— 离线优先的中文长篇小说创作工作台。
 
@@ -53,6 +54,8 @@ jobs:
           拆书（书籍分析）需要自己在「设置 → 模型接口」里填 OpenAI 兼容接口的地址、
           模型名和 Key；其余模块完全离线可用，软件没有账号、没有埋点、没有崩溃上报。
 
-          更新：修复启动遮罩一直压在最上层、导致界面除情节时间轴外都点不动的问题。
+          **校验**：SHA256 `$hash`（下载后可用 `Get-FileHash 文件名 -Algorithm SHA256` 核对）
+
+          完整改动见 [提交记录](https://github.com/Andrianxu/novel-create/commits/$tag)。
           "@
           gh release create $tag $exe.FullName --title "卷帙 NovelFolio $tag" --notes $notes --verify-tag --latest
