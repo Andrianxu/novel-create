@@ -86,6 +86,28 @@ injectStyle('world', `
 .wld-stats b{font-family:var(--kai);font-size:17px;font-weight:400;color:#3B342C;line-height:1.15}
 .wld-stats span{font-size:9px;letter-spacing:.1em;color:#8C8272}
 .wld-railfoot{margin-top:auto;padding-top:12px;border-top:1px dashed #E2D8C4;text-align:center;font-family:var(--kai);font-size:10px;letter-spacing:.36em;color:#B3A790}
+
+/* ---------- 右栏：可编辑 ---------- */
+.wld-realm{flex-direction:column;align-items:stretch;gap:0;padding:3px 6px}
+.wld-rline{display:flex;align-items:center;gap:7px;min-width:0}
+.wld-realm input.wi{font:inherit;color:#201C18;background:transparent;border:1px solid transparent;border-radius:5px;padding:1px 4px;min-width:0;width:100%;height:20px}
+.wld-realm input.wi:hover{background:#FFFCF5;border-color:#EAE1CF}
+.wld-realm input.wi:focus{background:#FFFDF8;border-color:#C2A97D;outline:none;box-shadow:0 0 0 2px rgba(185,138,60,.12)}
+.wld-realm input.wn{flex:none;width:76px;font-size:11.5px;font-weight:700}
+.wld-realm input.wt{font-size:10px;color:#8C8272}
+.wld-realm .now-em{font-style:normal;margin-left:auto;font-size:9px;color:#8A6421;background:#F7EBD3;border-radius:999px;padding:1px 7px;flex:none}
+.wld-x{opacity:0;cursor:pointer;color:#A8322A;font-size:10px;line-height:1;padding:0 2px;flex:none;transition:opacity .12s}
+.wld-realm:hover .wld-x,.wld-lore:hover .wld-x{opacity:.6}
+.wld-x:hover{opacity:1}
+.wld-lore{display:flex;gap:6px;align-items:flex-start;padding:6px 2px}
+.wld-lore input.wtag{flex:none;width:50px;font:inherit;font-size:9.5px;color:#8A6421;background:#F7EBD3;border:1px solid transparent;border-radius:4px;padding:2px 4px;text-align:center}
+.wld-lore input.wtag:focus{background:#FFFDF8;border-color:#C2A97D;outline:none}
+.wld-lore textarea.wtxt{flex:1;min-width:0;font:inherit;font-size:11.5px;line-height:1.75;color:#3B342C;background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 5px;resize:vertical;min-height:32px;overflow:hidden}
+.wld-lore textarea.wtxt:hover{background:#FFFCF5;border-color:#EAE1CF}
+.wld-lore textarea.wtxt:focus{background:#FFFDF8;border-color:#C2A97D;outline:none;box-shadow:0 0 0 2px rgba(185,138,60,.12)}
+.wld-chip.on{background:#E2EEEA;border-color:#BFDACF;box-shadow:inset 0 0 0 1px #BFDACF}
+.wld-frow{display:flex;gap:10px}
+.wld-frow>.field{flex:1;min-width:0}
 `);
 
 /* ================= 地图几何（确定性） ================= */
@@ -186,10 +208,24 @@ const REL_KIND = {
   secret: { label: '暗通', stroke: '#6E5A8C', dash: '11 4 2 4' }
 };
 const PILL_OF = { good: 'jade', neutral: 'gold', evil: 'seal', hidden: 'grey' };
-const CURRENT_REALM = 2; /* 第三条（金丹）标为当前 */
+const DEFAULT_CURRENT = 2; /* 默认把第三条（金丹）标成当前 */
 const REALM_NAMES = ['练气', '筑基', '金丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
 
 function alignOf(a) { return ALIGN[a] || ALIGN.neutral; }
+
+/* 「当前境界」记在位面上（plane.currentRealm），老数据没有这个字段就退回第三条 */
+function currentRealmIndex(p) {
+  const n = (p.realms || []).length;
+  if (!n) return -1;
+  const raw = Number.isInteger(p.currentRealm) ? p.currentRealm : DEFAULT_CURRENT;
+  return Math.max(0, Math.min(n - 1, raw));
+}
+
+/* 右栏的多行文本框随内容长高，省得设定被裁掉 */
+function autoGrow(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(32, ta.scrollHeight) + 'px';
+}
 function emptyPlane() {
   return {
     id: uid('p'), name: '新位面', note: '尚未填写', baseImage: null,
@@ -669,25 +705,52 @@ export default {
             : h('span', { class: 'tiny muted' }, '未关联人物'))));
     }
 
+    /* ---- 宗门详情：全部字段可改，改完点保存 ---- */
     function openSect(sec) {
       const p = plane();
-      const al = alignOf(sec.align);
-      const cont = (p.continents || []).find(c => c.id === sec.continentId);
-      const chars = (sec.characterIds || [])
-        .map(id => doc.characters.find(c => c.id === id)).filter(Boolean);
       const rels = (p.sectRelations || []).filter(r => r.a === sec.id || r.b === sec.id);
+      const picked = new Set(sec.characterIds || []);
+
+      const nameIn = h('input', { class: 'input', value: sec.name || '', placeholder: '如：临水剑冢' });
+      const alignSel = h('select', { class: 'select' }, Object.keys(ALIGN).map(k =>
+        h('option', { value: k, selected: (sec.align || 'neutral') === k }, ALIGN[k].label)));
+      const sizeSel = h('select', { class: 'select' }, [1, 2, 3, 4, 5].map(n =>
+        h('option', { value: String(n), selected: Number(sec.size || 1) === n }, '第 ' + n + ' 等')));
+      const contSel = h('select', { class: 'select' },
+        [h('option', { value: '', selected: !sec.continentId }, '未归属')].concat(
+          (p.continents || []).map(c => h('option', { value: c.id, selected: c.id === sec.continentId }, c.name))));
+      const membersIn = h('input', { class: 'input', value: sec.members || '', placeholder: '如：弟子 1,200 · 元婴 3 人' });
+      const descTa = h('textarea', { class: 'ta', style: { minHeight: '62px', fontSize: '12px' }, value: sec.desc || '', placeholder: '一句话说清这个宗门' });
+      const err = h('div', { class: 'tiny', style: { color: '#A8322A', minHeight: '14px' } }, '');
+
+      const chipRow = h('div', { class: 'row wrap', style: { gap: '5px' } });
+      function renderChips() {
+        clear(chipRow);
+        if (!doc.characters.length) { chipRow.appendChild(h('span', { class: 'tiny muted' }, '还没有人物')); return; }
+        doc.characters.forEach(c => {
+          const on = picked.has(c.id);
+          chipRow.appendChild(h('span', {
+            class: 'wld-chip' + (on ? ' on' : ''), title: on ? '点一下取消关联' : '点一下关联',
+            onclick: () => { if (picked.has(c.id)) picked.delete(c.id); else picked.add(c.id); renderChips(); }
+          }, h('i', { style: { background: c.color || '#2F6F63' } }, c.name.slice(0, 1)), c.name));
+        });
+      }
+      renderChips();
+
+      const delBtn = h('button', { class: 'btn xs seal', type: 'button' }, '删除宗门');
       const m = modal({
-        title: sec.name + ' · 宗门', width: '540px', cancelText: '关闭',
+        title: '宗门详情', width: '600px', okText: '保存',
         body: h('div', { class: 'col' },
-          h('div', { class: 'row wrap' },
-            h('span', { class: 'pill ' + (PILL_OF[sec.align] || 'grey') }, al.label),
-            h('span', { class: 'pill' }, '第 ' + (sec.size || 1) + ' 等'),
-            cont ? h('span', { class: 'pill grey' }, cont.name) : null,
-            h('span', { class: 'grow' }),
-            h('span', { class: 'tiny muted mono' }, sec.x + ', ' + sec.y)),
-          h('div', { class: 'field' }, h('label', {}, '成员'), h('div', { class: 'small' }, sec.members || '—')),
-          h('div', { class: 'field' }, h('label', {}, '简介'), h('div', { class: 'small', style: { lineHeight: '1.8' } }, sec.desc || '（还没有写宗门简介）')),
-          h('div', { class: 'field' }, h('label', {}, '对外关系'),
+          h('div', { class: 'wld-frow' },
+            h('div', { class: 'field', style: { flex: '1.5' } }, h('label', {}, '宗门名'), nameIn),
+            h('div', { class: 'field' }, h('label', {}, '阵营'), alignSel)),
+          h('div', { class: 'wld-frow' },
+            h('div', { class: 'field' }, h('label', {}, '规模'), sizeSel),
+            h('div', { class: 'field', style: { flex: '1.6' } }, h('label', {}, '所在板块'), contSel)),
+          h('div', { class: 'field' }, h('label', {}, '成员'), membersIn),
+          h('div', { class: 'field' }, h('label', {}, '简介'), descTa),
+          h('div', { class: 'field' }, h('label', {}, '相关人物（点选关联 / 取消）'), chipRow),
+          h('div', { class: 'field' }, h('label', {}, '对外关系（在世界观页连线上改）'),
             rels.length
               ? h('div', { class: 'col', style: { gap: '4px' } }, rels.map(r => {
                 const other = sectOf(p, r.a === sec.id ? r.b : r.a);
@@ -697,42 +760,129 @@ export default {
                   '　' + (other ? other.name : '?') + (r.label ? '　' + r.label : ''));
               }))
               : h('div', { class: 'small muted' }, '尚无记录')),
-          h('div', { class: 'field' }, h('label', {}, '相关人物'),
-            chars.length
-              ? h('div', { class: 'row wrap' }, chars.map(c => h('span', {
-                class: 'wld-chip', onclick: () => { m.close(); NF.go('characters', { id: c.id }); }
-              }, h('i', { style: { background: c.color || '#2F6F63' } }, c.name.slice(0, 1)), c.name)))
-              : h('div', { class: 'small muted' }, '未关联人物')))
+          h('div', { class: 'row', style: { paddingTop: '2px' } },
+            delBtn, h('span', { class: 'grow' }),
+            h('span', { class: 'tiny muted mono' }, '座标 ' + sec.x + ', ' + sec.y)),
+          err),
+        onOk: () => {
+          const name = nameIn.value.trim();
+          if (!name) { err.textContent = '宗门名不能为空'; return false; }
+          sec.name = name;
+          sec.align = alignSel.value;
+          sec.size = Number(sizeSel.value) || 1;
+          sec.continentId = contSel.value;
+          sec.members = membersIn.value.trim();
+          sec.desc = descTa.value.trim();
+          sec.characterIds = Array.from(picked);
+          NF.save();
+          renderMain(); renderRail(); renderSide();
+          toast('宗门详情已保存', 'ok');
+        }
       });
+
+      /* 删除要按两次：第一次只是把按钮变成确认态 */
+      delBtn.onclick = () => {
+        if (delBtn.dataset.armed !== '1') { delBtn.dataset.armed = '1'; delBtn.textContent = '再点一次，确认删除'; return; }
+        const sects = p.sects || [];
+        p.sects = sects.filter(x => x.id !== sec.id);
+        p.sectRelations = (p.sectRelations || []).filter(r => r.a !== sec.id && r.b !== sec.id);
+        if (st.sectId === sec.id) st.sectId = (p.sects[0] && p.sects[0].id) || null;
+        NF.save();
+        m.close();
+        renderMain(); renderRail(); renderSide();
+        toast('已删除宗门「' + sec.name + '」', 'ok');
+      };
     }
 
-    /* ================= 右栏 ================= */
+    /* ================= 右栏（修为体系 / 关键设定 都是就地可改） ================= */
+    function addRealm() {
+      const p = plane();
+      if (!Array.isArray(p.realms)) p.realms = [];
+      p.realms.push({ name: '', note: '' });
+      if (!Number.isInteger(p.currentRealm)) p.currentRealm = currentRealmIndex(p);
+      NF.save();
+      renderRail();
+      const list = rail.querySelectorAll('input.wn');
+      const last = list[list.length - 1];
+      if (last) { last.focus(); last.select(); }
+    }
+
+    function addLore() {
+      const p = plane();
+      if (!Array.isArray(p.lore)) p.lore = [];
+      p.lore.push({ tag: '', text: '' });
+      NF.save();
+      renderRail();
+      const list = rail.querySelectorAll('textarea.wtxt');
+      const last = list[list.length - 1];
+      if (last) last.focus();
+    }
+
     function renderRail() {
       clear(rail);
       const p = plane();
-      const realms = p.realms || [];
-      const realmBox = h('div', { class: 'wld-realms' }, realms.map((r, i) => h('div', {
-        class: 'wld-realm' + (i === CURRENT_REALM ? ' now' : '')
-      }, h('i', {}, i + 1), h('b', {}, r.name), h('span', {}, r.note || '—'),
-        i === CURRENT_REALM ? h('em', {}, '当前') : null)));
+      const realms = p.realms || (p.realms = []);
+      const cur = currentRealmIndex(p);
+
+      const realmBox = h('div', { class: 'wld-realms' }, realms.map((r, i) => {
+        const nameIn = h('input', { class: 'wi wn', value: r.name || '', placeholder: '境界名', title: '点一下就能改' });
+        const noteIn = h('input', { class: 'wi wt', value: r.note || '', placeholder: '说明，如「初 / 中 / 后」', title: '点一下就能改' });
+        nameIn.addEventListener('input', () => { r.name = nameIn.value; NF.save(); });
+        noteIn.addEventListener('input', () => { r.note = noteIn.value; NF.save(); });
+        const del = h('span', { class: 'wld-x', title: '删掉这一境' }, '✕');
+        del.onclick = () => {
+          const name = r.name || '这一境';
+          realms.splice(i, 1);
+          if (Number.isInteger(p.currentRealm) && p.currentRealm >= i) p.currentRealm = Math.max(0, p.currentRealm - 1);
+          NF.save(); renderRail(); renderMain();
+          toast('已删除「' + name + '」', 'ok');
+        };
+        return h('div', { class: 'wld-realm' + (i === cur ? ' now' : ''), 'data-probe': 'realm-' + i },
+          h('div', { class: 'wld-rline' },
+            h('i', { title: '把这一境设为「当前」', onclick: () => { p.currentRealm = i; NF.save(); renderRail(); renderMain(); } }, i + 1),
+            nameIn,
+            i === cur ? h('em', { class: 'now-em' }, '当前') : h('span', { class: 'grow' }),
+            del),
+          noteIn);
+      }));
 
       rail.appendChild(h('div', { class: 'card wld-rcard', 'data-probe': 'wld-realms' },
         h('div', { class: 'wld-rh' },
-          h('h3', {}, '修为体系 · 九境'),
+          h('h3', {}, '修为体系'),
           h('span', { class: 'grow' }),
-          h('span', { class: 'tiny muted' }, realms.length ? realms.length + ' 境' : '未填写')),
-        realms.length ? realmBox : h('div', { class: 'empty', style: { padding: '18px' } }, '还没有填写修为体系')));
+          h('span', { class: 'tiny muted' }, realms.length ? realms.length + ' 境' : '未填写'),
+          h('button', { class: 'btn xs', onclick: addRealm, title: '在末尾加一境' }, '＋ 一境')),
+        realms.length
+          ? realmBox
+          : h('div', { class: 'empty', style: { padding: '16px 8px', fontSize: '11px' } }, '还没有修为体系，点「＋ 一境」开始写')));
 
-      const lore = p.lore || [];
+      const lore = p.lore || (p.lore = []);
+      const loreTAs = [];
+      const loreBox = h('div', {}, lore.map((x, i) => {
+        const tagIn = h('input', { class: 'wtag', value: x.tag || '', placeholder: '标签', title: '标签，如 地理 / 禁忌' });
+        const ta = h('textarea', { class: 'wtxt', value: x.text || '', placeholder: '设定内容' });
+        tagIn.addEventListener('input', () => { x.tag = tagIn.value; NF.save(); });
+        ta.addEventListener('input', () => { x.text = ta.value; autoGrow(ta); NF.save(); });
+        loreTAs.push(ta);
+        const del = h('span', { class: 'wld-x', title: '删掉这条设定' }, '✕');
+        del.onclick = () => {
+          lore.splice(i, 1);
+          NF.save(); renderRail();
+          toast('已删除这条设定', 'ok');
+        };
+        return h('div', { class: 'wld-lore', 'data-probe': 'lore-' + i }, tagIn, ta, del);
+      }));
+
       rail.appendChild(h('div', { class: 'card wld-rcard', 'data-probe': 'wld-lore' },
         h('div', { class: 'wld-rh' },
           h('h3', {}, '关键设定'),
           h('span', { class: 'grow' }),
-          h('span', { class: 'tiny muted' }, lore.length + ' 条')),
+          h('span', { class: 'tiny muted' }, lore.length + ' 条'),
+          h('button', { class: 'btn xs', onclick: addLore, title: '新增一条设定' }, '＋ 条目')),
         lore.length
-          ? h('div', {}, lore.map(x => h('div', { class: 'wld-lore' },
-            h('span', { class: 'tag' }, x.tag || '设定'), h('span', {}, x.text))))
-          : h('div', { class: 'empty', style: { padding: '18px' } }, '还没有设定条目')));
+          ? loreBox
+          : h('div', { class: 'empty', style: { padding: '16px 8px', fontSize: '11px' } }, '还没有设定条目，点「＋ 条目」加一条')));
+      requestAnimationFrame(() => loreTAs.forEach(autoGrow));
 
       rail.appendChild(h('div', { class: 'wld-stats', 'data-probe': 'wld-stats' },
         h('div', {}, h('b', {}, (p.continents || []).length), h('span', {}, '板块')),
