@@ -37,6 +37,7 @@
       "!app/**/*.map",
       "package.json"
     ],
+    "beforeBuild": "./scripts/before-build.js",
     "win": {
       "icon": "logo/novelfolio-b.ico",
       "target": [
