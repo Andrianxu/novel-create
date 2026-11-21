@@ -4,7 +4,20 @@
 
 界面是「纸间书桌」风格：暖纸底、墨色字、印章红点缀、楷体标题。
 
-> 设计稿在 `previews/`（五张界面预览 + 演示文稿），Logo 与图标在 `logo/`。
+> 设计稿在 `previews/`（界面预览 + 演示文稿），Logo 与图标在 `logo/`，实际运行截图在 `docs/screenshots/`。
+
+## 界面
+
+![七个模块总览](docs/screenshots/all.png)
+
+| | |
+| --- | --- |
+| ![人物](docs/screenshots/characters.png) | ![世界观](docs/screenshots/world.png) |
+| 立绘、人设字段、三态情节时间轴、废案篓 | 多位面舆图、可拖动宗门节点、修为体系 |
+| ![情节](docs/screenshots/plot.png) | ![书籍分析](docs/screenshots/book.png) |
+| 时间轴 + 悬停摘要 + 详情 + 废案回收站 | 导入整本书 → 自动分章 → 抽人物/情节 → 一键入库 |
+| ![章节写作](docs/screenshots/chapter.png) | ![导入导出](docs/screenshots/importer.png) |
+| 卷·篇目录、楷体编辑器、自动保存、专注模式 | CSV / Excel / docx 三步导入向导 |
 
 ---
 
@@ -39,7 +52,7 @@ npm run dist          # 出 dist/NovelFolio-0.1.0-portable.exe，双击就能开
 npm run dist:nsis     # 走安装向导的版本（可选）
 ```
 
-打包产物在 `dist/`，不进仓库。界面截图见 `screenshots/final/`。
+打包产物在 `dist/`，不进仓库。
 
 仓库自带 GitHub Actions（`.github/workflows/build.yml`）：每次推到 `main` 都会在 windows-latest 上跑一次打包，成功后在 Actions 页面的 Artifacts 里就能下载 `NovelFolio-Windows.zip`（里面是同一个免安装 exe），不用本机装 Node。
 
