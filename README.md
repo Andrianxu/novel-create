@@ -41,6 +41,8 @@ npm run dist:nsis     # 走安装向导的版本（可选）
 
 打包产物在 `dist/`，不进仓库。界面截图见 `screenshots/final/`。
 
+仓库自带 GitHub Actions（`.github/workflows/build.yml`）：每次推到 `main` 都会在 windows-latest 上跑一次打包，成功后在 Actions 页面的 Artifacts 里就能下载 `NovelFolio-Windows.zip`（里面是同一个免安装 exe），不用本机装 Node。
+
 第一次打包要下载 NSIS 等工具链，国内网络可能卡在 GitHub 上，可以先设镜像：
 
 ```powershell
