@@ -6,6 +6,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -29,3 +32,27 @@ jobs:
           name: NovelFolio-Windows
           path: dist/*.exe
           if-no-files-found: error
+      - name: 发布 Release（仅打 tag 时）
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
+          if (-not $exe) { throw '没找到打包产物' }
+          $mb = [math]::Round($exe.Length/1MB,1)
+          $notes = @"
+          卷帙 NovelFolio $tag —— 离线优先的中文长篇小说创作工作台。
+
+          **下载**：$($exe.Name)（$mb MB，免安装，双击即用，Windows 10/11 x64）
+
+          首次启动会在 %APPDATA%\novelfolio 生成一份演示作品（《临水问剑》），
+          想换成自己的可以「设置 → 导入 JSON」。作品数据与系统加密的 API Key 都只存在这个目录。
+
+          拆书（书籍分析）需要自己在「设置 → 模型接口」里填 OpenAI 兼容接口的地址、
+          模型名和 Key；其余模块完全离线可用，软件没有账号、没有埋点、没有崩溃上报。
+
+          更新：修复启动遮罩一直压在最上层、导致界面除情节时间轴外都点不动的问题。
+          "@
+          gh release create $tag $exe.FullName --title "卷帙 NovelFolio $tag" --notes $notes --verify-tag --latest
