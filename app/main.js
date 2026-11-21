@@ -59,10 +59,11 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false }
   });
   if (evalArg || probeArg) {
-    win.webContents.on('console-message', (ev, level, message, line, sourceId) => {
-      let msg = message, lv = level, src = sourceId, ln = line;
-      if (ev && typeof ev === 'object' && ev.message) { msg = ev.message; lv = ev.level; src = ev.sourceId; ln = ev.lineNumber; }
-      console.log('[renderer:' + lv + '] ' + msg + '  @' + String(src || '').replace(/^.*[\\/]/, '') + ':' + ln);
+    win.webContents.on('console-message', (...args) => {
+      const ev = args[0];
+      const o = ev && typeof ev === 'object' && typeof ev.message === 'string'
+        ? ev : { level: args[1], message: args[2], lineNumber: args[3], sourceId: args[4] };
+      console.log('[renderer:' + o.level + '] ' + o.message + '  @' + String(o.sourceId || '').replace(/^.*[\\/]/, '') + ':' + o.lineNumber);
     });
   }
   const hash = pageArg ? '#' + pageArg.split('=')[1] : '';
@@ -96,9 +97,9 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 /* ---------------- app / data ---------------- */
-ipcMain.handle('app:info', () => ({
+ipcMain.handle('app:info', async () => ({
   version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
-  node: process.versions.node, userData: P.root(), encrypt: safeStorage.isEncryptionAvailable()
+  node: process.versions.node, userData: P.root(), encrypt: await settings.encAvailable()
 }));
 ipcMain.handle('data:load', () => getDoc());
 ipcMain.handle('data:save', (e, incoming) => {
@@ -128,10 +129,10 @@ ipcMain.handle('data:importJson', async () => {
 
 /* ---------------- settings ---------------- */
 ipcMain.handle('settings:get', () => settings.publicSettings());
-ipcMain.handle('settings:set', (e, patch) => { settings.setConfig(patch); return settings.publicSettings(); });
-ipcMain.handle('settings:setApiKey', (e, k) => {
-  settings.setApiKey(String(k || '').trim());
-  return settings.publicSettings();
+ipcMain.handle('settings:set', async (e, patch) => { settings.setConfig(patch); return await settings.publicSettings(); });
+ipcMain.handle('settings:setApiKey', async (e, k) => {
+  await settings.setApiKey(String(k || '').trim());
+  return await settings.publicSettings();
 });
 
 /* ---------------- files ---------------- */
@@ -372,11 +373,40 @@ ipcMain.handle('image:importDataUrl', (e, charId, dataUrl) => {
   if (ch) { ch.portrait = rel; persist(); }
   return { portrait: rel };
 });
-ipcMain.handle('clipboard:write', (e, text) => { clipboard.writeText(String(text || '')); return true; });
-ipcMain.handle('image:pastePortrait', (e, charId) => {
-  const img = clipboard.readImage();
-  if (!img || img.isEmpty()) throw new Error('剪贴板里没有图片');
-  const rel = saveImageBuffer(charId, img.toPNG(), 'png');
+ipcMain.handle('clipboard:write', async (e, text) => { await clipboard.writeText(String(text || '')); return true; });
+
+/* 读剪贴板里的图片：
+ * - Electron < 45：clipboard.readImage() 同步返回 NativeImage
+ * - Electron >= 45：clipboard 改成 W3C 风格，read() 返回 ClipboardItem[]，用 getType 取 Blob */
+async function readClipboardImage() {
+  if (typeof clipboard.readImage === 'function') {
+    const img = clipboard.readImage();
+    if (img && !img.isEmpty()) return img.toPNG();
+    return null;
+  }
+  if (typeof clipboard.read !== 'function') return null;
+  const items = (await clipboard.read()) || [];
+  for (const item of items) {
+    const types = (item && item.types) || [];
+    const mime = types.find(t => /^image\/png$/i.test(t)) || types.find(t => /^image\//i.test(t));
+    if (!mime) continue;
+    const blob = await item.getType(mime);
+    if (!blob) continue;
+    if (/^image\/png$/i.test(mime)) return Buffer.from(await blob.arrayBuffer());
+    // 非 PNG 交给 nativeImage 转一次，保证落盘统一是 PNG
+    const buf = Buffer.from(await blob.arrayBuffer());
+    const { nativeImage } = require('electron');
+    const ni = nativeImage.createFromBuffer(buf);
+    if (ni && !ni.isEmpty()) return ni.toPNG();
+    return buf;
+  }
+  return null;
+}
+
+ipcMain.handle('image:pastePortrait', async (e, charId) => {
+  const png = await readClipboardImage();
+  if (!png) throw new Error('剪贴板里没有图片');
+  const rel = saveImageBuffer(charId, png, 'png');
   const ch = getDoc().characters.find(c => c.id === charId);
   if (ch) { ch.portrait = rel; persist(); }
   return { portrait: rel };

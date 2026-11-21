@@ -2,7 +2,7 @@
 const S = require('./settings');
 
 function redact(s) {
-  const key = S.getApiKey();
+  const key = S.getApiKeySync();
   if (key && typeof s === 'string') return s.split(key).join('***');
   return s;
 }
@@ -17,7 +17,7 @@ function normalizeBase(u) {
 
 async function chat(messages, opts) {
   const cfg = S.getConfig().llm;
-  const key = S.getApiKey();
+  const key = await S.getApiKey();
   if (!key) throw new Error('还没有配置 API Key（设置 → 模型接口）');
   const base = normalizeBase(opts && opts.baseUrl ? opts.baseUrl : cfg.baseUrl);
   const body = {

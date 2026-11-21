@@ -132,6 +132,8 @@ npm start                       # 启动
 node --version                  # 需要 18+
 ```
 
+运行时是 **Electron 45**（Chromium 内置，不额外引入前端框架）。`npm audit` 里剩下的 moderate 全部来自 `electron-builder` 的构建期依赖（`minimatch` 的 ReDoS），只在你自己打包时执行，不会进 exe、不影响运行时；升级到 Electron 45 后已没有 high / critical。
+
 项目结构（渲染层是**零依赖原生 ES 模块**，没有 React / 没有打包器）：
 
 ```

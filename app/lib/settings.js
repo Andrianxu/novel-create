@@ -41,33 +41,65 @@ function setConfig(patch) {
   return next;
 }
 
-/* ---- API Key：只存本机，DPAPI 加密，永不进仓库、永不回传渲染层 ---- */
-function keyStore() {
+/* ---- API Key：只存本机，DPAPI 加密，永不进仓库、永不回传渲染层 ----
+ * Electron 45 起 safeStorage 的同步接口已废弃（encryptString / decryptString /
+ * isEncryptionAvailable），这里优先用异步接口，旧版本自动退回同步接口。 */
+let keyCache = '';
+
+async function encAvailable() {
   try {
-    const raw = fs.readFileSync(P.secretsFile());
-    if (!safeStorage.isEncryptionAvailable()) return null;
-    return JSON.parse(safeStorage.decryptString(raw));
-  } catch (e) { return null; }
+    if (typeof safeStorage.isAsyncEncryptionAvailable === 'function') return !!(await safeStorage.isAsyncEncryptionAvailable());
+  } catch (e) { /* 落到同步接口 */ }
+  try { return !!safeStorage.isEncryptionAvailable(); } catch (e) { return false; }
 }
 
-function setApiKey(key) {
-  const obj = keyStore() || {};
+async function encryptText(text) {
+  if (typeof safeStorage.encryptStringAsync === 'function') return await safeStorage.encryptStringAsync(text);
+  return safeStorage.encryptString(text);
+}
+
+async function decryptText(buf) {
+  if (typeof safeStorage.decryptStringAsync === 'function') {
+    let r = await safeStorage.decryptStringAsync(buf);
+    if (r && typeof r === 'object' && 'result' in r) {
+      if (r.shouldReEncrypt) {
+        try { r = await safeStorage.decryptStringAsync(buf); } catch (e) { /* 用第一次的结果 */ }
+      }
+      return r.result;
+    }
+    return String(r);
+  }
+  return safeStorage.decryptString(buf);
+}
+
+async function keyStore() {
+  let raw;
+  try { raw = fs.readFileSync(P.secretsFile()); } catch (e) { return null; }
+  if (!raw || !raw.length) return null;
+  try { return JSON.parse(await decryptText(raw)); } catch (e) { return null; }
+}
+
+async function setApiKey(key) {
+  const obj = (await keyStore()) || {};
   if (!key) delete obj.apiKey;
   else obj.apiKey = key;
-  if (safeStorage.isEncryptionAvailable()) {
-    fs.writeFileSync(P.secretsFile(), safeStorage.encryptString(JSON.stringify(obj)));
-  } else {
-    fs.writeFileSync(P.secretsFile(), JSON.stringify({ plain: obj }), 'utf8');
-  }
+  keyCache = obj.apiKey || '';
+  const plain = JSON.stringify(obj);
+  if (await encAvailable()) fs.writeFileSync(P.secretsFile(), await encryptText(plain));
+  else fs.writeFileSync(P.secretsFile(), JSON.stringify({ plain: obj }), 'utf8');
   return true;
 }
 
-function getApiKey() {
+async function getApiKey() {
   const env = process.env.NF_API_KEY;
-  if (env) return env;
-  const k = keyStore();
-  return (k && k.apiKey) || '';
+  if (env) { keyCache = env; return env; }
+  const k = await keyStore();
+  keyCache = (k && k.apiKey) || '';
+  return keyCache;
 }
+
+/* 同步镜像，仅供日志脱敏这类「不能 await」的地方使用 */
+function getApiKeySync() { return process.env.NF_API_KEY || keyCache; }
 
 function maskKey(k) {
   if (!k) return '';
@@ -76,17 +108,18 @@ function maskKey(k) {
 }
 
 /* 给渲染层的安全视图：绝不含明文 key */
-function publicSettings() {
+async function publicSettings() {
   const cfg = getConfig();
-  const key = getApiKey();
+  const key = await getApiKey();
+  const enc = await encAvailable();
   return {
     llm: cfg.llm,
     privacy: cfg.privacy,
     hasApiKey: !!key,
     keyMasked: maskKey(key),
     keyFromEnv: !!process.env.NF_API_KEY,
-    keyStorage: safeStorage.isEncryptionAvailable() ? '系统加密（DPAPI）' : '本地明文（系统不支持加密）'
+    keyStorage: enc ? '系统加密（DPAPI）' : '本地明文（系统不支持加密）'
   };
 }
 
-module.exports = { getConfig, setConfig, publicSettings, getApiKey, setApiKey, maskKey };
+module.exports = { getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable };
