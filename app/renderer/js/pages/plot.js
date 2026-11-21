@@ -86,6 +86,61 @@ injectStyle('plot', `
   background:#E2EEEA;color:#23604F;justify-self:start}
 .pl-lane-pill.side{background:#F7EBD3;color:#8A6421}
 
+/* ---- 带刻度的轴 + 树状分支 ---- */
+.pl-canvas{position:relative}
+.pl-branches{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
+.pl-br{fill:none;stroke-width:1.4;stroke-linecap:round}
+.pl-br.fork{stroke:#C9973C;stroke-dasharray:5 3;opacity:.85}
+.pl-br.merge{stroke:#2F6F63;stroke-dasharray:none;opacity:.85}
+.pl-br.stem{stroke:#C9973C;stroke-dasharray:3 3;opacity:.55}
+.pl-brdot{stroke-width:1.5}
+.pl-brdot.fork{fill:#FFFCF5;stroke:#C9973C}
+.pl-brdot.merge{fill:#2F6F63;stroke:#2F6F63}
+.pl-lane{position:relative;z-index:1;background:transparent}
+.pl-lane.on{background:rgba(47,111,99,.045)}
+.pl-track .pl-tick.tp-label{font-size:8px;color:#C0B49B}
+.pl-node.dim{opacity:.38}
+.pl-node.dim i{box-shadow:none}
+.pl-lanefilter{font-size:10px;height:22px;padding:0 4px;border:1px solid var(--line2);border-radius:6px;
+  background:#FFFDF8;color:#5B5348;max-width:170px;cursor:pointer;font-family:inherit}
+.pl-lanefilter:hover{border-color:#CBB894}
+.pl-lrow.flash{animation:plFlash .9s ease}
+@keyframes plFlash{0%{background:#F3E4C4;box-shadow:inset 3px 0 0 var(--seal)}100%{background:transparent}}
+
+/* ---- 右下角 AI 构思助手（和章节写作同一套外观） ---- */
+.pl-ai{position:fixed;right:18px;bottom:40px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.pl-ai-fab{width:54px;height:54px;border-radius:50%;border:1px solid #CBB894;background:var(--ink);color:var(--paper);
+  font-family:var(--kai);font-size:15px;letter-spacing:.06em;cursor:pointer;box-shadow:0 10px 26px rgba(50,35,20,.26);transition:transform .12s}
+.pl-ai-fab:hover{background:#2E2823;transform:translateY(-1px)}
+.pl-ai-panel{width:376px;max-height:min(640px,74vh);display:none;flex-direction:column;background:var(--panel);
+  border:1px solid #DFD4BF;border-radius:14px;box-shadow:0 24px 60px rgba(50,35,20,.24);overflow:hidden}
+.pl-ai.open .pl-ai-panel{display:flex}
+.pl-ai.open .pl-ai-fab{display:none}
+.pl-ai-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #EAE1CF;background:#FBF6EA}
+.pl-ai-h h3{margin:0;font-family:var(--kai);font-size:13.5px;letter-spacing:.08em;color:#201C18}
+.pl-ai-model{font-size:9.5px;color:#8C8272;background:#F1EADA;border:1px solid #EAE1CF;border-radius:999px;padding:1px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.pl-ai-x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0 2px}
+.pl-ai-x:hover{color:var(--ink)}
+.pl-ai-log{flex:1;min-height:140px;overflow:auto;padding:11px 12px;display:flex;flex-direction:column;gap:9px;background:#FFFDF8}
+.pl-ai-item{display:flex;flex-direction:column;gap:3px;max-width:100%}
+.pl-ai-item.user{align-items:flex-end}
+.pl-ai-item.assistant,.pl-ai-item.note{align-items:flex-start}
+.pl-ai-msg{font-size:12px;line-height:1.78;padding:7px 10px;border-radius:9px;white-space:pre-wrap;word-break:break-word;max-width:100%}
+.pl-ai-item.user .pl-ai-msg{background:#F1E7D3;border:1px solid #E4D6B9;color:#3B342C}
+.pl-ai-item.assistant .pl-ai-msg{background:#FFF;border:1px solid #EAE1CF;color:#2A2521}
+.pl-ai-item.note .pl-ai-msg{background:transparent;border:1px dashed #E4DCCB;color:var(--muted);font-size:10.5px;line-height:1.7;padding:6px 9px}
+.pl-ai-tools{display:flex;gap:10px;font-size:10.5px;color:var(--jade)}
+.pl-ai-tools span{cursor:pointer;text-decoration:underline}
+.pl-ai-tools span:hover{color:#23604F}
+.pl-ai-quick{display:flex;gap:5px;flex-wrap:wrap;padding:8px 12px 0;background:#FBF6EA}
+.pl-ai-chip{font-size:10.5px;padding:3px 8px;border-radius:999px;border:1px solid #DFD4BF;background:#FFFDF8;color:#5B5348;cursor:pointer}
+.pl-ai-chip:hover{background:#F7EBD3;border-color:#CBB894}
+.pl-ai-f{padding:8px 12px 10px;background:#FBF6EA;display:flex;flex-direction:column;gap:6px}
+.pl-ai-in{width:100%;min-height:54px;max-height:120px;resize:vertical;font:inherit;font-size:12px;line-height:1.7;
+  padding:7px 9px;border:1px solid var(--line2);border-radius:8px;background:#FFFDF8;color:#2A2521;outline:none}
+.pl-ai-in:focus{border-color:#C2A97D;box-shadow:0 0 0 3px rgba(185,138,60,.12)}
+.pl-ai-row{display:flex;align-items:center;gap:8px;font-size:10px;color:#8C8272}
+
 /* ---- 悬停气泡 ---- */
 .pl-tip{position:fixed;left:0;top:0;z-index:8300;width:252px;display:none;background:rgba(38,32,26,.96);color:#F2EBDB;border-radius:9px;padding:10px 12px;box-shadow:0 12px 30px rgba(40,30,20,.32);pointer-events:none}
 .pl-tip.on{display:block}
@@ -215,7 +270,7 @@ export default {
     if (!doc.plotLines.some(l => l.kind === 'main')) doc.plotLines.unshift({ id: 'main', title: '主线', kind: 'main', note: '', mergeInto: '' });
 
     /* ================= 状态与小工具 ================= */
-    const st = { selId: null, filter: 'all', drawer: false, lane: 'main' };
+    const st = { selId: null, filter: 'all', drawer: false, lane: 'main', listLane: 'all' };
     const touch = () => NF.save();
     const vols = () => (Array.isArray(doc.chapters) ? doc.chapters : []);
     const chars = () => (Array.isArray(doc.characters) ? doc.characters : []);
@@ -332,52 +387,74 @@ export default {
     }
     function hideTip() { tip.classList.remove('on'); }
 
-    /* ---------- 轴 ↔ 顺序 ----------
-     * 时间轴只是一个「把情节按先后摆开」的板子，不是标尺：
-     * - 节点横坐标只由它在这条线上的排序位置决定（第 1 个在 4%，最后一个在 96%），
-     *   跟 timePoint 的数值一点关系都没有，所以不存在「被时间点吸附」这回事；
-     * - 拖动 = 改它在序列里的位置，松手后按新顺序把整条线的 timePoint 重新编号
-     *   （1、2、3…），别的线完全不受影响。
-     * timePoint 只作为内在记录保留（可以在表单里手填小数），不再影响摆位。 */
+    /* ---------- 时间轴 = 一条有刻度的轴 ----------
+     * 每个情节落在轴上的位置 = 它的时间点（timePoint）在这条线刻度范围内的百分比。
+     * - 空白处双击新建时，时间点直接读鼠标位置对应的刻度值（整数刻度）；
+     * - 拖动节点时它跟着鼠标走，松手就定在那儿，然后按落点处的刻度把时间点改掉；
+     *   别的节点一动不动。
+     * 轴上若某一段是空的，就在这一段里补刻度柱，保证任意位置都能落。 */
     const tpNum = p => { const n = Number(p && p.timePoint); return isFinite(n) ? n : 0; };
     const round2 = v => Math.round(v * 100) / 100;
-    const SPAN_LO = 4, SPAN_HI = 96;
+    const SPAN_LO = 3, SPAN_HI = 97;
+    const MIN_GAP_PCT = 1.8;       /* 同一刻度上叠了多个情节时，至少错开这么多 */
 
-    /* 下标 → 百分比：等距铺开，跟时间点无关 */
-    function slotPct(i, n) {
-      if (n <= 1) return 50;
-      return SPAN_LO + (i / (n - 1)) * (SPAN_HI - SPAN_LO);
+    /* 某条线的时间点范围：[0, 最大值向上取整]，至少到 10 */
+    function laneMax(lane) {
+      const arr = onLane(lane);
+      const m = Math.max(0, ...arr.map(tpNum));
+      return Math.max(10, Math.ceil(m));
     }
-    /* 一串情节 → 各自百分比（按给定顺序） */
-    function layoutSpots(list) {
-      const n = list.length;
-      return list.map((_, i) => slotPct(i, n));
+    /* 某条线在轴上的一串刻度：有情节的地方用情节的时间点，空档里补整数刻度 */
+    function laneTicks(lane) {
+      const arr = onLane(lane);
+      const max = laneMax(lane);
+      const set = new Set();
+      arr.forEach(p => set.add(round2(tpNum(p))));
+      set.add(0);
+      set.add(max);
+      const ticks = Array.from(set).sort((x, y) => x - y);
+      const out = [];
+      for (let i = 0; i < ticks.length; i++) {
+        if (i === 0 || out[out.length - 1] !== ticks[i]) out.push(ticks[i]);
+        const nxt = ticks[i + 1];
+        if (nxt == null) break;
+        const gap = nxt - ticks[i];
+        /* 空档太大就每格补一个整数，最多补 40 个，避免稠密到看不清 */
+        if (gap > 1.0001) {
+          const step = gap > 40 ? Math.ceil(gap / 40) : 1;
+          for (let v = ticks[i] + step; v < nxt - 0.0001; v += step) out.push(round2(v));
+        }
+      }
+      return { ticks: out, max };
     }
-
-    /* 轴上一点 → 该插到第几个（0 ~ n） */
-    function slotAtPct(n, pct) {
-      if (n <= 0) return 0;
-      if (n === 1) return pct >= 50 ? 1 : 0;
+    /* 时间点 → 百分比 */
+    function tpPct(tp, max) {
+      if (!(max > 0)) return 50;
+      return SPAN_LO + (Math.max(0, Math.min(max, tp)) / max) * (SPAN_HI - SPAN_LO);
+    }
+    /* 百分比 → 时间点（先算连续值，再吸附到最近的刻度；刻度是整数，所以就是四舍五入） */
+    function pctTp(pct, max) {
+      if (!(max > 0)) return 0;
       const t = Math.max(SPAN_LO, Math.min(SPAN_HI, SPAN_LO + (pct / 100) * (SPAN_HI - SPAN_LO)));
-      const i = Math.round(((t - SPAN_LO) / (SPAN_HI - SPAN_LO)) * (n - 1));
-      return Math.max(0, Math.min(n, i));
+      return round2(((t - SPAN_LO) / (SPAN_HI - SPAN_LO)) * max);
+    }
+    /* 这条线上每个情节的百分比（按时间点；同一时间点的按顺序错开一点） */
+    function laneSpots(lane) {
+      const arr = lanePlots(lane);
+      const max = laneMax(lane);
+      const out = [];
+      arr.forEach((p, i) => {
+        let x = tpPct(tpNum(p), max);
+        /* 和前面重叠就右移，但不越过轴的右端 */
+        for (let k = 0; k < out.length; k++) {
+          if (Math.abs(out[k] - x) < MIN_GAP_PCT) x = Math.min(SPAN_HI, out[k] + MIN_GAP_PCT);
+        }
+        out.push(x);
+      });
+      return { spots: out, items: arr, max };
     }
 
-    /* 把一条线上的情节按新顺序重排，并把它们（且只有它们）的时间点重新编号。
-     * 编号跟着这条线自己走，不会占用/冲撞别的线上的值。 */
-    function renumber(list) {
-      list.forEach((p, i) => { p.timePoint = i + 1; });
-    }
-    /* 把某个情节插到某条线的第 idx 位（并重新编号这条线） */
-    function placeInLane(p, lane, idx) {
-      const arr = lanePlots(lane).filter(q => q.id !== p.id);
-      p.lane = lane;
-      arr.splice(Math.max(0, Math.min(arr.length, idx)), 0, p);
-      renumber(arr);
-      return arr;
-    }
-
-    /* ================= 时间轴（主线 + 暗线泳道） ================= */
+    /* ================= 时间轴（主线 + 暗线，树状引出 / 收敛） ================= */
     function renderTimeline() {
       clear(tlCard);
       hideTip();
@@ -391,92 +468,173 @@ export default {
         h('span', { class: 'pl-lg' }, h('i', { class: 'later' }), '后续计划'),
         h('span', { class: 'pl-lg' }, h('i', { class: 'ending' }), '结局'),
         h('span', { class: 'pl-hint' }, all.length
-          ? '拖节点 = 调先后，跟时间点数值无关 · 单击选中 · 双击空白处新建'
-          : '双击时间轴空白处新建情节；点「＋ 开一条暗线」可以另起一条线')));
+          ? '拖节点改时间点 · 单击选中 · 双击空白处新建 · 暗线以树状分支挂在主线上'
+          : '双击时间轴空白处新建情节；也可以开一条暗线')));
 
+      /* 主线在上面，暗线按引出位置排在下面；用 SVG 画「分叉 / 收敛」的树枝 */
+      const main = mainLine();
+      const sideLines = ln.filter(l => l.kind !== 'main');
       const board = h('div', { class: 'pl-board' });
+      const canvas = h('div', { class: 'pl-canvas' });
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'pl-branches');
+      canvas.appendChild(svg);
 
-      /* 卷标尺：画在最上面，按主线长度而不是固定等分 */
-      board.appendChild(volRuler());
+      const rows = [];
+      const addRow = (l, isMain) => {
+        const row = laneRow(l, isMain);
+        canvas.appendChild(row.el);
+        rows.push(row);
+      };
+      addRow(main, true);
+      sideLines.forEach(l => addRow(l, false));
 
-      ln.forEach(l => board.appendChild(laneRow(l)));
-
+      /* 画树枝：暗线从主线的「引出点」分出去，收敛回主线的「收敛点」 */
+      board.appendChild(canvas);
       tlCard.appendChild(board);
-      trackEl = board.querySelector('.pl-track[data-lane="' + st.lane + '"]')
-        || board.querySelector('.pl-track');
+
+      /* 尺寸拿到之后才画 SVG（要真实坐标） */
+      requestAnimationFrame(() => drawBranches(svg, rows, main, sideLines));
+
+      trackEl = rows[0] ? rows[0].track : null;
     }
 
-    /* 顶部卷标尺：按各卷主线上情节的占比铺开 */
-    function volRuler() {
-      const row = h('div', { class: 'pl-ruler' });
-      const vs = vols();
-      if (!vs.length) return row;
-      const main = lanePlots(mainLine() ? mainLine().id : 'main');
-      if (!main.length) {
-        vs.forEach((v, i) => row.appendChild(h('span', {
-          class: 'pl-rl', style: { left: slotPct(i, vs.length) + '%' }
-        }, v.title || '卷' + (i + 1))));
-        return row;
-      }
-      /* 把主线的情节按「属于哪一卷」切成几段 */
-      vs.forEach(v => {
-        const mine = main.filter(p => {
-          const no = chNum(p.chapter);
-          const range = volumeRangeOf(v.id);
-          return no && range && no >= range.min && no <= range.max;
-        });
-        if (!mine.length) return;
-        const firstIdx = main.indexOf(mine[0]);
-        row.appendChild(h('span', {
-          class: 'pl-rl', style: { left: slotPct(firstIdx, main.length) + '%' }
-        }, v.title || ''));
+    /* SVG 树枝：主线上某点 → 暗线起点（分叉），暗线末端 → 主线上某点（收敛） */
+    function drawBranches(svg, rows, main, sideLines) {
+      if (!svg || !rows.length) return;
+      const box = svg.parentNode.getBoundingClientRect();
+      if (!box.width) return;
+      svg.setAttribute('width', String(box.width));
+      svg.setAttribute('height', String(box.height));
+      svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+      clear(svg);
+      const mainRow = rows[0];
+      const mainBox = mainRow.track.getBoundingClientRect();
+      const max = laneMax(main.id);
+      const X = pct => mainBox.left - box.left + (pct / 100) * mainBox.width;
+      const Y = r => {
+        const b2 = r.track.getBoundingClientRect();
+        return b2.top - box.top + 26;          /* 轨道轴线的高度 */
+      };
+      const yMain = Y(mainRow);
+
+      sideLines.forEach((l, i) => {
+        const row = rows[i + 1];
+        if (!row) return;
+        const arr = lanePlots(l.id);
+        const ySide = Y(row);
+        /* ---- 引出（分叉）----
+         * 分叉点在主线上：取暗线第一个情节的时间点（还没有情节就取 0）。
+         * 暗线自己的起点在同一时间点的位置上，所以画一条从主线竖直/微斜下来的枝。 */
+        const firstTp = arr.length ? tpNum(arr[0]) : 0;
+        const forkX = X(tpPct(firstTp, max));
+        const startX = forkX;
+        addBranchPath(svg, forkX, yMain, startX, ySide, 'fork', 0);
+        addDot(svg, forkX, yMain, 'fork');
+
+        /* ---- 收敛 ----
+         * 已经标记收敛：从暗线末端弯回主线上的收敛点。 */
+        if (converged(l)) {
+          const lastTp = arr.length ? tpNum(arr[arr.length - 1]) : firstTp;
+          const endX = arr.length ? X(tpPct(lastTp, max)) : startX;
+          let convTp = lastTp;
+          if (l.convergePlot) {
+            const cp = doc.plots.find(x => x.id === l.convergePlot);
+            if (cp) convTp = tpNum(cp);
+          } else if (l.convergeChapter) {
+            const no = chNum(l.convergeChapter);
+            const hit = lanePlots(mergeTarget(l) ? mergeTarget(l).id : main.id).find(x => chNum(x.chapter) === no);
+            if (hit) convTp = tpNum(hit);
+          }
+          const toX = X(tpPct(convTp, max));
+          addBranchPath(svg, endX, ySide, toX, yMain, 'merge', i + 1);
+          addDot(svg, toX, yMain, 'merge');
+        } else {
+          /* 还没收敛：末端画个开口的小三角，表示这条枝还悬着 */
+          const lastTp = arr.length ? tpNum(arr[arr.length - 1]) : firstTp;
+          const endX = arr.length ? X(tpPct(lastTp, max)) : startX;
+          addBranchPath(svg, startX, ySide, endX, ySide, 'stem', i + 1);
+        }
       });
-      return row;
     }
-    /* 某卷的章号区间（用它底下的稿件算） */
-    function volumeRangeOf(vid) {
-      const ms = (doc.manuscripts || []).filter(m => m.volumeId === vid).map(m => chNum(m.title)).filter(Boolean);
-      if (!ms.length) return null;
-      return { min: Math.min(...ms), max: Math.max(...ms) };
+    /* 树状枝：一条水平段（暗线自己的轨道）+ 两段竖直弯头，像树杈 */
+    function addBranchPath(svg, x0, y0, x1, y1, cls, idx) {
+      const NS = 'http://www.w3.org/2000/svg';
+      const path = document.createElementNS(NS, 'path');
+      let d;
+      if (cls === 'stem') {
+        d = 'M ' + x0 + ' ' + y0 + ' L ' + x1 + ' ' + y1;
+      } else {
+        /* 先沿主线 / 暗线竖直拐一小段，再走水平，再竖直落到对面轴线 */
+        const bend = Math.min(26, Math.abs(y1 - y0) / 2) * (y1 > y0 ? 1 : -1);
+        const mx = (x0 + x1) / 2;
+        if (Math.abs(x1 - x0) < 2) {
+          d = 'M ' + x0 + ' ' + y0 + ' L ' + x1 + ' ' + y1;
+        } else {
+          d = 'M ' + x0 + ' ' + y0 +
+            ' C ' + mx + ' ' + y0 + ', ' + mx + ' ' + y1 + ', ' + x1 + ' ' + y1;
+        }
+      }
+      path.setAttribute('d', d);
+      path.setAttribute('class', 'pl-br ' + cls);
+      svg.appendChild(path);
+    }
+    function addDot(svg, x, y, cls) {
+      const NS = 'http://www.w3.org/2000/svg';
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', String(x)); c.setAttribute('cy', String(y)); c.setAttribute('r', '3');
+      c.setAttribute('class', 'pl-brdot ' + cls);
+      svg.appendChild(c);
     }
 
-    /* 一条线 = 泳道：左边名牌，右边轨道 */
-    function laneRow(l) {
-      const isMain = l.kind === 'main';
+    /* 一条线 = 一行：左边名牌，右边带刻度的轨道 */
+    function laneRow(l, isMain) {
       const mine = lanePlots(l.id);
+      const max = laneMax(l.id);
       const row = h('div', { class: 'pl-lane' + (isMain ? ' main' : ' side') + (st.lane === l.id ? ' on' : '') });
 
-      /* ---- 名牌 ---- */
-      const tag = h('div', { class: 'pl-lanetag', onclick: () => { st.lane = l.id; renderTimeline(); }, title: isMain ? '主线' : '点一下把它设为当前编辑的线' },
+      const tag = h('div', {
+        class: 'pl-lanetag',
+        onclick: () => { st.lane = l.id; renderTimeline(); },
+        title: isMain ? '主线' : '点一下把它设为当前编辑的线'
+      },
         h('span', { class: 'pl-lanedot' }),
         h('span', { class: 'pl-lanename' }, l.title || (isMain ? '主线' : '暗线')),
-        isMain ? null : h('span', { class: 'pl-lanecnt' }, mine.length + ' 节'),
+        isMain ? null : h('span', { class: 'pl-lanecnt' }, mine.length ? mine.length + ' 节' : '空'),
         !isMain && converged(l) ? h('span', { class: 'pl-merge' }, '已收敛') : null,
-        !isMain && !converged(l) ? h('span', { class: 'pl-merge pend' }, '→ ' + (mergeTarget(l) ? (mergeTarget(l).title || '主线') : '主线')) : null);
+        !isMain && !converged(l) ? h('span', { class: 'pl-merge pend' }, '分叉中') : null);
       row.appendChild(tag);
 
-      /* ---- 轨道 ---- */
       const track = h('div', { class: 'pl-track', 'data-lane': l.id });
       track.appendChild(h('div', { class: 'pl-axis' + (isMain ? '' : ' side') }));
 
-      /* 暗线的收敛虚线：从最后一个节点画到主线对应位置 */
-      const spots = layoutSpots(mine);
-      mine.forEach((p, i) => {
+      /* 刻度：整数刻度 + 刻度值标签 */
+      const { ticks } = laneTicks(l.id);
+      const labelStep = Math.max(1, Math.ceil(ticks.length / 14));   /* 太密就隔几个标一次 */
+      ticks.forEach((t, i) => {
+        const left = tpPct(t, max) + '%';
+        track.appendChild(h('span', { class: 'pl-tick', style: { left } }));
+        if (i % labelStep === 0 || i === ticks.length - 1) {
+          track.appendChild(h('span', { class: 'pl-tick tp-label', style: { left } }, fmtTp(t)));
+        }
+      });
+
+      const { spots, items } = laneSpots(l.id);
+      items.forEach((p, i) => {
         const node = h('div', {
           class: 'pl-node ' + nodeCls(p) + (p.id === st.selId ? ' on' : ''),
           style: { left: spots[i] + '%' },
-          title: p.title + ' · 第 ' + (i + 1) + ' 位' + (isMain ? '' : ' · ' + (l.title || '暗线')) + '（拖我调先后）',
+          title: p.title + ' · 时间点 ' + fmtTp(tpNum(p)) + '（拖我改时间点）',
           onclick: () => { if (!drag || !drag.moved) select(p.id); },
           onmouseenter: () => { if (!drag) showTip(p, node); },
           onmouseleave: hideTip,
-          onmousedown: ev => startDrag(ev, p, mine, node)
+          onmousedown: ev => startDrag(ev, p, items, node)
         }, h('b', {}, p.title), h('s', {}, p.chapter || ''), h('i', {}));
         track.appendChild(node);
       });
 
-      /* 空线提示 */
-      if (!mine.length) {
-        track.appendChild(h('span', { class: 'pl-laneempty' }, isMain ? '双击空白处新建第一个情节' : '这条暗线还没有情节，双击空白处新建'));
+      if (!items.length) {
+        track.appendChild(h('span', { class: 'pl-laneempty' }, isMain ? '双击空白处新建第一个情节' : '双击这条暗线可以往里加情节'));
       }
 
       const pctOf = ev => {
@@ -487,99 +645,99 @@ export default {
         if (ev.target.closest('.pl-node')) return;
         st.lane = l.id;
         const pct = pctOf(ev);
-        showGhostAt(track, pct, slotAtPct(mine.length, pct) + 1, { index: slotAtPct(mine.length, pct), lane: l.id });
+        showGhostAt(track, pct, fmtTp(pctTp(pct, max)));
       });
       track.addEventListener('dblclick', ev => {
         if (ev.target.closest('.pl-node')) return;
         st.lane = l.id;
         const pct = pctOf(ev);
-        const idx = slotAtPct(mine.length, pct);
-        openForm(null, null, { index: idx, lane: l.id });
+        openForm(null, pctTp(pct, max), { lane: l.id });
       });
       row.appendChild(track);
 
-      /* ---- 线的操作按钮 ---- */
       row.appendChild(h('div', { class: 'pl-laneacts' },
+        !isMain ? h('button', { class: 'btn xs', title: '重命名 / 设置收敛去路', onclick: e => { e.stopPropagation(); editLane(l); } }, '设置') : null,
         !isMain ? h('button', {
-          class: 'btn xs', title: '重新命名这条暗线'
-          , onclick: e => { e.stopPropagation(); editLane(l); }
-        }, '改名') : null,
-        !isMain ? h('button', {
-          class: 'btn xs', title: converged(l) ? '取消收敛标记' : '标记这条暗线已经并回主线'
+          class: 'btn xs',
+          title: converged(l) ? '取消收敛标记' : '标记这条暗线已经收敛回主线'
           , onclick: e => { e.stopPropagation(); convergeLane(l); }
         }, converged(l) ? '已收敛' : '收敛') : null,
         !isMain ? h('button', {
           class: 'btn xs', title: '删除这条暗线（里面的情节会移到主线）'
           , onclick: e => { e.stopPropagation(); removeLane(l); }
         }, '删除') : null));
-      return row;
+
+      return { el: row, track, line: l };
     }
 
     let trackEl = null;
     let drag = null;
-    let ghostAt = null;   /* 单击空白处留下的「将在这里新建」提示 */
+    let ghostAt = null;
 
-    /* 画一个虚线幽灵节点 + 位次标签，告诉用户双击会落在哪 */
-    function showGhostAt(track, pct, ordinal, at) {
+    function showGhostAt(track, pct, tpText) {
       if (ghostAt && ghostAt.parentNode) ghostAt.remove();
       ghostAt = h('div', { class: 'pl-ghost', style: { left: pct + '%', display: '' } },
-        h('b', {}, '双击在此新建 · 排第 ' + ordinal + ' 位'), h('i', {}));
+        h('b', {}, '双击在此新建 · 时间点约 ' + tpText), h('i', {}));
       track.appendChild(ghostAt);
     }
 
-    /* 拖动时间轴上的节点 = 调它在当前这条线上的先后。
-     * 拖到哪一格就排第几位，松手后这条线的时间点按 1、2、3… 重新编号；
-     * 不存在任何「吸附到时间点」的机制 —— 位置跟 timePoint 的数值完全无关。 */
+    /* 拖动时间轴上的节点：拖到哪就停在哪，松手（鼠标左键抬起）即定格。
+     * - 拖动过程中节点严格跟着鼠标，不吸附、不回弹；
+     * - 松手后按落点处的刻度算时间点（刻度是整数 → 四舍五入到整数），
+     *   只改被拖的这一条，别的节点一动不动。 */
     function startDrag(ev, p, list, nodeEl) {
       if (ev.button !== 0) return;
       ev.preventDefault();
       ev.stopPropagation();
       hideTip();
-      const n = list.length;
-      if (!n) return;
       const track = nodeEl && nodeEl.parentNode ? nodeEl.parentNode : trackEl;
       if (!track) return;
       const rect = track.getBoundingClientRect();
+      /* 拖动期间刻度上限锁死（否则时间点一变，整条轴重新缩放，节点就漂了） */
+      const max = laneMax(laneOf(p));
       const startX = ev.clientX;
-      const from = list.findIndex(q => q.id === p.id);
       drag = { p, moved: false };
-      const ghost = h('div', { class: 'pl-ghost' }, h('b', {}, ''), h('i', {}));
-      track.appendChild(ghost);
+      const myEl = nodeEl;
       track.classList.add('dragging');
-      const myEl = nodeEl || null;
       if (myEl) myEl.classList.add('dragging');
+      /* 拖动期间把这条线的其它节点淡一点，突出正在拖的 */
+      Array.from(track.querySelectorAll('.pl-node')).forEach(el => { if (el !== myEl) el.classList.add('dim'); });
 
+      const pctOf = e => Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
       const move = e => {
         if (!drag) return;
         if (Math.abs(e.clientX - startX) > 2) drag.moved = true;
-        const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-        const idx = slotAtPct(n, pct);
-        drag.idx = Math.min(n - 1, idx);
+        const pct = pctOf(e);
+        drag.pct = pct;
+        drag.tp = round2(pctTp(pct, max));
+        /* 节点就是跟着鼠标走，不吸附、不回弹 */
         if (myEl) myEl.style.left = pct + '%';
-        ghost.style.left = pct + '%';
-        const label = ghost.querySelector('b');
-        if (label) label.textContent = '排第 ' + (Math.min(n - 1, idx) + 1) + ' 位';
-        ghost.style.display = drag.moved ? '' : 'none';
       };
-      const up = () => {
+      const up = e => {
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', up);
         track.classList.remove('dragging');
-        if (ghost.parentNode) ghost.remove();
         if (myEl) myEl.classList.remove('dragging');
+        Array.from(track.querySelectorAll('.pl-node')).forEach(el => el.classList.remove('dim'));
         const d = drag; drag = null;
-        if (!d || !d.moved || d.idx == null) { renderTimeline(); return; }
-        if (d.idx === from) { renderTimeline(); return; }
-        /* 只重排这一条线，别的线不动 */
-        const lane = laneOf(p);
-        const arr = list.slice();
-        arr.splice(from, 1);
-        arr.splice(d.idx, 0, p);
-        renumber(arr);
+        if (!d || !d.moved || d.pct == null) { renderTimeline(); return; }
+        /* 定格：落点就是终点，绝不回弹。时间点按落点刻度算出来写进去。 */
+        const finalPct = d.pct;
+        const finalTp = d.tp;
+        p.timePoint = Math.max(0, round2(finalTp));
         touch();
         renderAll();
         select(p.id);
-        toast('「' + p.title + '」已排到第 ' + (d.idx + 1) + ' 位', 'ok');
+        /* 重画后，把这条节点按落点百分比**钉住**（重画后轴的最大刻度可能变，
+         * 位置会有点漂移；钉住落点才是用户看到的「拖到哪就停在哪」）。
+         * 之后任何一次重画都会按新时间点摆位，此刻先保证视觉上不动。 */
+        const laneTrack = trackEl && trackEl.dataset.lane === laneOf(p) ? trackEl : null;
+        if (laneTrack) {
+          const el2 = Array.from(laneTrack.querySelectorAll('.pl-node'))
+            .find(n => n.querySelector('b') && n.querySelector('b').textContent === p.title);
+          if (el2) el2.style.left = finalPct + '%';
+        }
+        toast('「' + p.title + '」时间点改为 ' + fmtTp(p.timePoint), 'ok');
       };
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', up);
@@ -616,9 +774,23 @@ export default {
     let listBody = null;
     function renderList() {
       clear(listCard);
-      const list = byTime();
+      const all = byTime();
+      /* 下拉：主线 / 全部 / 每条暗线 分开看 */
+      const filterSel = h('select', { class: 'pl-lanefilter', 'data-probe': 'plot-lane-filter' });
+      filterSel.appendChild(h('option', { value: 'all' }, '全部时间线' + (lines().length > 1 ? '' : '')));
+      lines().forEach(l => {
+        filterSel.appendChild(h('option', {
+          value: l.id,
+          selected: (st.listLane || 'all') === l.id
+        }, (l.kind === 'main' ? '主线' : '暗线') + ' · ' + (l.title || '未命名') + '（' + lanePlots(l.id).length + '）'));
+      });
+      filterSel.value = st.listLane || 'all';
+      filterSel.addEventListener('change', () => { st.listLane = filterSel.value; renderList(); });
+      const list = (st.listLane && st.listLane !== 'all') ? all.filter(p => laneOf(p) === st.listLane) : all;
+
       listCard.appendChild(h('div', { class: 'pl-chead' },
         h('h3', {}, '情节列表'),
+        filterSel,
         h('span', { class: 'pl-cnt' }, list.length + ' 条'),
         h('span', { class: 'r' }, '按时间点排序')));
 
@@ -633,6 +805,7 @@ export default {
         const who = namesOf(p);
         const row = h('div', {
           class: 'pl-lrow' + (p.id === st.selId ? ' on' : ''),
+          'data-plot': p.id,
           draggable: 'true',
           title: '拖动这一行可以调整它在时间上的先后',
           onclick: () => select(p.id),
@@ -665,7 +838,8 @@ export default {
           h('span', { class: 'pl-chap' }, p.chapter || '—'),
           h('span', {}, h('span', { class: 'pill ' + s.cls }, s.label)),
           h('span', { class: 'pl-lane-pill' + (laneOf(p) === (mainLine() || {}).id ? ' main' : ' side'),
-            title: '所属时间线：' + ((lineById(laneOf(p)) || {}).title || '主线') },
+            title: '所属时间线：' + ((lineById(laneOf(p)) || {}).title || '主线') + '（点这里只看这条线）',
+            onclick: e => { e.stopPropagation(); st.listLane = laneOf(p); renderList(); } },
             (lineById(laneOf(p)) || {}).title || '主线'),
           h('span', { class: 'pl-rowacts' },
             h('button', { class: 'btn xs', onclick: e => { e.stopPropagation(); openForm(p); } }, '编辑'),
@@ -711,6 +885,195 @@ export default {
           h('button', { class: 'btn xs', onclick: () => openForm(p) }, '编辑'),
           h('button', { class: 'btn xs', onclick: () => NF.go('chapter', { plot: p.id }), title: '跳到章节写作里对应的一章' }, '去章节里写'),
           h('button', { class: 'btn xs', onclick: () => scrapPlot(p) }, '移到废案'))));
+    }
+
+    /* ================= 右下角 AI 构思助手 =================
+     * 和章节写作页同一套挂件：调设置里配置的模型，帮作者构思情节。
+     * 回复可以「插入摘要」（写进当前选中情节的摘要）或「新建情节」（按 AI 给的建议直接建节点）。 */
+    let aiDock = null, aiLog = null, aiBusy = false, aiReady = false, aiAbort = null;
+    const aiHistory = [];
+
+    const PLOT_AI_PROMPT = [
+      '你是中文长篇小说情节构思助手，正和作者一起排情节时间轴。',
+      '这次的目标是**设计情节**，不是写正文。',
+      '回答要求：',
+      '1) 直接给可用的情节设计，不要客套、不要前言；',
+      '2) 每条情节写清：情节名 / 一句话梗概 / 牵涉人物 / 它在这条时间线上的位置（在哪些情节之前之后）/ 埋下的伏笔或回收的伏笔；',
+      '3) 如果作者要的是「下一步」，就给 3~5 个可选走向，并说明每个走向的代价和冲突；',
+      '4) 尊重已有的人物关系、势力与世界观设定，别自行增加未提及的设定；',
+      '5) 用简洁的中文，条列清楚，每条约 1~3 行。'
+    ].join('\n');
+
+    const PLOT_AI_QUICK = ['下一步情节可以怎么走', '给这条线加一个转折', '这个情节和主线的关联', '埋一个伏笔', '给暗线设计一个收敛点'];
+
+    /* 给模型的上下文：主线 + 暗线上已有情节、人物、世界观 */
+    function buildPlotContext() {
+      const ln = lines();
+      const part = ln.map(l => {
+        const arr = lanePlots(l.id);
+        const body = arr.length
+          ? arr.map((p, i) => '  ' + (i + 1) + '. [' + fmtTp(tpNum(p)) + '] ' + p.title +
+            (p.chapter ? '（' + p.chapter + '）' : '') +
+            (p.summary ? '：' + p.summary : '')).join('\n')
+          : '  （还没有情节）';
+        return '【' + (l.kind === 'main' ? '主线' : '暗线 · ' + (l.title || '未命名')) + '】\n' + body;
+      }).join('\n\n');
+      const people = (doc.characters || []).slice(0, 20).map(c => {
+        const bits = [c.name];
+        if (c.identity) bits.push(c.identity);
+        if (c.persona) bits.push(c.persona);
+        return '- ' + bits.join('：');
+      }).join('\n');
+      const plane = (doc.planes && doc.planes[0]) || null;
+      const realms = plane && plane.realms && plane.realms.length ? plane.realms.map(r => r.name).filter(Boolean).join(' → ') : '';
+      const cur = current();
+      return [
+        PLOT_AI_PROMPT,
+        '',
+        realms ? '【修为体系】' + realms : '',
+        people ? '【人物】\n' + people : '',
+        '【当前情节时间轴】\n' + part,
+        cur ? '【作者正在看的情节】' + cur.title + (cur.summary ? '：' + cur.summary : '') : ''
+      ].filter(Boolean).join('\n');
+    }
+
+    function renderAiLog() {
+      if (!aiLog) return;
+      clear(aiLog);
+      if (!aiHistory.length) {
+        aiLog.appendChild(h('div', { class: 'pl-ai-item note' },
+          h('div', { class: 'pl-ai-msg' },
+            '说说你想怎么发展，比如「给雪夜之后加一个反转」「云无咎这条暗线该怎么收」。' +
+            '\nAI 会基于你现有的主线、暗线和人物给建议；回复可以写进选中情节的摘要，也可以直接建成新情节。')));
+        return;
+      }
+      aiHistory.forEach(msg => {
+        if (msg.role === 'user') {
+          aiLog.appendChild(h('div', { class: 'pl-ai-item user' }, h('div', { class: 'pl-ai-msg' }, msg.content)));
+        } else if (msg.role === 'note') {
+          aiLog.appendChild(h('div', { class: 'pl-ai-item note' },
+            h('div', { class: 'pl-ai-msg' }, msg.content),
+            h('div', { class: 'pl-ai-tools' }, h('span', { onclick: retryPlotAsk }, '重试'))));
+        } else {
+          aiLog.appendChild(h('div', { class: 'pl-ai-item assistant' },
+            h('div', { class: 'pl-ai-msg' }, msg.content || '（已丢弃）'),
+            h('div', { class: 'pl-ai-tools' },
+              h('span', { onclick: () => applyToSummary(msg.content), title: '写进当前选中情节的摘要' }, '写入摘要'),
+              h('span', { onclick: () => makePlotFrom(msg.content), title: '用这段建议新建一个情节节点' }, '新建情节'),
+              h('span', { onclick: () => { msg.content = ''; renderAiLog(); } }, '丢弃'))));
+        }
+      });
+      aiLog.scrollTop = aiLog.scrollHeight;
+    }
+
+    function retryPlotAsk() {
+      if (aiBusy) { toast('还在等上一轮回复', 'err'); return; }
+      for (let i = aiHistory.length - 1; i >= 0; i--) {
+        if (aiHistory[i].role === 'user') {
+          const last = aiHistory[aiHistory.length - 1];
+          if (last && last.role === 'note') aiHistory.pop();
+          sendPlotAsk(aiHistory[i].content);
+          return;
+        }
+      }
+      toast('没有可以重试的内容', 'err');
+    }
+
+    /* 把 AI 的建议写进当前选中情节的摘要（追加，不覆盖） */
+    function applyToSummary(text) {
+      const p0 = current();
+      if (!p0) { toast('先选中一个情节', 'err'); return; }
+      const add = String(text || '').trim();
+      if (!add) return;
+      p0.summary = (p0.summary ? p0.summary + '\n' : '') + add;
+      touch(); renderAll();
+      toast('已写进「' + p0.title + '」的摘要', 'ok');
+    }
+    /* 用 AI 的建议新建一个情节：预填标题（第一行）与摘要，其余留给作者确认 */
+    function makePlotFrom(text) {
+      const t = String(text || '').trim();
+      const firstLine = (t.split('\n').find(l => l.trim()) || '新情节').replace(/^[\s\d.、\-*]+/, '').trim();
+      const title = firstLine.slice(0, 24) || '新情节';
+      openForm(null, null, { preset: { title, summary: t } });
+    }
+
+    async function sendPlotAsk(msg) {
+      if (aiBusy) { toast('正在等模型回复…', 'err'); return; }
+      if (!msg) return;
+      aiBusy = true; aiAbort = new AbortController(); paintAiBusy();
+      try {
+        const messages = aiHistory
+          .filter(x => (x.role === 'user' || x.role === 'assistant') && x.content)
+          .slice(-8)
+          .map(x => ({ role: x.role, content: x.content }));
+        messages.push({ role: 'user', content: buildPlotContext() + '\n\n【作者要求】' + msg });
+        const ai = Object.assign({ temperature: 0.85, maxTokens: 1200 }, (doc.settings && doc.settings.ai) || {});
+        const r = await window.nf.llm.chat(messages, { maxTokens: ai.maxTokens, temperature: ai.temperature });
+        const text = String((r && r.content) || '').trim();
+        if (!text) throw new Error('模型没有返回内容');
+        aiHistory.push({ role: 'assistant', content: text });
+        renderAiLog();
+        toast('AI 回复好了', 'ok');
+      } catch (e) {
+        const err = String((e && e.message) || e).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, '');
+        aiHistory.push({ role: 'note', content: '请求失败：' + err + '（检查 设置 → 模型接口 后点「重试」）' });
+        renderAiLog();
+      }
+      aiBusy = false; aiAbort = null; paintAiBusy();
+    }
+
+    function askPlot(text) {
+      const msg = String(text || '').trim();
+      if (!msg) return;
+      aiHistory.push({ role: 'user', content: msg });
+      renderAiLog();
+      sendPlotAsk(msg);
+    }
+
+    function paintAiBusy() {
+      if (!aiDock) return;
+      const b = aiDock.querySelector('[data-role="send"]');
+      if (b) { b.disabled = aiBusy; b.textContent = aiBusy ? '构思中…' : '发送'; }
+      aiDock.classList.toggle('busy', aiBusy);
+    }
+
+    function togglePlotAi(open) {
+      const on = typeof open === 'boolean' ? open : !aiDock.classList.contains('open');
+      aiDock.classList.toggle('open', on);
+      if (on) renderAiLog();
+    }
+
+    function buildPlotAi() {
+      const modelTag = h('span', { class: 'pl-ai-model', title: '在设置 → 模型接口 里切换模型' },
+        (NF.settings && NF.settings.llm && NF.settings.llm.model) || '未配置模型');
+      aiLog = h('div', { class: 'pl-ai-log', 'data-probe': 'plot-ai-log' });
+      const ta = h('textarea', { class: 'pl-ai-in', placeholder: '想怎么发展情节…（Ctrl+Enter 发送）', 'data-probe': 'plot-ai-input' });
+      ta.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); const v = ta.value; ta.value = ''; askPlot(v); }
+      });
+      const quick = h('div', { class: 'pl-ai-quick' }, PLOT_AI_QUICK.map(t => h('span', { class: 'pl-ai-chip', onclick: () => askPlot(t) }, t)));
+      const sendBtn = h('button', { class: 'btn pri', style: { padding: '4px 14px', fontSize: '11.5px' }, 'data-role': 'send', onclick: () => { const v = ta.value; ta.value = ''; askPlot(v); } }, '发送');
+      const stopBtn = h('button', { class: 'btn', style: { padding: '4px 10px', fontSize: '11px', display: 'none' }, 'data-role': 'stop', onclick: () => { if (aiAbort) aiAbort.abort(); } }, '停止');
+      aiDock = h('div', { class: 'pl-ai', 'data-probe': 'plot-ai-dock' },
+        h('button', { class: 'pl-ai-fab', title: 'AI 情节构思（Ctrl+J）', onclick: () => togglePlotAi() }, 'AI'),
+        h('div', { class: 'pl-ai-panel' },
+          h('div', { class: 'pl-ai-h' },
+            h('h3', {}, '情节构思'),
+            modelTag,
+            h('span', { class: 'pl-ai-x', title: '收起', onclick: () => togglePlotAi(false) }, '✕')),
+          aiLog,
+          quick,
+          h('div', { class: 'pl-ai-f' },
+            ta,
+            h('div', { class: 'pl-ai-row' },
+              stopBtn,
+              h('button', { class: 'btn', style: { padding: '4px 10px', fontSize: '11px' }, onclick: () => { aiHistory.length = 0; renderAiLog(); } }, '清空对话'),
+              h('span', { class: 'grow' }),
+              h('span', { class: 'tiny muted', style: { fontSize: '9.5px' } }, 'Ctrl+↵ 发送'),
+              sendBtn))));
+      aiReady = true;
+      wrap.appendChild(aiDock);
+      renderAiLog();
     }
 
     /* ================= 暗线（额外的时间轴） =================
@@ -837,8 +1200,6 @@ export default {
           doc.plotLines = doc.plotLines.filter(x => x.id !== l.id);
           /* 别的暗线若指向它，改回主线 */
           lines().forEach(x => { if (x.mergeInto === l.id) x.mergeInto = ''; });
-          const mainArr = lanePlots(mainId);
-          renumber(mainArr);
           if (st.lane === l.id) st.lane = mainId;
           touch(); renderAll();
           toast('已删除暗线，情节已移到主线', 'ok');
@@ -851,8 +1212,12 @@ export default {
      * at：双击位置算出来的插入位次 { index }，保存时按这个位次插进列表再归一化 */
     function openForm(plot, presetTime, at) {
       const isNew = !plot;
+      const pre = (at && at.preset) || null;
       const model = isNew
-        ? { id: uid('g'), title: '', chapter: '', chapterNo: 0, timePoint: 0, lane: '', place: '', characterIds: [], status: 'later', summary: '' }
+        ? {
+          id: uid('g'), title: pre ? pre.title : '', chapter: '', chapterNo: 0, timePoint: 0, lane: '',
+          place: '', characterIds: [], status: 'later', summary: pre ? pre.summary : ''
+        }
         : Object.assign({}, plot, { characterIds: (plot.characterIds || []).slice() });
 
       const titleIn = h('input', { class: 'input', value: model.title, placeholder: '例如：雪夜断桥' });
@@ -872,11 +1237,17 @@ export default {
         chapSel.appendChild(h('option', { value: model.chapter, selected: true }, model.chapter + '（原有，未对上稿件）'));
       }
       /* 所属时间线：主线 or 某条暗线。新建时默认当前正在编辑的那条线 */
+      const laneSeed = isNew ? (st.lane && lineById(st.lane) ? st.lane : (mainLine() || {}).id) : laneOf(plot);
       const laneSel = h('select', { class: 'select', id: 'pl-lane-sel' });
       lines().forEach(l => {
         laneSel.appendChild(h('option', { value: l.id }, (l.kind === 'main' ? '主线' : '暗线') + ' · ' + (l.title || '未命名')));
       });
-      laneSel.value = isNew ? (st.lane && lineById(st.lane) ? st.lane : (mainLine() || {}).id) : laneOf(plot);
+      laneSel.value = laneSeed;
+      /* 时间点：轴上落点的刻度值，可以手改（整数刻度） */
+      const tpSeed = isNew
+        ? (presetTime != null ? presetTime : Math.max(0, ...onLane(laneSeed).map(tpNum)) + 1)
+        : tpNum(plot);
+      const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '1', value: String(fmtTp(tpSeed)) });
       const placeIn = h('input', { class: 'input', value: model.place || '', placeholder: '例如：临水 · 断桥' });
       const statusSel = h('select', { class: 'select' },
         STATUS_KEYS.map(k => h('option', { value: k, selected: k === model.status }, STATUS[k].label)));
@@ -901,18 +1272,15 @@ export default {
           h('div', { class: 'field' }, h('label', {}, '情节名'), titleIn),
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
             h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '章节（对应章节写作里的稿件）'), chapSel),
-            h('div', { class: 'field', style: { flex: '1.6' } }, h('label', {}, '时间线'), laneSel)),
+            h('div', { class: 'field', style: { flex: '1.4' } }, h('label', {}, '时间线'), laneSel),
+            h('div', { class: 'field', style: { flex: '0.9' } }, h('label', {}, '时间点'), tpIn)),
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-start' } },
             h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '地点'), placeIn),
             h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '状态'), statusSel)),
           h('div', { class: 'field' }, h('label', {}, '摘要'), sumTa),
           h('div', { class: 'field' }, h('label', {}, '相关人物'), pick),
           h('div', { class: 'tiny muted' },
-            isNew && at && at.lane
-              ? '会新建在「' + ((lineById(at.lane) || {}).title || '主线') + '」这条线的第 ' + (at.index + 1) + ' 位。时间轴上的位置只表示先后次序，拖动随时可以改。'
-              : isNew
-                ? '保存后会排在「' + ((lineById(laneSel.value) || {}).title || '主线') + '」这条线的末尾，可以再拖到想要的位置。'
-                : '改动所属时间线会把它搬到那条线上；时间轴上的次序可以随时拖动调整。')),
+            '时间点 = 情节在时间轴上的位置（整数刻度）。也可以直接在时间轴上拖节点，松手即按落点改时间点。')),
         okText: '保存',
         onOk: () => {
           const title = titleIn.value.trim();
@@ -928,20 +1296,22 @@ export default {
           model.status = statusSel.value;
           model.summary = sumTa.value.trim();
           const lane = laneSel.value || (mainLine() || {}).id;
+          model.lane = lane;
+          const tpVal = Number(tpIn.value);
+          model.timePoint = isFinite(tpVal) ? round2(Math.max(0, tpVal)) : 0;
           const target = isNew ? model : plot;
           if (!isNew) Object.assign(plot, model);
-          if (isNew) doc.plots.push(target);
-          /* 排位：新情节插在双击的位置（或末尾）；改线则搬到新线末尾。
-           * 只重排这一条线，别的线的时间点一个都不动。 */
-          const prevLane = isNew ? null : laneOf(plot);
-          if (isNew) {
-            placeInLane(target, lane, at && at.lane === lane && at.index != null ? at.index : Infinity);
-          } else if (prevLane !== lane) {
-            placeInLane(target, lane, Infinity);
-            renumber(lanePlots(prevLane));
-          } else {
-            renumber(lanePlots(lane));
+          /* 同一刻度上已经有别的节点 → 往上找一个空的整数值，只动这一条 */
+          const others = onLane(lane).filter(q => q.id !== target.id).map(tpNum);
+          if (others.some(v => Math.abs(v - target.timePoint) < 0.5)) {
+            const base = target.timePoint;
+            for (let k = 1; k <= 200; k++) {
+              const up1 = round2(base + k), dn1 = round2(base - k);
+              if (!others.some(v => Math.abs(v - up1) < 0.5)) { target.timePoint = up1; break; }
+              if (dn1 >= 0 && !others.some(v => Math.abs(v - dn1) < 0.5)) { target.timePoint = dn1; break; }
+            }
           }
+          if (isNew) doc.plots.push(target);
           st.lane = lane;
           st.selId = model.id;
           touch();
@@ -1098,6 +1468,24 @@ export default {
       renderTimeline();
       renderList();
       renderDetail();
+      scrollListTo(id);
+    }
+    /* 点时间轴上的情节 → 让列表自动滚到那一行并高亮（列表在下半屏，得滚过去才看得见） */
+    function scrollListTo(id) {
+      if (!id || !listBody) return;
+      const row = listBody.querySelector('.pl-lrow[data-plot="' + id + '"]');
+      if (row) {
+        try { row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        catch (e) { row.scrollIntoView(false); }
+        row.classList.add('flash');
+        setTimeout(() => row.classList.remove('flash'), 900);
+        return;
+      }
+      /* 当前筛选看不到它 → 自动切回「全部」再定位 */
+      if (st.listLane && st.listLane !== 'all') {
+        const p0 = doc.plots.find(x => x.id === id);
+        if (p0) { st.listLane = 'all'; renderList(); scrollListTo(id); }
+      }
     }
     function renderAll() {
       renderHead();
@@ -1113,7 +1501,16 @@ export default {
     renderAll();
     if (expired) toast('已清理 ' + expired + ' 条超过 ' + KEEP_DAYS + ' 天的废案', 'ok');
 
-    const onKey = e => { if (e.key === 'Escape' && st.drawer) closeDrawer(); };
+    buildPlotAi();
+    const onKey = e => {
+      if (e.key === 'Escape' && st.drawer) closeDrawer();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        togglePlotAi();
+        const ta = aiDock && aiDock.querySelector('.pl-ai-in');
+        if (ta) setTimeout(() => ta.focus(), 30);
+      }
+    };
     window.addEventListener('keydown', onKey);
     this._cleanup = () => window.removeEventListener('keydown', onKey);
   }
