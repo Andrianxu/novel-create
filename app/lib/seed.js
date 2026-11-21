@@ -105,7 +105,9 @@ module.exports = function seed() {
     books: [],
     settings: {
       image: { provider: '即梦 AI', url: 'https://jimeng.jianying.com/ai-tool/home', size: '768x1024',
-        style: '国风写实，水墨质感，半身像，淡雅背景，丁达尔光' }
+        style: '国风写实，水墨质感，半身像，淡雅背景，丁达尔光' },
+      /* 章节页右下角的 AI 写作助手 */
+      ai: { mode: 'caret', ctxLimit: 4000, autoInsert: false, temperature: 0.8, maxTokens: 1400 }
     }
   };
 };
