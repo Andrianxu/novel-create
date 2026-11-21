@@ -164,6 +164,24 @@ app/
       └─ pages/         每个页面一个 ES 模块
 ```
 
+### 调试 / 自动化检查
+
+主进程带了一组只在开发时用的命令行开关（都不影响正常启动）：
+
+| 开关 | 作用 |
+| --- | --- |
+| `--page=world` | 启动后直接跳到某个模块 |
+| `--shot=out.png` | 截图后退出 |
+| `--probe=out.json` | 导出 `[data-probe]` 元素的坐标与滚动状态 |
+| `--eval=test.js` `--out=r.json` | 在渲染层跑一段脚本（可 await），结果写进 json |
+| `--click=x,y` | 用**真实鼠标事件**点一下屏幕坐标（走命中测试，能发现「被透明遮罩挡住」这类问题） |
+| `--ud=dir` | 换一个用户数据目录，方便反复试 |
+
+```powershell
+$env:ELECTRON_RUN_AS_NODE = ""   # 必须在普通 shell 里用，别让 electron 当 node 跑
+.\node_modules\electron\dist\electron.exe . --ud=tmp --click=221,27 --eval=test.js --out=r.json
+```
+
 页面契约：
 
 ```js

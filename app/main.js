@@ -17,6 +17,7 @@ const shotArg = process.argv.find(a => a.startsWith('--shot='));
 const pageArg = process.argv.find(a => a.startsWith('--page='));
 const probeArg = process.argv.find(a => a.startsWith('--probe='));
 const evalArg = process.argv.find(a => a.startsWith('--eval='));
+const clickArg = process.argv.find(a => a.startsWith('--click='));
 const outArg = process.argv.find(a => a.startsWith('--out='));
 const udArg = process.argv.find(a => a.startsWith('--ud='));
 if (udArg) {
@@ -74,6 +75,16 @@ function createWindow() {
         try { win.setContentSize(1600, 1000); } catch (e) {}
         await new Promise(r => setTimeout(r, 350));
         if (probeArg) await runProbe();
+        if (clickArg) {
+          const [cx, cy] = clickArg.split('=')[1].split(',').map(Number);
+          if (Number.isFinite(cx) && Number.isFinite(cy)) {
+            win.webContents.sendInputEvent({ type: 'mouseMove', x: cx, y: cy });
+            win.webContents.sendInputEvent({ type: 'mouseDown', x: cx, y: cy, button: 'left', clickCount: 1 });
+            win.webContents.sendInputEvent({ type: 'mouseUp', x: cx, y: cy, button: 'left', clickCount: 1 });
+            await new Promise(r => setTimeout(r, 700));
+            console.log('clicked ' + cx + ',' + cy + ' -> ' + (await win.webContents.executeJavaScript('location.hash')));
+          }
+        }
         if (evalArg) await runEval();
         if (shotArg) {
           const out = shotArg.split('=').slice(1).join('=');

@@ -106,7 +106,8 @@ async function boot() {
   document.getElementById('authorName').textContent = (NF.doc.meta && NF.doc.meta.author) || '我';
   document.getElementById('statRight').textContent =
     'v' + NF.info.version + ' · 数据在 ' + NF.info.userData + (NF.info.encrypt ? ' · 密钥已系统加密' : ' · 系统不支持加密');
-  document.getElementById('boot').hidden = true;
+  const bootEl = document.getElementById('boot');
+  if (bootEl) { bootEl.hidden = true; bootEl.remove(); }
   document.getElementById('app').hidden = false;
   document.getElementById('quickSearch').addEventListener('click', quickSearch);
   window.addEventListener('hashchange', route);
