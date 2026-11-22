@@ -2158,9 +2158,24 @@ export default {
       layer.classList.remove('on');
     }
 
+    /* 恢复：情节放回时间轴；人物放回人物页（人物页删人时也会落到这里）。
+     * 被删人物身上的"相关人物"关系已经被清掉了，恢复只把他本人放回去，不会凭空接回旧关系。 */
     function restoreScrap(s) {
       if (!s.payload) { toast('这条废案没有保存原始数据，无法恢复', 'err'); return; }
       const rest = JSON.parse(JSON.stringify(s.payload));
+      if (s.kind === 'character') {
+        doc.characters = doc.characters || [];
+        if (doc.characters.some(c => c.id === rest.id)) rest.id = uid('c');
+        rest.relations = Array.isArray(rest.relations) ? rest.relations : [];
+        /* 关系里指向已经不存在的人物的，顺手清掉，免得恢复出一个悬空引用 */
+        rest.relations = rest.relations.filter(r => doc.characters.some(c => c.id === r.targetId));
+        doc.characters.push(rest);
+        doc.scraps = doc.scraps.filter(x => x.id !== s.id);
+        touch();
+        renderAll();
+        toast('已恢复到人物页：' + (rest.name || '未命名'), 'ok');
+        return;
+      }
       if (doc.plots.some(p => p.id === rest.id)) rest.id = uid('g');
       doc.plots.push(rest);
       doc.scraps = doc.scraps.filter(x => x.id !== s.id);
@@ -2211,7 +2226,7 @@ export default {
         h('div', { class: 'pl-sacts' },
           h('button', {
             class: 'btn xs', disabled: !s.payload,
-            title: s.payload ? '恢复到情节' : '这条废案没有保存原始数据，只能删除',
+            title: s.payload ? (s.kind === 'character' ? '恢复到人物页' : '恢复到情节') : '这条废案没有保存原始数据，只能删除',
             onclick: () => restoreScrap(s)
           }, '恢复'),
           h('button', { class: 'btn xs', onclick: () => discardScrap(s) }, '彻底删除')));
@@ -2228,7 +2243,7 @@ export default {
         h('span', { class: 'pill gold' }, all.length + ' 条'),
         h('span', { class: 'pl-x', onclick: closeDrawer, title: '关闭' }, '✕')));
       drawer.appendChild(h('div', { class: 'pl-dnote' },
-        '从时间轴移除的情节会先落到这里，可随时恢复；90 天后自动清理。'));
+        '从时间轴移除的情节、从人物页删掉的人物都会先落到这里，可随时恢复；90 天后自动清理。'));
       drawer.appendChild(h('div', { class: 'pl-fchips' },
         FILTERS.map(x => h('span', {
           class: 'pl-fchip' + (st.filter === x.k ? ' on' : ''),

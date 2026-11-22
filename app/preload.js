@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('nf', {
     restore: (name) => call('data:restore', name),
     backupNow: () => call('data:backupNow'),
     exportJson: () => call('data:exportJson'),
+    exportDoc: (opts) => call('data:exportDoc', opts),
     importJson: () => call('data:importJson')
   },
   books: {

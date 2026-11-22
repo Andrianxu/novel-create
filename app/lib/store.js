@@ -121,9 +121,25 @@ function restore(name) {
   return bookcase.loadBook(bookId);
 }
 
-/* 导入一份 JSON：收成一本新书，并切过去（不再覆盖当前的书） */
+/* 导入一份 JSON：收成一本新书，并切过去（不再覆盖当前的书）。
+ *
+ * 「导出…」里可以只导其中几块，那种 JSON 不是完整备份 —— 直接导进来会得到一本
+ * 缺了正文/人物的书，还以为是恢复成功了。所以这里认一下 scopes：
+ * 只带部分范围的 JSON 直接拒掉，并告诉作者该怎么办。 */
+const ALL_SCOPES_N = 7;
 function importAsBook(incoming) {
-  if (!incoming || typeof incoming !== 'object' || !Array.isArray(incoming.characters)) throw new Error('不是卷帙数据文件');
+  if (!incoming || typeof incoming !== 'object') throw new Error('不是卷帙数据文件');
+  if (Array.isArray(incoming.scopes) && incoming.scopes.length < ALL_SCOPES_N) {
+    const labels = incoming.scopes.map(k => ({
+      manuscripts: '正文', characters: '人物', world: '世界观', plots: '情节',
+      volumes: '卷目录', scraps: '废案', bookanalysis: '拆书结果'
+    }[k] || k)).join('、');
+    throw new Error('这份 JSON 只包含「' + labels + '」，不是完整备份，导入会得到一本缺内容的书。'
+      + '要恢复整本，请在「导出…」里全选后导出 JSON，或用「设置 → 导出 JSON」。');
+  }
+  if (!Array.isArray(incoming.characters) && !Array.isArray(incoming.manuscripts) && !Array.isArray(incoming.plots)) {
+    throw new Error('不是卷帙数据文件');
+  }
   const title = (incoming.meta && incoming.meta.title) || '导入的书';
   const r = bookcase.createBook({ title, author: (incoming.meta && incoming.meta.author) || '', fromDoc: incoming });
   return { book: r.book, doc: bookcase.loadBook(r.book.id) };

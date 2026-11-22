@@ -89,5 +89,28 @@ export function download(name, text) {
   a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+/* ---------------- 人物的「分类」（就是老数据里的 group 字段） ----------------
+ * 左栏按它分组，改分类就是改这个字段；名字保持 group，老数据、导入、拆书都不用动。
+ * 没填的人物统一归到「未分组」——空字符串也算没填。 */
+export const GROUP_DEFAULT = '主线';
+export const GROUP_UNFILED = '未分组';
+export function groupOf(c) {
+  return String((c && c.group) || '').trim() || GROUP_UNFILED;
+}
+/* 书里已经用过的分类名，给「改分类」候选和左栏分组用。
+ * 排序：先用得多的在前；人数一样时按「第一次出现」的先后 ——
+ * 不能按名字排，否则改一次分类人数变了，胶囊和左栏的顺序就会在脚下跳。 */
+export function groupList(doc) {
+  const seen = new Map();                 /* 分类 -> { count, first } */
+  ((doc && doc.characters) || []).forEach((c, i) => {
+    const g = groupOf(c);
+    const hit = seen.get(g);
+    if (hit) hit.count += 1;
+    else seen.set(g, { count: 1, first: i });
+  });
+  return Array.from(seen.entries())
+    .sort((a, b) => (b[1].count - a[1].count) || (a[1].first - b[1].first))
+    .map(x => ({ name: x[0], count: x[1].count, first: x[1].first }));
+}
 export const ALIGN = { good: { label: '正道', color: '#2F6F63' }, neutral: { label: '中立', color: '#B98A3C' }, evil: { label: '邪道', color: '#A8322A' }, hidden: { label: '隐世', color: '#5A6B8C' } };
 export const STATUS = { done: { label: '已发生', cls: 'jade' }, later: { label: '后续计划', cls: 'gold' }, ending: { label: '结局节点', cls: 'seal' } };

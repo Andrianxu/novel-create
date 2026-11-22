@@ -1,10 +1,31 @@
-import { h, clear, toast, modal, injectStyle, uid, debounce, STATUS, words } from '../util.js';
+import { h, clear, toast, modal, injectStyle, uid, debounce, STATUS, words, groupOf, groupList, GROUP_DEFAULT, GROUP_UNFILED } from '../util.js';
 
 injectStyle('characters', `
 .cwrap{display:flex;width:100%;min-width:0}
 .clist{width:236px;flex:none;background:#F1EADA;border-right:1px solid #DFD4BF;display:flex;flex-direction:column;padding:10px 9px;gap:3px;overflow:auto}
 .cllist{flex:1;min-height:0;display:flex;flex-direction:column;gap:2px}
-.cgroup{font-size:9.5px;letter-spacing:.12em;color:#8C8272;padding:8px 6px 3px}
+.cgroup{font-size:9.5px;letter-spacing:.12em;color:#8C8272;padding:8px 6px 3px;display:flex;align-items:center;gap:6px}
+.cgroup .cg-n{color:#B6A98F;letter-spacing:0}
+/* 分类选择器：左边是现成分类的小胶囊（点一下即选），右边可以手填新分类 */
+.gsel{display:flex;flex-direction:column;gap:5px}
+.gsel .gchips{display:flex;gap:4px;flex-wrap:wrap}
+.gsel .gchip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:#F5EEDF;border:1px solid #EAE1CF;color:#5B5348;cursor:pointer;user-select:none;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.gsel .gchip:hover{background:#FFFDF8;border-color:#CBB894}
+.gsel .gchip.on{background:#E2EEEA;border-color:#BFDACF;color:#23604F}
+/* 列表行右侧的小删除：平时不显眼，鼠标移上去或选中时才亮出来 */
+.crow{position:relative}
+.crow .crow-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:19px;height:19px;border-radius:5px;display:grid;place-items:center;
+  font-size:11px;line-height:1;color:#B6A98F;opacity:0;transition:opacity .12s,background .12s,color .12s}
+.crow:hover .crow-del,.crow.on .crow-del{opacity:1}
+.crow .crow-del:hover{background:#F6E3DF;color:#A8322A}
+.crow:hover{padding-right:26px}
+/* 删除人物按钮：浅红描边，点开的是带影响清单的确认框 */
+.btn.danger{color:#A8322A;border-color:#EBCFC9}
+.btn.danger:hover{background:#F6E3DF;border-color:#D9A79F;color:#8E2A23}
+/* 删除确认框里的影响清单 */
+.del-list{font-size:11.5px;line-height:1.9;color:#5B5348}
+.del-list b{color:#201C18;font-weight:400}
+.del-list .del-none{color:#8C8272}
 .crow{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;cursor:pointer}
 .crow:hover{background:rgba(255,255,255,.5)}
 .crow.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF}
@@ -66,34 +87,99 @@ export default {
     const getChar = () => doc.characters.find(c => c.id === st.id);
     const touch = () => { NF.save(); };
 
+    /* 左栏的"壳"（标题 + 搜索框）只建一次，下面只换人物列表。
+     * 以前每次输入都整块重画，搜索框刚敲一个字就丢焦点，只能点一下再敲一个字。 */
+    const listTitle = h('div', { style: { fontSize: '12px', fontWeight: '700' } });
+    const search = h('input', { class: 'input', placeholder: '搜索姓名 / 别名', style: { height: '28px', fontSize: '11.5px' } });
+    search.addEventListener('input', () => { st.q = search.value; renderList(); });
+    aside.appendChild(h('div', { class: 'row', style: { padding: '0 4px 2px' } },
+      listTitle,
+      h('div', { class: 'grow' }),
+      h('button', { class: 'btn xs', onclick: addChar }, '＋ 新建')));
+    aside.appendChild(search);
+    const listHost = h('div', { class: 'cllist' });
+    aside.appendChild(listHost);
+    aside.appendChild(h('div', { class: 'genbox', style: { marginTop: 'auto', fontSize: '10.5px' } },
+      '没有立绘的人物会自动用楷体名字占位。点立绘下方的「去生图」可以跳到生图网站，画好存回本地再点「上传」即可。'));
+
     function renderList() {
-      clear(aside);
-      aside.appendChild(h('div', { class: 'row', style: { padding: '0 4px 2px' } },
-        h('div', { style: { fontSize: '12px', fontWeight: '700' } }, '人物 · ' + doc.characters.length),
-        h('div', { class: 'grow' }),
-        h('button', { class: 'btn xs', onclick: addChar }, '＋ 新建')));
-      const search = h('input', { class: 'input', placeholder: '搜索姓名 / 别名', value: st.q, style: { height: '28px', fontSize: '11.5px' } });
-      search.addEventListener('input', () => { st.q = search.value; renderList(); });
-      aside.appendChild(search);
+      listTitle.textContent = '人物 · ' + doc.characters.length;
+      if (search.value !== st.q) search.value = st.q;
+      clear(listHost);
       const list = h('div', { class: 'cllist' });
+      /* 分组的先后按 groupList（人多在前，同数按首次出现）—— 和"改分类"里的胶囊同一套顺序 */
       const groups = {};
+      const order = groupList(doc).map(g => g.name);
       doc.characters.filter(c => !st.q || c.name.includes(st.q) || (c.aliases || []).some(a => a.includes(st.q)))
-        .forEach(c => { (groups[c.group || '未分组'] = groups[c.group || '未分组'] || []).push(c); });
-      for (const g in groups) {
-        list.appendChild(h('div', { class: 'cgroup' }, g.toUpperCase()));
+        .forEach(c => { const g = groupOf(c); (groups[g] = groups[g] || []).push(c); });
+      const keys = Object.keys(groups).sort((a, b) => {
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+      });
+      for (const g of keys) {
+        list.appendChild(h('div', { class: 'cgroup' }, h('span', {}, g.toUpperCase()), h('span', { class: 'cg-n' }, '· ' + groups[g].length)));
         groups[g].forEach(c => {
           const hasP = !!c.portrait;
-          list.appendChild(h('div', { class: 'crow' + (c.id === st.id ? ' on' : ''), onclick: () => { st.id = c.id; st.selPlot = null; renderList(); renderMain(); } },
+          list.appendChild(h('div', { class: 'crow' + (c.id === st.id ? ' on' : ''), 'data-char-row': c.id, onclick: () => { st.id = c.id; st.selPlot = null; renderList(); renderMain(); } },
             h('div', { class: 'avatar', style: { width: '28px', height: '28px', background: c.color || '#2F6F63', fontSize: '13px' } }, c.name.slice(0, 1)),
             h('div', { style: { minWidth: 0 } },
               h('b', {}, c.name),
-              h('small', {}, (c.identity || '未填身份').slice(0, 12) + (hasP ? '' : ' · 无立绘')))));
+              h('small', {}, (c.identity || '未填身份').slice(0, 12) + (hasP ? '' : ' · 无立绘'))),
+            h('span', {
+              class: 'crow-del', title: '删除「' + c.name + '」', 'data-char-del': c.id,
+              onclick: e => { e.stopPropagation(); removeChar(c); }
+            }, '⌫')));
         });
       }
       if (!doc.characters.length) list.appendChild(h('div', { class: 'empty' }, '还没有人物，点右上角新建'));
-      aside.appendChild(list);
-      aside.appendChild(h('div', { class: 'genbox', style: { marginTop: 'auto', fontSize: '10.5px' } },
-        '没有立绘的人物会自动用楷体名字占位。点立绘下方的「去生图」可以跳到生图网站，画好存回本地再点「上传」即可。'));
+      else if (st.q && !Object.keys(groups).length) list.appendChild(h('div', { class: 'empty' }, '没有找到「' + st.q + '」'));
+      listHost.appendChild(list);
+    }
+
+    /* 分类选择器：现成分类点一下即选，也可以手填一个新分类。
+     * 手填时和已有分类忽略首尾空格比较，避免「主线」和「主线 」分成两组。 */
+    function groupSelect(c) {
+      const input = h('input', {
+        class: 'input', value: c.group || '', placeholder: GROUP_DEFAULT,
+        style: { fontSize: '12.5px' }, 'data-probe': 'char-group-input'
+      });
+      const chips = h('div', { class: 'gchips' });
+      /* 候选 = 书里已经用过的分类，"正在打的这个"如果还不是已有分类就补在最后。
+       * 只用输入框里的字判断，不看 c.group —— 打字时不落盘，其他胶囊的顺序就不会跳。 */
+      const cands = () => {
+        const cur = String(input.value || '').trim();
+        const list = groupList(doc).map(g => g.name).filter(g => g !== GROUP_UNFILED);
+        return cur && list.indexOf(cur) < 0 ? list.concat([cur]) : list;
+      };
+      const paintChips = () => {
+        clear(chips);
+        const cur = String(input.value || '').trim();
+        const list = cands();
+        list.forEach(name => chips.appendChild(h('span', {
+          class: 'gchip' + (name === cur ? ' on' : ''), title: '点一下改用「' + name + '」',
+          onclick: () => { input.value = name; apply(name); }
+        }, name)));
+        if (!list.length) chips.appendChild(h('span', { class: 'tiny muted', style: { lineHeight: '1.8' } }, '还没有分类，直接在下面填一个'));
+      };
+      const apply = v => {
+        const val = String(v || '').trim();
+        if (val && val !== String(c.group || '').trim()) {
+          c.group = val;
+          touch();
+        }
+        renderList();                 /* 分类变了，左栏的分组跟着动 */
+        paintChips();
+      };
+      /* 打字过程中什么都不重排：一旦改 c.group，当前这个人的分类占比就变了，
+       * 胶囊和左栏分组会在脚下重新排序；等确定（回车 / 失焦 / 点胶囊）时再一次性重排。 */
+      input.addEventListener('input', () => { paintChips(); });   /* 只更新胶囊高亮，不动数据 */
+      input.addEventListener('change', () => {
+        const val = input.value.trim() || GROUP_DEFAULT;
+        input.value = val;
+        apply(val);
+      });
+      paintChips();
+      return h('div', { class: 'gsel' }, chips, input);
     }
 
     function fieldChar(label, key, opts) {
@@ -142,12 +228,13 @@ export default {
           h('span', { class: 'pill ' + (c.portrait ? 'jade' : 'grey') }, c.portrait ? '已有立绘' : '文字占位'),
           h('span', { class: 'grow' }),
           h('button', { class: 'btn xs', onclick: () => renameChar(c) }, '改名'),
-          h('button', { class: 'btn xs', onclick: () => openGenModal(c) }, '✧ 生成立绘')),
+          h('button', { class: 'btn xs', onclick: () => openGenModal(c) }, '✧ 生成立绘'),
+          h('button', { class: 'btn xs danger', 'data-probe': 'char-delete', title: '删除这个人物（相关引用会一并清理，并留一份在废案篓里）', onclick: () => removeChar(c) }, '⌫ 删除')),
         h('div', { class: 'fgrid' },
           fieldChar('年龄', 'age', { ph: '十九' }),
           fieldChar('身份', 'identity', { ph: '临水剑冢 · 第三峰首徒' }),
           fieldChar('目前修为', 'realm', { ph: '练气九层', list: (plane.realms || []).map(r => r.name) }),
-          fieldChar('分组', 'group', { ph: '主线' })),
+          h('div', { class: 'field' }, h('label', {}, '分类'), groupSelect(c))),
         fieldChar('人设', 'persona', { area: true, ph: '一句话说清这个人' }),
         h('div', { class: 'endbar' },
           h('span', { class: 'tiny muted', style: { letterSpacing: '.1em', marginRight: '8px' } }, '最终结局'),
@@ -273,8 +360,93 @@ export default {
       modal({ title: '改名', body: h('div', { class: 'field' }, h('label', {}, '姓名'), i), okText: '保存',
         onOk: () => { const v = i.value.trim(); if (!v) return false; c.name = v; touch(); renderList(); renderMain(); } });
     }
+    /* ---------------- 删除人物 ----------------
+     * 人物不算孤立的条目：情节、宗门、别的角色的"相关人物"都按 id 指着它。
+     * 直接 splice 掉会留下指向空 id 的引用（时间轴少节点、宗门列表里出现空位之类），
+     * 所以这里一次性把引用清干净，删之前先把影响算出来给作者看。
+     * 删掉的人物进「废案篓」（和情节一样），90 天内可以找回。 */
+    function refsOf(c) {
+      const plots = (doc.plots || []).filter(p => (p.characterIds || []).includes(c.id));
+      const sects = [];
+      (doc.planes || []).forEach(pl => (pl.sects || []).forEach(s => {
+        if ((s.characterIds || []).includes(c.id)) sects.push({ plane: pl, sect: s });
+      }));
+      const rels = [];
+      (doc.characters || []).forEach(other => {
+        if (other.id === c.id) return;
+        (other.relations || []).forEach(r => { if (r.targetId === c.id) rels.push({ other, rel: r }); });
+      });
+      return { plots, sects, rels };
+    }
+
+    /* 把一个人物从数据里摘掉，返回影响清单 */
+    function purgeChar(c) {
+      const refs = refsOf(c);
+      doc.characters = doc.characters.filter(x => x.id !== c.id);
+      refs.plots.forEach(p => { p.characterIds = (p.characterIds || []).filter(id => id !== c.id); });
+      refs.sects.forEach(({ sect }) => { sect.characterIds = (sect.characterIds || []).filter(id => id !== c.id); });
+      refs.rels.forEach(({ other, rel }) => { other.relations = (other.relations || []).filter(r => r !== rel); });
+      /* 自己身上的关系随人物一起删，不留悬空引用 */
+      return refs;
+    }
+
+    function removeChar(c) {
+      if (!c) return;
+      const refs = refsOf(c);
+      const relTxt = refs.rels.map(({ other, rel }) => other.name + (rel.label ? '（' + rel.label + '）' : ''));
+      const sectTxt = refs.sects.map(({ plane, sect }) => sect.name + (plane && plane.name ? ' · ' + plane.name : ''));
+      const affected = refs.plots.length + refs.sects.length + refs.rels.length;
+      const body = h('div', { class: 'col', style: { gap: '9px' } },
+        h('div', { class: 'small', style: { lineHeight: '1.8' } },
+          '把人物「', h('b', {}, c.name), '」从这本书里删掉？'),
+        h('div', { class: 'card', style: { padding: '9px 12px', background: '#FBF3E6', borderColor: '#E0C79B' } },
+          h('div', { class: 'tiny muted', style: { letterSpacing: '.1em', marginBottom: '4px' } }, '会一起处理'),
+          h('div', { class: 'del-list' },
+            h('div', {}, '人物资料、立绘引用：', h('b', {}, '删除')),
+            h('div', {}, '情节节点里的相关人物：', h('b', {}, refs.plots.length + ' 条'), ' 会自动去掉这个名字' +
+              (refs.plots.length ? '（情节本身保留）' : '')),
+            h('div', {}, '宗门成员：', h('b', {}, refs.sects.length + ' 处'), ' 会从这个人物身上解除关联'),
+            h('div', {}, '别的人物对他的关系：', h('b', {}, refs.rels.length + ' 条'), ' 会一并移除'),
+            refs.plots.length ? h('div', { class: 'del-none', style: { paddingLeft: '2px' } }, '涉及：' + refs.plots.slice(0, 6).map(p => p.title || '未命名').join(' · ') + (refs.plots.length > 6 ? ' 等' : '')) : null,
+            sectTxt.length ? h('div', { class: 'del-none', style: { paddingLeft: '2px' } }, '宗门：' + sectTxt.join(' · ')) : null,
+            relTxt.length ? h('div', { class: 'del-none', style: { paddingLeft: '2px' } }, '关系：' + relTxt.join(' · ')) : null)),
+        h('div', { class: 'tiny muted', style: { lineHeight: '1.8' } },
+          '删掉的人会先放进「情节」页的废案篓（人物分类），那儿可以找回；按 Ctrl+Z 也能撤销这一步。'),
+        h('div', { class: 'tiny', style: { color: '#A8322A' } }, affected ? '请确认：以上 ' + affected + ' 处引用都会被改写。' : '没有其他内容引用这个人物。'));
+      modal({
+        title: '删除人物', width: '520px', body,
+        okText: '删除「' + c.name + '」',
+        onOk: () => {
+          const idxBefore = Math.max(0, doc.characters.findIndex(x => x.id === c.id));
+          purgeChar(c);
+          /* 先记一笔废案：字段和"情节待恢复"用同一套结构，情节页的废案篓直接就能显示 */
+          doc.scraps = doc.scraps || [];
+          doc.scraps.unshift({
+            id: uid('x'), kind: 'character', title: c.name,
+            origin: groupOf(c) + ' · ' + (c.identity || '未填身份'),
+            reason: '手动删除',
+            removedAt: new Date().toISOString(),
+            summary: (c.persona || c.identity || '（没有填人设）') + (c.age ? ' · ' + c.age : ''),
+            payload: JSON.parse(JSON.stringify(c))
+          });
+          /* 选中项挪到原位置的下一个人（删的是最后一个就往上找） */
+          const next = doc.characters[Math.min(idxBefore, doc.characters.length - 1)];
+          st.id = next ? next.id : null;
+          st.selPlot = null;
+          touch();
+          renderList(); renderMain();
+          toast('已删除「' + c.name + '」' + (affected ? '，' + affected + ' 处引用已处理' : '') + ' · 可在废案篓找回', 'ok');
+        }
+      });
+    }
+
     function addChar() {
-      const c = { id: uid('c'), name: '新人物', aliases: [], age: '', identity: '', realm: '', persona: '', ending: '', group: '主线', color: '#2F6F63', portrait: null, relations: [] };
+      /* 新人物默认落在「当前选中的那个人的分类」里：连着建同组人物时不用每次改分类 */
+      const cur = getChar();
+      const c = {
+        id: uid('c'), name: '新人物', aliases: [], age: '', identity: '', realm: '', persona: '', ending: '',
+        group: (cur && cur.group) || GROUP_DEFAULT, color: '#2F6F63', portrait: null, relations: []
+      };
       doc.characters.push(c); st.id = c.id; st.selPlot = null; touch(); renderList(); renderMain();
       setTimeout(() => renameChar(c), 50);
     }

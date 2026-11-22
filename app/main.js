@@ -8,6 +8,7 @@ const store = require('./lib/store');
 const settings = require('./lib/settings');
 const llm = require('./lib/llm');
 const parse = require('./lib/parse');
+const exportdoc = require('./lib/exportdoc');
 const syncer = require('./lib/syncer');
 
 let win = null;
@@ -44,6 +45,9 @@ const evalArg = process.argv.find(a => a.startsWith('--eval='));
 const clickArg = process.argv.find(a => a.startsWith('--click='));
 const outArg = process.argv.find(a => a.startsWith('--out='));
 const udArg = process.argv.find(a => a.startsWith('--ud='));
+/* 脚本化验证专用：给了这个目录，导出就不弹保存框，直接写进该目录。
+ * 和 --shot / --probe / --ud 一样，只为在真窗口里跑自动化测试时用；正常启动不会带它。 */
+const exportDirArg = process.argv.find(a => a.startsWith('--export-dir='));
 if (udArg) {
   const dir = udArg.split('=').slice(1).join('=');
   try { fs.mkdirSync(dir, { recursive: true }); app.setPath('userData', dir); } catch (e) { console.error(e); }
@@ -153,6 +157,40 @@ ipcMain.handle('data:exportJson', async () => {
   if (r.canceled || !r.filePath) return { canceled: true };
   fs.writeFileSync(r.filePath, JSON.stringify(getDoc(), null, 1), 'utf8');
   return { file: r.filePath };
+});
+/* 导出文档：按「范围 + 格式」把当前这本书写成 txt / md / docx / json
+ * 渲染在 exportdoc.js 里（内容和排版都在那），这里只负责弹保存框和落盘。 */
+ipcMain.handle('data:exportDoc', async (e, opts) => {
+  const o = opts || {};
+  let built;
+  try {
+    built = exportdoc.build(getDoc(), o.scopes, o.format);
+  } catch (err) {
+    throw new Error('生成导出内容失败：' + (err.message || err));
+  }
+  const fmt = (exportdoc.FORMATS.find(f => f.key === o.format) || exportdoc.FORMATS[0]);
+  let r;
+  if (exportDirArg) {
+    /* 自动化验证：不弹框，直接写到 --export-dir 指定的目录 */
+    const dir = exportDirArg.split('=').slice(1).join('=');
+    P.ensureDir(dir);
+    r = { canceled: false, filePath: path.join(dir, built.name) };
+  } else {
+    r = await dialog.showSaveDialog(win, {
+      title: '导出「' + built.scopeLabels.join(' / ') + '」为 ' + fmt.label,
+      defaultPath: built.name,
+      filters: [{ name: fmt.label + '（*.' + built.ext + '）', extensions: [built.ext] }]
+    });
+  }
+  if (r.canceled || !r.filePath) return { canceled: true };
+  fs.writeFileSync(r.filePath, built.data);
+  return {
+    file: r.filePath,
+    bytes: built.data.length,
+    chars: built.chars,
+    format: fmt.key,
+    scopes: built.scopeLabels
+  };
 });
 /* 导入 JSON：收成书库里的一本新书并切过去 —— 不覆盖正在写的那本 */
 ipcMain.handle('data:importJson', async () => {

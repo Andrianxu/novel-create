@@ -101,6 +101,33 @@ injectStyle('importer', `.imp{flex:1;min-width:0;min-height:0;overflow:auto;disp
 .imp-bkrow .s{color:#A79C89;font-size:9.5px;white-space:nowrap}
 .imp-bkrow .btn{padding:1px 7px;font-size:10px}
 @media (max-width:1320px){.imp-grid{grid-template-columns:minmax(0,1fr)}}
+/* ---------- 导出弹窗：选范围 + 选格式 ---------- */
+.exp-scopes{display:flex;flex-direction:column;gap:5px}
+.exp-scope{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:9px;align-items:center;
+  border:1px solid #EAE1CF;background:#FFFDF8;border-radius:9px;padding:7px 11px;cursor:pointer;user-select:none;transition:border-color .12s,background .12s}
+.exp-scope:hover{border-color:#CBB894}
+.exp-scope.on{border-color:#2F6F63;background:#F3F8F5}
+.exp-scope .ck{width:15px;height:15px;border-radius:4px;border:1px solid #D3C4A8;background:#fff;display:grid;place-items:center;font-size:9px;line-height:1;color:transparent}
+.exp-scope.on .ck{background:#2F6F63;border-color:#2F6F63;color:#fff}
+.exp-scope .tt{min-width:0;display:flex;flex-direction:column;gap:1px}
+.exp-scope .tt b{font-weight:400;font-size:12px}
+.exp-scope .tt small{font-size:10px;color:#8C8272;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exp-scope .n{font-size:10px;color:#A79C89;font-family:var(--mono);white-space:nowrap}
+.exp-fmts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.exp-fmt{border:1px solid #EAE1CF;background:#FFFDF8;border-radius:9px;padding:8px 10px;cursor:pointer;user-select:none;display:flex;flex-direction:column;gap:2px;text-align:left}
+.exp-fmt:hover{border-color:#CBB894}
+.exp-fmt.on{border-color:#201C18;background:#F6F1E6;box-shadow:inset 0 0 0 1px #201C18}
+.exp-fmt b{font-weight:400;font-size:12px;display:flex;align-items:center;gap:6px}
+.exp-fmt b i{font-style:normal;font-size:9px;font-family:var(--mono);color:#A79C89;letter-spacing:.04em}
+.exp-fmt small{font-size:9.5px;color:#8C8272;line-height:1.5}
+.exp-sum{border:1px dashed #E0C79B;background:#FBF3E6;border-radius:9px;padding:8px 12px;font-size:11.5px;line-height:1.75;color:#5B5348}
+.exp-sum b{color:#8A6421;font-weight:400}
+.exp-sum .warn{color:#A8322A}
+.exp-top{display:flex;align-items:center;gap:8px}
+.exp-top .lab{font-size:10px;letter-spacing:.1em;color:#8C8272}
+.exp-quick{display:flex;gap:5px;margin-left:auto}
+.exp-quick span{font-size:10.5px;color:#5B5348;border:1px solid #DFD4BF;background:#FFFDF8;border-radius:999px;padding:1px 9px;cursor:pointer}
+.exp-quick span:hover{background:#F6F1E6;border-color:#C2A97D}
 `);
 
 /* =========================================================================
@@ -453,10 +480,10 @@ export default {
     const head = h('div', { class: 'imp-head', 'data-probe': 'imp-head' },
       h('div', null,
         h('h1', { class: 'kai' }, '导入导出'),
-        h('p', null, '把已有的 CSV / Excel / Word 资料导进软件，也可以把全部数据导出成 JSON 备份。')),
+        h('p', null, '把已有的 CSV / Excel / Word 资料导进软件；也可以按需导出正文、人物、设定，格式支持 TXT / Markdown / Word / JSON。')),
       h('div', { class: 'grow' }),
       h('div', { class: 'row' },
-        h('button', { class: 'btn pri', onclick: exportData }, '⤓ 导出全部数据（JSON）'),
+        h('button', { class: 'btn pri', onclick: openExport, 'data-probe': 'export-open-top' }, '⤓ 导出…'),
         h('button', { class: 'btn', onclick: restoreJson }, '⤒ 从 JSON 恢复')));
     const host = h('div', { class: 'imp-host' });
     const recCard = h('section', { class: 'card imp-sec imp-rec', 'data-probe': 'imp-rec' });
@@ -943,13 +970,123 @@ export default {
         }))));
     }
 
-    /* ---------------- 导出 / 备份 ---------------- */
-    async function exportData() {
-      try {
-        const r = await window.nf.data.exportJson();
-        if (!r || r.canceled) return;
-        toast('已导出到 ' + baseName(r.file), 'ok');
-      } catch (e) { toast('导出失败：' + e.message, 'err'); }
+    /* ---------------- 导出 / 备份 ----------------
+     * 导出前先选两件事：导出哪些数据、导成什么格式。内容生成在主进程的 exportdoc.js 里。 */
+
+    /* 各范围在这本书里有多少东西 —— 显示在勾选行右侧，顺便让"空的范围"一眼看出来 */
+    const EXPORT_SCOPES = [
+      { key: 'manuscripts', label: '正文', desc: '章节稿件全文', count: d => (d.manuscripts || []).length + ' 篇 / ' + words((d.manuscripts || []).map(m => m.content).join('')).toLocaleString('zh-CN') + ' 字' },
+      { key: 'characters', label: '人物', desc: '人物档案与关系', count: d => (d.characters || []).length + ' 人' },
+      { key: 'world', label: '世界观', desc: '位面、板块、宗门、修为、设定', count: d => (d.planes || []).length + ' 个位面' },
+      { key: 'plots', label: '情节', desc: '情节节点与摘要', count: d => (d.plots || []).length + ' 条' },
+      { key: 'volumes', label: '卷目录', desc: '卷 / 篇的目录结构', count: d => (d.chapters || []).length + ' 卷' },
+      { key: 'scraps', label: '废案', desc: '废案篓里的条目', count: d => (d.scraps || []).length + ' 条' },
+      { key: 'bookanalysis', label: '拆书结果', desc: '拆书抽出的人物与情节', count: d => (d.books || []).length + ' 本' }
+    ];
+    const EXPORT_FORMATS = [
+      { key: 'txt', label: '纯文本', ext: '.txt', hint: '任何编辑器都能开' },
+      { key: 'md', label: 'Markdown', ext: '.md', hint: '带标题层级，适合笔记' },
+      { key: 'docx', label: 'Word', ext: '.docx', hint: '带样式与首行缩进' },
+      { key: 'json', label: 'JSON', ext: '.json', hint: '可以再导回软件' }
+    ];
+
+    function openExport() {
+      const doc = NF.doc;
+      /* 默认全选（老"导出数据"就是这个行为），常用场景用上面的快捷按钮一键切换 */
+      const picked = new Set(EXPORT_SCOPES.map(s => s.key));
+      let format = 'docx';
+
+      const scopeBox = h('div', { class: 'exp-scopes', 'data-probe': 'exp-scopes' });
+      const fmtBox = h('div', { class: 'exp-fmts', 'data-probe': 'exp-fmts' });
+      const summary = h('div', { class: 'exp-sum', 'data-probe': 'exp-sum' });
+
+      const pickedLabels = () => EXPORT_SCOPES.filter(s => picked.has(s.key)).map(s => s.label);
+
+      function paintScopes() {
+        clear(scopeBox);
+        EXPORT_SCOPES.forEach(s => {
+          const on = picked.has(s.key);
+          scopeBox.appendChild(h('div', {
+            class: 'exp-scope' + (on ? ' on' : ''), 'data-scope': s.key,
+            onclick: () => { if (picked.has(s.key)) picked.delete(s.key); else picked.add(s.key); paint(); }
+          },
+            h('span', { class: 'ck' }, '✓'),
+            h('div', { class: 'tt' }, h('b', {}, s.label), h('small', {}, s.desc)),
+            h('span', { class: 'n' }, s.count(doc))));
+        });
+      }
+      function paintFmts() {
+        clear(fmtBox);
+        EXPORT_FORMATS.forEach(f => {
+          fmtBox.appendChild(h('div', {
+            class: 'exp-fmt' + (format === f.key ? ' on' : ''), 'data-fmt': f.key,
+            onclick: () => { format = f.key; paint(); }
+          }, h('b', {}, f.label, h('i', {}, f.ext)), h('small', {}, f.hint)));
+        });
+      }
+      function paintSummary() {
+        clear(summary);
+        const labels = pickedLabels();
+        if (!labels.length) {
+          summary.appendChild(document.createTextNode('还没有选择要导出的数据 —— 至少勾一项。'));
+          return;
+        }
+        const fmt = EXPORT_FORMATS.find(f => f.key === format);
+        summary.appendChild(document.createTextNode('将把 '));
+        summary.appendChild(h('b', {}, labels.join('、')));
+        summary.appendChild(document.createTextNode(' 导出成 '));
+        summary.appendChild(h('b', {}, fmt.label + '（' + fmt.ext + '）'));
+        summary.appendChild(document.createTextNode('，文件名《' + (((doc.meta && doc.meta.title) || '未命名')) + (labels.length === 1 ? '-' + labels[0] : '') + fmt.ext + '》。'));
+        /* JSON 不等于完整备份这件事必须说清楚，否则会有人拿部分 JSON 去"恢复" */
+        if (format === 'json' && labels.length < EXPORT_SCOPES.length) {
+          summary.appendChild(h('div', { class: 'warn' },
+            '注意：这只是所选部分的 JSON，不能当完整备份用。要整本备份请全选，或用「设置 → 导出 JSON」。'));
+        }
+        if (format !== 'json' && picked.has('manuscripts')) {
+          summary.appendChild(h('div', { style: { marginTop: '3px' } }, '正文按「卷 → 章」排好，Word 里可以直接打印或投稿。'));
+        }
+      }
+      function paint() {
+        paintScopes(); paintFmts(); paintSummary();
+        if (okBtn) okBtn.disabled = !picked.size;
+      }
+
+      const quick = h('div', { class: 'exp-quick' },
+        h('span', { onclick: () => { EXPORT_SCOPES.forEach(s => picked.add(s.key)); paint(); } }, '全选'),
+        h('span', { onclick: () => { picked.clear(); ['manuscripts'].forEach(k => picked.add(k)); paint(); } }, '只导正文'),
+        h('span', { onclick: () => { picked.clear(); ['characters', 'world', 'plots'].forEach(k => picked.add(k)); paint(); } }, '设定三件套'),
+        h('span', { onclick: () => { picked.clear(); paint(); } }, '清空'));
+
+      let okBtn = null;
+      const m = modal({
+        title: '导出', width: '640px', body: h('div', { class: 'col', style: { gap: '11px' } },
+          h('div', { class: 'exp-top' }, h('span', { class: 'lab' }, '导出什么'), quick),
+          scopeBox,
+          h('div', { class: 'exp-top', style: { marginTop: '2px' } }, h('span', { class: 'lab' }, '导出格式')),
+          fmtBox,
+          summary),
+        okText: '选择位置并导出',
+        onOk: async () => {
+          if (!picked.size) { toast('至少选一块数据', 'err'); return false; }
+          okBtn = okBtn || document.querySelector('.modal .btn.pri');
+          try {
+            /* 先把界面里最新的改动落盘：主进程导出的是它缓存的那份 doc */
+            if (NF.flush) await NF.flush();
+            const r = await window.nf.data.exportDoc({ scopes: Array.from(picked), format });
+            if (!r || r.canceled) return false;
+            const size = r.bytes > 1048576 ? (r.bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(r.bytes / 1024)) + ' KB';
+            toast('已导出 ' + r.scopes.join(' / ') + ' → ' + baseName(r.file) + ' · ' + size, 'ok');
+            return true;
+          } catch (e) {
+            toast('导出失败：' + ((e && e.message) || e).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'err');
+            return false;
+          }
+        }
+      });
+      /* modal 建好之后才拿得到按钮：先把初始状态画出来，再抓按钮去控制可用性 */
+      paint();
+      okBtn = document.querySelector('.modal .btn.pri');
+      if (okBtn) okBtn.disabled = false;
     }
 
     /* 导入 JSON = 收成书库里的一本新书并切过去（不覆盖正在写的这本） */
@@ -1027,8 +1164,8 @@ export default {
     function renderSide() {
       clear(sideCard);
       sideCard.appendChild(h('h3', null, '导出与备份'));
-      sideCard.appendChild(h('p', null, '全部数据（人物、情节、世界观、拆书结果、设置）导出成一个 JSON 文件，换机或重装时用它恢复。'));
-      sideCard.appendChild(h('button', { class: 'btn pri', onclick: exportData }, '⤓ 导出数据'));
+      sideCard.appendChild(h('p', null, '选要导出的内容（正文 / 人物 / 世界观 / 情节…），再选格式：纯文本、Markdown、Word 或 JSON。'));
+      sideCard.appendChild(h('button', { class: 'btn pri', onclick: openExport, 'data-probe': 'export-open' }, '⤓ 导出…'));
       sideCard.appendChild(h('button', { class: 'btn', onclick: restoreJson }, '⤒ 从 JSON 恢复'));
       sideCard.appendChild(h('div', { class: 'imp-bk' },
         h('div', { class: 'row' },
