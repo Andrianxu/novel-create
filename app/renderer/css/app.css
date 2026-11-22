@@ -21,6 +21,40 @@ body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--paper);f
 .brand{display:flex;align-items:center;gap:9px}
 .brandtxt .bn{font-size:13px;font-weight:700;letter-spacing:.12em;line-height:1.1}
 .brandtxt .bs{font-size:7.5px;letter-spacing:.26em;color:var(--muted);margin-top:2px}
+.brandtxt .bn #bookTitle{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+/* 当前书籍：整块可点，悬停时浮起一点，提示"这里是书库入口" */
+.bookchip{display:flex;align-items:center;gap:9px;cursor:pointer;border-radius:9px;padding:3px 9px 3px 3px;margin-left:-3px;
+  border:1px solid transparent;transition:background .12s,border-color .12s;max-width:300px}
+.bookchip:hover{background:rgba(255,255,255,.7);border-color:var(--line)}
+.bookchip.open{background:#FFFDF8;border-color:var(--line2)}
+.bookchip .bk-caret{font-size:8px;color:var(--muted);margin-left:5px;position:relative;top:-1px;letter-spacing:0}
+.bookchip .bs{text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
+/* ---------- 书库弹窗 ---------- */
+.lib-wrap{display:flex;flex-direction:column;gap:10px;min-height:0}
+.lib-top{display:flex;align-items:center;gap:8px}
+.lib-top .lib-h{font-size:11px;color:var(--muted);letter-spacing:.08em}
+.lib-list{display:flex;flex-direction:column;gap:4px;max-height:min(46vh,420px);overflow:auto;padding-right:2px}
+.lib-row{display:flex;align-items:flex-start;gap:9px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:#FFFCF5;cursor:pointer;transition:border-color .12s,background .12s;min-width:0}
+.lib-row:hover{border-color:#CBB894;background:#FFFDF8}
+.lib-row.on{border-color:var(--seal);background:#FFF8F4;box-shadow:0 0 0 3px rgba(168,50,42,.07)}
+.lib-row .lib-sp{width:3px;align-self:stretch;border-radius:2px;background:#E0D4BE;flex:none}
+.lib-row.on .lib-sp{background:var(--seal)}
+.lib-row .lib-txt{flex:1;min-width:0}
+.lib-row .lib-nm{font-size:13px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.lib-row .lib-nm .pill{flex:none;font-size:9px;padding:1px 6px}
+.lib-row .lib-meta{font-size:10px;color:var(--muted);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+.lib-row .lib-acts{display:flex;gap:2px;flex:none;opacity:.35;transition:opacity .12s}
+.lib-row:hover .lib-acts,.lib-row.on .lib-acts{opacity:1}
+.lib-ico{width:22px;height:22px;border-radius:6px;border:1px solid transparent;background:transparent;display:grid;place-items:center;
+  font-size:11px;line-height:1;color:var(--sub);cursor:pointer;font-family:inherit}
+.lib-ico:hover{background:#F2EBDD;border-color:var(--line2);color:var(--ink)}
+.lib-ico.del:hover{background:#F6E3DF;border-color:#EBCFC9;color:var(--seal)}
+.lib-foot{font-size:10px;color:var(--muted);line-height:1.7;border-top:1px dashed var(--line2);padding-top:8px}
+.lib-new{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lib-choice{border:1px solid var(--line2);border-radius:10px;background:#FFFCF5;padding:12px 12px 11px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:all .12s}
+.lib-choice:hover{border-color:var(--seal);background:#FFF8F4}
+.lib-choice b{font-size:12.5px;font-weight:400;font-family:var(--kai);letter-spacing:.04em}
+.lib-choice small{font-size:10px;color:var(--muted);line-height:1.6}
 .modes{display:flex;gap:3px;background:var(--panel2);border-radius:9px;padding:3px}
 .mtab{padding:6px 13px;border-radius:6px;font-size:12px;color:var(--sub);cursor:pointer;white-space:nowrap;user-select:none}
 .mtab:hover{background:rgba(255,255,255,.55)}

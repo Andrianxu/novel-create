@@ -952,13 +952,13 @@ export default {
       } catch (e) { toast('导出失败：' + e.message, 'err'); }
     }
 
+    /* 导入 JSON = 收成书库里的一本新书并切过去（不覆盖正在写的这本） */
     async function restoreJson() {
       try {
         const d = await window.nf.data.importJson();
         if (!d || d.canceled) return;
-        NF.doc = d;
-        toast('已从 JSON 恢复数据', 'ok');
-        NF.refresh();
+        await NF.adoptBook({ doc: d, library: await window.nf.books.list() });
+        toast('已导入为一本新书：' + (((d.meta && d.meta.title) || '未命名')), 'ok');
       } catch (e) { toast('恢复失败：' + e.message, 'err'); }
     }
 
@@ -976,7 +976,8 @@ export default {
         width: '470px',
         body: h('div', { class: 'col' },
           h('p', { class: 'small sub', style: { margin: 0, lineHeight: '1.8' } },
-            '恢复会用这份备份覆盖当前全部数据（人物、情节、世界观、拆书结果）。建议先「立即备份」，留一份现在的。'),
+            '恢复会用这份备份写回它所属的那本书（人物、情节、世界观、拆书结果都会回到备份时的样子）。',
+            '如果备份是别的书的，会自动切过去。建议先「立即备份」，留一份现在的。'),
           h('div', { class: 'imp-file' },
             h('div', null,
               h('div', { class: 'nm' }, stampOf(b.mtime) + ' 的备份'),
@@ -986,9 +987,12 @@ export default {
           try {
             const d = await window.nf.data.restore(b.name);
             if (!d || typeof d !== 'object') throw new Error('备份内容无效');
-            NF.doc = d;
+            /* 备份里记着是哪本书就写回哪本；恢复后整页重来一次 */
+            try { NF.library = await window.nf.books.list(); } catch (e) {}
+            NF.doc = await window.nf.data.load();
+            try { NF.history.clear(); NF.history.prime(); } catch (e) {}
             toast('已恢复到 ' + stampOf(b.mtime) + ' 的备份', 'ok');
-            NF.refresh();
+            NF.repaint();
           } catch (e) {
             toast('恢复失败：' + e.message, 'err');
             return false;

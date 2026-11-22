@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, clipboard } = r
 const fs = require('fs');
 const path = require('path');
 const P = require('./lib/paths');
+const bookcase = require('./lib/bookcase');
 const store = require('./lib/store');
 const settings = require('./lib/settings');
 const llm = require('./lib/llm');
@@ -13,6 +14,28 @@ let win = null;
 let doc = null;
 function getDoc() { if (!doc) doc = store.load(); return doc; }
 function persist() { if (doc) store.save(doc); }
+/* 当前打开的是哪本书：书库登记表说了算 */
+function currentBookId() { return bookcase.activeId(); }
+/* 书库现状，顺手给渲染层带上每本书的规模，切换器里能直接看到 */
+function libraryInfo() {
+  const lib = bookcase.listBooks();
+  const map = new Map(lib.books.map(b => [b.id, b]));
+  return {
+    activeId: lib.activeId,
+    books: lib.books.map(b => {
+      let stats = { characters: 0, plots: 0, chapters: 0 };
+      try {
+        const d = bookcase.readJson(bookcase.bookFile(b.id), null);
+        if (d) stats = {
+          characters: (d.characters || []).length,
+          plots: (d.plots || []).length,
+          chapters: (d.chapters || []).length
+        };
+      } catch (e) {}
+      return Object.assign({}, map.get(b.id) || b, stats);
+    })
+  };
+}
 
 const shotArg = process.argv.find(a => a.startsWith('--shot='));
 const pageArg = process.argv.find(a => a.startsWith('--page='));
@@ -41,7 +64,8 @@ async function runEval() {
   const dst = outArg ? outArg.split('=').slice(1).join('=') : null;
   try {
     const code = fs.readFileSync(src, 'utf8');
-    const res = await win.webContents.executeJavaScript('(async()=>{' + code + '})()', true);
+    /* 脚本没写 return 时结果是 undefined，照样要收尾，不能让它把整轮验证卡住 */
+    const res = await win.webContents.executeJavaScript('(async()=>{' + code + '})()', true).then(v => v === undefined ? null : v);
     const text = JSON.stringify(res, null, 1);
     if (dst) fs.writeFileSync(dst, text);
     console.log('eval ' + (text || '').slice(0, 4000));
@@ -119,7 +143,7 @@ ipcMain.handle('data:save', (e, incoming) => {
   doc = incoming; return store.save(doc);
 });
 ipcMain.handle('data:backups', () => store.listBackups());
-ipcMain.handle('data:restore', (e, name) => { doc = store.restore(name); return doc; });
+ipcMain.handle('data:restore', (e, name) => { doc = null; return store.restore(name); });
 ipcMain.handle('data:backupNow', () => { const f = store.backup(getDoc()); return { file: f }; });
 ipcMain.handle('data:exportJson', async () => {
   const r = await dialog.showSaveDialog(win, {
@@ -130,13 +154,48 @@ ipcMain.handle('data:exportJson', async () => {
   fs.writeFileSync(r.filePath, JSON.stringify(getDoc(), null, 1), 'utf8');
   return { file: r.filePath };
 });
+/* 导入 JSON：收成书库里的一本新书并切过去 —— 不覆盖正在写的那本 */
 ipcMain.handle('data:importJson', async () => {
   const r = await dialog.showOpenDialog(win, { title: '导入数据', properties: ['openFile'], filters: [{ name: '卷帙数据', extensions: ['json'] }] });
   if (r.canceled || !r.filePaths[0]) return { canceled: true };
   const incoming = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf8'));
-  if (!incoming || !Array.isArray(incoming.characters)) throw new Error('不是卷帙数据文件');
-  doc = incoming; store.save(doc);
+  const out = store.importAsBook(incoming);
+  doc = out.doc;
   return doc;
+});
+
+/* ---------------- 书库（自定义创建 / 切换 / 管理） ---------------- */
+ipcMain.handle('books:list', () => libraryInfo());
+ipcMain.handle('books:create', (e, opts) => {
+  /* 复制 / 导入要先落盘当前这本，否则抄到的是内存里还没保存的旧样子 */
+  if (doc) { try { store.save(doc); } catch (err) {} }
+  doc = null;
+  const r = bookcase.createBook(opts || {});
+  return Object.assign(r, { library: libraryInfo(), doc: getDoc() });
+});
+ipcMain.handle('books:switch', (e, id) => {
+  /* 切走之前先落盘：界面里的改动不能因为换了本书就丢 */
+  if (doc) { try { store.save(doc); } catch (err) { console.error('[books:switch] save failed', err); } }
+  const lib = bookcase.switchBook(id);
+  doc = null;
+  return { activeId: lib.activeId, doc: getDoc(), library: libraryInfo() };
+});
+ipcMain.handle('books:rename', (e, id, patch) => {
+  const r = bookcase.renameBook(id, patch || {});
+  /* 改的是当前这本：内存里那份也要跟着改，不然下次保存会把旧书名写回去 */
+  if (doc && id === currentBookId()) {
+    /* 用登记表里最终定下的书名（撞名时主进程会自动补序号），别用界面上送来的原值 */
+    doc.meta = doc.meta || {};
+    doc.meta.title = r.book.title;
+    doc.meta.author = r.book.author;
+  }
+  return { book: r.book, library: libraryInfo() };
+});
+ipcMain.handle('books:delete', (e, id) => {
+  if (id === currentBookId() && doc) { try { store.save(doc); } catch (err) {} }
+  const r = bookcase.deleteBook(id);
+  doc = null;                       /* 删的正是当前这本：内存里的那份也一并作废 */
+  return Object.assign(r, { library: libraryInfo(), doc: getDoc() });
 });
 
 /* ---------------- 同步（书稿放进用户自己的网盘） ---------------- */
@@ -203,8 +262,7 @@ ipcMain.handle('llm:models', (e, opts) => llm.listModels(opts || {}));
 
 /* ---------------- book (拆书) ---------------- */
 let cancelFlag = false;
-function bookDir() { return P.ensureDir(path.join(P.dataDir(), 'books')); }
-function bookTextPath(id) { return path.join(bookDir(), id + '.txt'); }
+function bookTextPath(id) { return bookcase.bookTextPath(id); }
 
 ipcMain.handle('book:create', async (e, file) => {
   const parsed = parse.parseFile(file);
@@ -336,6 +394,7 @@ ipcMain.handle('book:analyze', async (e, opts) => {
 });
 
 ipcMain.handle('book:commit', (e, opts) => {
+  /* 拆书结果只入库到「当前这本书」，不会串到别的书里 */
   const d = getDoc();
   const book = d.books.find(b => b.id === (opts && opts.bookId));
   if (!book || !book.analysis) throw new Error('还没有分析结果');
@@ -381,11 +440,14 @@ ipcMain.handle('book:commit', (e, opts) => {
 });
 
 /* ---------------- images ---------------- */
+/* 图片按书分目录：portraits/<书号>/xxx.png。
+ * 老书（升级前就在 portraits 根目录里的图）地址不变，仍然读得到。 */
 function saveImageBuffer(charId, buf, ext) {
   const name = charId + '-' + Date.now().toString(36) + '.' + ext;
-  const dest = path.join(P.portraitsDir(), name);
+  const id = currentBookId();
+  const dest = path.join(P.portraitsDir(id), name);
   fs.writeFileSync(dest, buf);
-  return 'portraits/' + name;
+  return id ? 'portraits/' + id + '/' + name : 'portraits/' + name;
 }
 ipcMain.handle('image:pickPortrait', async (e, charId) => {
   const r = await dialog.showOpenDialog(win, {
@@ -456,8 +518,10 @@ ipcMain.handle('image:pickMapBase', async (e, planeId) => {
   if (r.canceled || !r.filePaths[0]) return { canceled: true };
   const ext = path.extname(r.filePaths[0]).slice(1).toLowerCase();
   const name = 'map-' + (planeId || 'plane') + '-' + Date.now().toString(36) + '.' + ext;
-  fs.writeFileSync(path.join(P.mapsDir(), name), fs.readFileSync(r.filePaths[0]));
+  const id = currentBookId();
+  fs.writeFileSync(path.join(P.mapsDir(id), name), fs.readFileSync(r.filePaths[0]));
+  const rel = id ? 'maps/' + id + '/' + name : 'maps/' + name;
   const plane = getDoc().planes.find(p => p.id === planeId);
-  if (plane) { plane.baseImage = 'maps/' + name; persist(); }
-  return { baseImage: 'maps/' + name };
+  if (plane) { plane.baseImage = rel; persist(); }
+  return { baseImage: rel };
 });

@@ -7,6 +7,7 @@ import chapter from './pages/chapter.js';
 import book from './pages/book.js';
 import importer from './pages/importer.js';
 import settings from './pages/settings.js';
+import { paintBookChip, openLibrary, switchTo } from './library.js';
 
 const PAGES = [characters, world, plot, chapter, book, importer, settings];
 const NAV = ['characters', 'world', 'plot', 'chapter', 'book', 'importer'];
@@ -25,6 +26,7 @@ const NF = {
   redo() { return redoStep(); }
 };
 window.NF = NF;
+NF.modal = modal;                    /* 给页面 / 调试脚本直接用（书库弹窗也是这一套） */
 
 /* ---------------- 撤销（Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y） ---------------- */
 
@@ -46,19 +48,45 @@ function guessRoot(a, label) {
   return pickFileName() || 'doc';
 }
 
+/* ---------------- 保存 ----------------
+ * 自动保存是「450ms 后再写」的定时器；切书时必须先把它落盘再切，
+ * 而且切书的这一段要等它真的写完 —— 所以除了定时器，还要留住"正在写的那一笔"，
+ * flush() 把两者都等完才算数。 */
 let saveTimer = null;
+let inflight = null;
+
+async function writeNow() {
+  const docTodo = NF.doc;
+  if (!docTodo) return;
+  const p = window.nf.data.save(docTodo);
+  inflight = p;
+  try {
+    await p;
+    NF.status('已保存 · ' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+  } catch (e) {
+    toast('保存失败：' + e.message, 'err');
+    NF.status('保存失败');
+    throw e;
+  } finally {
+    if (inflight === p) inflight = null;
+  }
+}
+
 function markDirty() {
   const el = document.getElementById('statRight');
   if (el) el.dataset.dirty = '1';
   NF.status('正在保存…');
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      await window.nf.data.save(NF.doc);
-      NF.status('已保存 · ' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
-    } catch (e) { toast('保存失败：' + e.message, 'err'); NF.status('保存失败'); }
-  }, 450);
+  saveTimer = setTimeout(() => { saveTimer = null; writeNow().catch(() => {}); }, 450);
 }
+
+/* 立刻落盘并等写完：切书、新建、同步、关窗之前都走这里 */
+NF.flush = async function () {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (inflight) { try { await inflight; } catch (e) { /* 上面已经提示过 */ } }
+  await writeNow();
+};
 
 const history = createHistory({
   getDoc: () => NF.doc,
@@ -81,6 +109,30 @@ NF.save = function (anchor, label) {
   rawSave();
 };
 
+/* ---------------- 书籍：新建 / 切换 / 删除 ----------------
+ * 主进程切书时会把「当前书」换掉；界面这边要做的只有三件事：
+ * 换 NF.doc、换书库登记、清掉撤销栈再整页重画。
+ * 撤销栈必须清：里面存的是上一本书的快照，带着它按 Ctrl+Z 会把两本书的内容搅到一起。
+ *
+ * 参数写全、别收一个"大包"：{ doc, library, activeId } 这种结构里 doc 是真数据，
+ * 之前把整个包当 doc 传进来，界面就显示成空壳了。 */
+NF.adoptBook = async function (opts) {
+  const o = opts || {};
+  if (o.library) NF.library = o.library;
+  let doc = o.doc || null;
+  if (!doc) {
+    try { doc = await window.nf.data.load(); } catch (e) { console.error('[adoptBook] load failed', e); }
+  }
+  if (doc) NF.doc = doc;
+  try { NF.history.clear(); NF.history.prime(); } catch (e) { console.error(e); }
+  paintChrome();
+  NF.repaint();
+};
+
+NF.paintChrome = paintChrome;
+NF.openLibrary = function () { openLibrary(NF); };
+NF.switchBook = function (id) { return switchTo(NF, id); };
+
 function undoStep() {
   history.tick();                    /* 先把刚敲完、还没落栈的那一笔收进来，撤销才连得上 */
   const st = history.peek();
@@ -95,6 +147,30 @@ function redoStep() {
   const r = history.redo();
   if (r) toast('已重做「' + r.label + '」', 'ok');
 }
+
+/* 顶栏与标题栏：书名、作者名、书库入口。切书、改名、改作者之后都要重画一次。
+ * 只改顶栏文字，不动页面内容，所以撤销 / 切书后可以放心调用。 */
+function paintChrome() {
+  paintBookChip(NF);
+  paintAuthor();
+  const doc = NF.doc || {};
+  document.title = (((doc.meta && doc.meta.title) || '未命名') + ' · 卷帙 NovelFolio');
+  const chip = document.getElementById('authorChip');
+  if (chip) chip.title = '点这里改作者名（当前：「' + ((doc.meta && doc.meta.author) || '我') + '」）';
+}
+
+/* 整页重画：换了一本书 / 删掉了当前书 / 从备份恢复之后用。
+ * 和 route() 里"同一页就地重画"的快捷路径不冲突：这里直接把页面重建一遍，滚动位置与选中项都归零，
+ * 正好是"翻开另一本书"该有的样子。 */
+NF.repaint = function () {
+  const view = document.getElementById('view');
+  if (NF.view && typeof NF.view.unmount === 'function') { try { NF.view.unmount(); } catch (e) {} }
+  NF.view = null;
+  NF.viewParams = null;
+  if (view) clear(view);
+  route();
+  paintChrome();
+};
 
 /* 状态栏右侧的 ↶ / ↷ */
 function paintHistory(st) {
@@ -157,6 +233,7 @@ function route() {
   const { id, params } = parseHash();
   const page = PAGES.find(p => p.id === id) || PAGES[0];
   renderNav(page.id);
+  paintChrome();
   const view = document.getElementById('view');
   if (NF.view && typeof NF.view.unmount === 'function') { try { NF.view.unmount(); } catch (e) {} }
   clear(view);
@@ -189,8 +266,7 @@ async function runSync(silent) {
   try {
     /* 先把界面里最新的数据落盘。主进程同步用的是它自己缓存的那份 doc，
      * 渲染层刚改、还没来得及自动保存的内容必须先交过去，否则会被云端覆盖掉。 */
-    clearTimeout(saveTimer);
-    try { await window.nf.data.save(NF.doc); } catch (e) { console.error(e); }
+    await NF.flush();                 /* 先把界面里最新的这一笔写完，再交给主进程去同步 */
     const r = await window.nf.sync.now();
     if (!r.ok) { paintSyncDot('err', r.message || '同步失败'); if (!silent) toast('同步失败：' + r.message, 'err'); return r; }
     if (r.changed) {
@@ -216,7 +292,7 @@ NF.paintSync = paintSyncDot;
 NF.paintAuthor = paintAuthor;
 
 function paintAuthor() {
-  const name = (NF.doc.meta && NF.doc.meta.author) || '我';
+  const name = ((NF.doc && NF.doc.meta && NF.doc.meta.author) || '我');
   const n = document.getElementById('authorName');
   const a = document.getElementById('authorAv');
   if (n) n.textContent = name;
@@ -227,7 +303,7 @@ function bindAuthorChip() {
   const chip = document.getElementById('authorChip');
   if (!chip) return;
   chip.addEventListener('click', () => {
-    const cur = (NF.doc.meta && NF.doc.meta.author) || '';
+    const cur = ((NF.doc && NF.doc.meta && NF.doc.meta.author)) || '';
     const inp = h('input', { class: 'input', value: cur, placeholder: '你的名字（显示在右上角）', maxlength: '24' });
     const m = modal({
       title: '作者名', body: h('div', {}, inp,
@@ -236,9 +312,7 @@ function bindAuthorChip() {
       onOk: () => {
         NF.doc.meta = NF.doc.meta || {};
         NF.doc.meta.author = inp.value.trim() || '我';
-        document.getElementById('authorName').textContent = NF.doc.meta.author;
-        const av = document.getElementById('authorAv');
-        if (av) av.textContent = NF.doc.meta.author.slice(0, 1);
+        paintChrome();                  /* 顶栏头像、作者名、书库里的作者一起跟上 */
         NF.save(); toast('作者名已更新', 'ok');
       }
     });
@@ -271,14 +345,23 @@ async function boot() {
   try {
     NF.info = await window.nf.info();
     NF.settings = await window.nf.settings.get();
+    /* 书库：先拿登记表（哪几本、现在开哪本），再按"当前书"读数据 */
+    NF.library = await window.nf.books.list();
     NF.doc = await window.nf.data.load();
   } catch (e) {
     document.getElementById('boot').textContent = '启动失败：' + e.message + '（这个界面需要在卷帙桌面程序里打开）';
     return;
   }
-  document.getElementById('bookTitle').textContent = (NF.doc.meta && NF.doc.meta.title) || '卷帙';
-  paintAuthor();
+  paintChrome();
   bindAuthorChip();
+  /* 顶栏的书名就是书库入口：点开可以新建 / 切换 / 改名 / 复制 / 删除 */
+  const bookChip = document.getElementById('bookChip');
+  if (bookChip) {
+    bookChip.setAttribute('tabindex', '0');
+    bookChip.setAttribute('role', 'button');
+    bookChip.addEventListener('click', () => openLibrary(NF));
+    bookChip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLibrary(NF); } });
+  }
   document.getElementById('statRight').textContent =
     'v' + NF.info.version + ' · 数据在 ' + NF.info.userData + (NF.info.encrypt ? ' · 密钥已系统加密' : ' · 系统不支持加密');
   const bootEl = document.getElementById('boot');
@@ -303,6 +386,11 @@ async function boot() {
     else if (e.inputType === 'historyRedo') { e.preventDefault(); redoStep(); }
   }, true);
   route();
+
+  /* 关窗之前把没落盘的那一笔写完，顺手等主进程回一声 —— 否则关得快一点就丢一段 */
+  window.addEventListener('beforeunload', () => {
+    if (saveTimer || inflight) { try { window.nf.data.save(NF.doc); } catch (e) { /* ignore */ } }
+  });
 
   /* 开了同步：启动后悄悄拉一次，把别的设备改过的内容并进来 */
   const syn = NF.settings && NF.settings.sync;

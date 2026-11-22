@@ -490,8 +490,18 @@ export default {
           bkBox.appendChild(h('div', { class: 'bkrow' },
             h('div', { class: 'grow' }, h('b', { style: { fontWeight: '400' } }, ago(b.mtime)), h('span', { class: 'tiny muted', style: { marginLeft: '8px' } }, (b.size / 1024).toFixed(1) + ' KB')),
             h('span', { class: 'link', onclick: async () => {
-              modal({ title: '从备份恢复', body: h('div', {}, h('p', { class: 'small' }, '将用 ' + fmtDate(b.mtime) + ' 的备份覆盖当前数据，当前数据会再备份一次。'), h('p', { class: 'tiny muted' }, '建议先点「立即备份」。')), okText: '恢复',
-                onOk: async () => { await window.nf.data.backupNow(); const d = await window.nf.data.restore(b.name); NF.doc = d; toast('已恢复，正在刷新', 'ok'); NF.go('characters'); } });
+              modal({ title: '从备份恢复', body: h('div', {}, h('p', { class: 'small' }, '将用 ' + fmtDate(b.mtime) + ' 的备份写回它所属的那本书，当前那本会再备份一次。'), h('p', { class: 'tiny muted' }, '建议先点「立即备份」。')), okText: '恢复',
+                onOk: async () => {
+                  /* 备份里记着是哪本书就写回哪本；恢复后让界面整页重来一次 */
+                  await window.nf.data.backupNow();
+                  await window.nf.data.restore(b.name);
+                  try { NF.library = await window.nf.books.list(); } catch (e) {}
+                  NF.doc = await window.nf.data.load();
+                  try { NF.history.clear(); NF.history.prime(); } catch (e) {}
+                  toast('已恢复，正在刷新', 'ok');
+                  NF.repaint();
+                  NF.go('characters');
+                } });
             } }, '恢复')));
         });
       } catch (e) { bkBox.appendChild(h('div', { class: 'tiny' }, '读取备份失败：' + e.message)); }
@@ -502,12 +512,21 @@ export default {
       h('div', { class: 'set-b' },
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '数据文件'), h('span', { class: 'val mono tiny' }, NF.info ? NF.info.userData : '')),
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '最近保存'), h('span', { class: 'val' }, (doc.meta && doc.meta.updatedAt) ? fmtDate(doc.meta.updatedAt) : '—')),
+        h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '当前书籍'), h('span', { class: 'val' }, '《' + ((doc.meta && doc.meta.title) || '未命名') + '》 · 书库共 ' + (((NF.library || {}).books || []).length) + ' 本')),
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '规模'), h('span', { class: 'val' }, doc.characters.length + ' 个人物 · ' + doc.plots.length + ' 条情节 · ' + (doc.scraps || []).length + ' 条废案')),
         h('div', { class: 'sep' }),
         h('div', { class: 'row' },
+          h('button', { class: 'btn xs', onclick: () => NF.openLibrary() }, '书库…'),
           h('button', { class: 'btn xs', onclick: async () => { await window.nf.data.backupNow(); toast('已备份', 'ok'); loadBackups(); } }, '立即备份'),
           h('button', { class: 'btn xs', onclick: async () => { const r = await window.nf.data.exportJson(); if (!r.canceled) toast('已导出', 'ok'); } }, '导出 JSON'),
-          h('button', { class: 'btn xs', onclick: async () => { const d = await window.nf.data.importJson(); if (d) { NF.doc = d; toast('已导入', 'ok'); NF.go('characters'); } } }, '导入 JSON')),
+          h('button', { class: 'btn xs', title: '导入的 JSON 会收成书库里的一本新书，不会覆盖现在这本', onclick: async () => {
+            try {
+              const d = await window.nf.data.importJson();
+              if (!d || d.canceled) return;
+              await NF.adoptBook({ doc: d, library: await window.nf.books.list() });
+              toast('已导入为一本新书并切换过去', 'ok');
+            } catch (e) { toast('导入失败：' + ipcErr(e), 'err'); }
+          } }, '导入 JSON')),
         h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, '备份列表（最多 30 份，自动轮换）'),
         bkBox)));
 

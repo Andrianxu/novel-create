@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld('nf', {
     exportJson: () => call('data:exportJson'),
     importJson: () => call('data:importJson')
   },
+  books: {
+    list: () => call('books:list'),
+    create: (opts) => call('books:create', opts),
+    switch: (id) => call('books:switch', id),
+    rename: (id, patch) => call('books:rename', id, patch),
+    remove: (id) => call('books:delete', id)
+  },
   settings: {
     get: () => call('settings:get'),
     set: (patch) => call('settings:set', patch),

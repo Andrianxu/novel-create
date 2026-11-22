@@ -1,11 +1,107 @@
-# 卷帙 NovelFolio · 交接说明（2026-11-22 第五轮更新）
+# 卷帙 NovelFolio · 交接说明（2026-11-22 第六轮更新）
 
-> 这一轮加的是**撤销 / 重做**：全篇一套历史（Ctrl+Z 撤销、Ctrl+Y 或 Ctrl+Shift+Z 重做），
-> 人物、世界观、情节、正文、导入都在里面；状态栏左下角也有「↶ 撤销 / ↷ 重做」两个按钮。
+> 这一轮加的是**书库：自定义创建书籍 + 自主切换书籍**。每本书的数据各存一份文件，
+> 但书里的"大框架"完全不变（人物 · 世界观 · 情节 · 卷 · 正文 · 拆书），页面代码一行都没动。
+> 入口在左上角书名：点一下是书库，可以新建 / 切换 / 改名 / 复制 / 删除。
 >
-> 上一轮（第四轮）的情节时间轴暗线树状图改动仍在，见第五节。
+> 上一轮（第五轮）的撤销 / 重做（Ctrl+Z / Ctrl+Y）仍在，见第七节摘要；
+> 第四轮的情节时间轴暗线树状图改动见第五节。
 
-## 〇、撤销怎么做的（本轮重点）
+## 〇、书库怎么做的（本轮重点）
+
+### 1. 数据长什么样
+
+```
+%APPDATA%\novelfolio\data\
+├─ library.json            书库登记表：有哪几本书、现在打开的是哪一本
+├─ books\
+│  ├─ bkxxxx.json          一本书的全部数据（结构与老版本完全一样）
+│  ├─ bkxxxx.json.bak-*    每次覆盖前的上一版（每本留 5 份）
+│  └─ bkxxxx.txt           拆书导入的原文副本
+├─ portraits\<书号>\       立绘按书分目录（老图仍在 portraits\ 根上，地址不变）
+├─ maps\<书号>\            地图底图同理
+├─ trash\                  删掉的书文件挪到这里（不直接删）
+├─ backups\                全局备份，文件名带书号，恢复时按书号写回
+└─ novelfolio.data.json    老版本的单文件数据：**只读入一次，不动它**
+```
+
+- **每本书的 JSON 结构和以前一模一样**（`version / meta / characters / planes / plots / scraps /
+  chapters / manuscripts / books / settings`），所以 characters / world / plot / chapter / book /
+  importer 六个页面**一行都没改**，它们只认 `NF.doc`。
+- **老用户无损升级**：第一次启动时，书库里没有登记表，就把 `novelfolio.data.json` 原样复制成
+  "默认书籍"（书名、作者、内容全部沿用），老文件留在原地不删。万一哪里不对，删掉 `library.json`
+  就回到单文件时代。全新安装则建一本和老版本首次启动时一样的演示书《临水问剑》。
+- 取书号用登记表里的 id，文件名做一次安全过滤；所有写盘都是"先写 .tmp 再 rename"。
+
+### 2. 代码在哪
+
+| 文件 | 作用 |
+| --- | --- |
+| `app/lib/bookcase.js`（新，~390 行） | 书库登记表、每本书的读写、新建/复制/改名/删除、老数据迁移、按书分目录的图片路径 |
+| `app/lib/store.js` | 原来只认一个文件，现在改成"当前这本书"的 load/save/backup；打戳逻辑照旧 |
+| `app/main.js` | 新增 `books:list / create / switch / rename / delete`；`data:importJson` 改成"收成一本新书"；拆书原文本与图片都按当前书写 |
+| `app/preload.js` | 暴露 `window.nf.books.{list,create,switch,rename,remove}` |
+| `app/renderer/js/library.js`（新，~270 行） | 顶栏书名刷新、切换逻辑、书库弹窗（新建 / 改名 / 复制 / 删除） |
+| `app/renderer/js/app.js` | `NF.flush()`（立刻落盘并等写完）、`NF.adoptBook()`、`NF.repaint()`、`NF.paintChrome()`，顶栏绑定书库 |
+| `app/renderer/index.html`、`css/app.css` | 顶栏标题改成可点的书籍入口 + 书库弹窗样式 |
+| `app/renderer/js/util.js` | `modal()` 多返回一个 `ok()`，需要"等这一步做完再接着做"的地方可以 `await` |
+
+### 3. 切换一本书时发生了什么（顺序不能乱）
+
+1. `NF.flush()`：**先停掉 450ms 自动保存的定时器、等正在写的那一笔写完**。
+   少这一步，切完之后那笔 setTimeout 会把上一本的内容写进刚切过去的那一本（主进程按"当前书"落盘）。
+2. `books:switch`：主进程先把内存里的 doc 存回上一本，再改登记表里的 `activeId`，作废内存缓存，
+   读回新书；顺带把上一本的书名/作者/编辑时间写回登记表。
+3. 界面换 `NF.doc`、换 `NF.library`，**清空撤销栈再重新 prime**——
+   撤销栈里是上一本的快照，带着它按 Ctrl+Z 会把两本书的内容搅在一起。
+4. `NF.repaint()` 整页重建（滚动位置、选中项归零，正好是"翻开另一本书"该有的样子）。
+
+新建 / 复制 / 删除走的是同一个入口（`NF.adoptBook`），只是主进程那边已经把 activeId 换好了。
+
+### 4. 顺手改动的几处
+
+- **导入 JSON 不再覆盖当前书**：收成书库里的一本新书并切过去（设置页和导入页都改了）。
+- **从备份恢复**：备份文件名里带书号，恢复会写回它原来那本书，是别的书就自动切过去；
+  以后恢复不会再"用 A 书的备份盖掉 B 书"。
+- **书名唯一**：新建 / 改名撞名自动补序号（`临水问剑（2）`），不会出现两本同名的分不清。
+- **删除保护**：书库里至少要留一本；删除前自动往 `backups/` 留一份，书文件挪进 `trash/`。
+- 作者名改完会同步到顶栏和书库登记表；`beforeunload` 时把没落盘的那一笔补上。
+
+### 5. 本轮验证（脚本跑完已删，方法记在这里）
+
+启动器 `_scratch/launch.js`：`node _scratch/launch.js --disable-gpu --page=<页> --eval=<js> --out=<json> --ud=<临时数据目录>`
+（**必须删掉环境变量 `ELECTRON_RUN_AS_NODE`**，否则 electron 会退化成 node，报 `app.whenReady is not a function`）
+
+| 覆盖 | 结果 |
+| --- | --- |
+| 全新安装：自动建演示书《临水问剑》，顶栏显示书名 | 通过 |
+| 老版本升级：只有 `novelfolio.data.json`（书名/作者/3 个人物改过）→ 变成"默认书籍"，内容与改名都在 | 通过，老文件字节未动 |
+| UI 新建空白书 → 书名 / 2 个人物 / 主位面 / 书库列表正确，弹窗自动关闭 | 通过 |
+| 两本书各加一个人物 → 来回切换 → 各归各的，互不串 | 通过 |
+| 切换后撤销栈清空（不会把两本书搅在一起） | 通过 |
+| 改名（当前书）：顶栏、登记表、doc.meta 三处同步 | 通过 |
+| 复制一本：内容全抄，原书不受影响；删除当前书后自动切到另一本 | 通过 |
+| 最后一本不能删 / 删不存在的书 / 切到不存在的书：只报错不崩 | 通过 |
+| 重启后记住上次打开的书、书库数量、内容 | 通过 |
+| 同名新建 / 改名 → 自动补（2）（3），书库里没有重复书名 | 通过 |
+| 拆书：两本书各自的 `books[]` 不串；原文副本按书写入 | 通过 |
+| 立绘：存到 `portraits/<书号>/`，切书后地址仍能解到原文件 | 通过 |
+| 备份列表带书号；恢复只写回原来那本书 | 通过 |
+| 七页冒烟 + 书库弹窗 / 新建弹窗渲染：0 个渲染层报错；顶栏书名与导航不重叠 | 通过 |
+| 改完立刻切书（不保存）→ 改动仍在 | 通过（flush 生效） |
+| 完整 UI 流程：新建 → 加人物 → 切回演示书（不含新人物）→ 切回新书（含）→ 改名 → 复制 → 删除当前书 → 重启 | 全部通过，0 个渲染层报错 |
+| 弹窗语义：onOk 返回 false 不关 / 取消能关 / onOk 里嵌套新弹窗不会被一起清掉 / ok() 直调 | 5 项全过 |
+
+### 踩过的两个坑（都已在代码里写好注释）
+
+1. **`modal()` 关闭时会把后开的弹窗一起清掉**：`onOk` 里 `await` 之后又调 `modal()` 的地方，
+   旧的实现会在 onOk 返回后再 `clear(#modalRoot)`，刚打开的那个对话框就消失了。
+   现在只在"根节点里还是本弹窗"时才收尾，并且放到下一拍；书库那几层弹窗自己显式 `closeBoxes()`。
+2. **`NF.adoptBook` 收一个大包**：`{ activeId, doc, library }` 整个当 doc 传进去，
+   界面就显示成空壳（实际数据没错，只是界面拼错了）。现在参数写成 `{ doc, library }`，
+   没传 doc 就自己 `data.load()` 一次兜底。
+
+## 七、第五轮：撤销 / 重做（仍然有效）
 
 新增 `app/renderer/js/undo.js`，约 190 行，不依赖任何页面：
 
@@ -61,7 +157,7 @@
 | 项目根目录 | `E:\novel` |
 | 技术栈 | Electron 45.4.1；渲染层原生 ES module，主进程 CommonJS |
 | 入口 | `app/main.js`、`preload.js`、`app/renderer/js/app.js`；页面 `app/renderer/js/pages/*.js` |
-| 数据 | 本机 `userData/data/novelfolio.data.json` |
+| 数据 | 本机 `userData/data/`：`library.json`（书库）+ `books/<书号>.json`（每本书一份）；老的单文件 `novelfolio.data.json` 只在升级时读一次 |
 | 打包产物 | `dist\NovelFolio-0.1.0-portable.exe`（本轮已重新打包；`app.asar` 里的 `app.js` / `undo.js` / `chapter.js` 与源码逐字节一致） |
 
 构建命令（必须关掉正在运行的便携版，`ELECTRON_BUILDER_CACHE` 必给、`ELECTRON_RUN_AS_NODE` 必删）：
@@ -75,7 +171,7 @@ C:\Program Files\nodejs\node.exe E:\novel\node_modules\electron-builder\cli.js -
 
 Git：`D:\Git\cmd\git.exe -c safe.directory=E:/novel ...`
 
-## 二、本轮做了什么（`app/renderer/js/pages/plot.js`）
+## 二、第四轮做了什么（`app/renderer/js/pages/plot.js`）
 
 ### 1. 树的形状（按用户标注图）
 
@@ -146,6 +242,8 @@ A、B 圆点是端点手柄（`data-line` + `data-end`），两个都能在父�
 
 ## 五、还能继续做的事
 
+- [ ] 书库：书多了以后加搜索 / 按最近编辑排序、单本书导出成 `.nfbook` 文件（现在是导出整份 JSON）；
+- [ ] 书库：把「当前书」也接进多设备同步（现在是整份数据同步，书库里只有当前这本会跟着走）；
 - [ ] 时间轴导出图片 / PDF、纵向虚拟滚动（前几轮遗留）；
 - [ ] 暗线很多时缩进会把轨道压得很窄，可以考虑折叠第 3 层以后的暗线；
 - [ ] 收敛点如果被改到最后一个情节之前，横线会跟着缩短（现在的行为），要不要提示由产品定；

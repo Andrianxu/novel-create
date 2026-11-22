@@ -41,9 +41,20 @@ export function toast(msg, kind) {
 export function modal(opts) {
   const root = document.getElementById('modalRoot');
   const close = () => { root.classList.remove('on'); clear(root); };
+  /* 「确定」按钮的点击结果也交出去：需要等这一步跑完再接着做事的地方（例如导完 JSON 立刻刷新）
+   * 可以 await m.ok()；自己不放按钮（footer:false）的弹窗，也可以调 m.ok() 走同一套流程。 */
+  const runOk = async () => {
+    if (!opts.onOk) { close(); return true; }
+    const r = await opts.onOk();
+    /* 注意顺序：onOk 里可能要打开另一个对话框（例如"新建书籍"成功后再看详情），
+     * 那种情况会自己 close()；这里再 close 一次会把刚打开的那个一起清掉。
+     * 所以只在 root 还挂着本弹窗时才收尾，而且放到下一拍——让 onOk 里 await 之后的代码先跑完。 */
+    if (r !== false && root.contains(box)) { await new Promise(res => setTimeout(res, 0)); if (root.contains(box)) close(); }
+    return r;
+  };
   const foot = opts.footer === false ? null : h('div', { class: 'modal-f' },
     opts.cancelText === false ? null : h('button', { class: 'btn', onclick: close }, opts.cancelText || '取消'),
-    opts.okText ? h('button', { class: 'btn pri', onclick: async () => { if (opts.onOk) { const r = await opts.onOk(); if (r !== false) close(); } else close(); } }, opts.okText) : null);
+    opts.okText ? h('button', { class: 'btn pri', onclick: runOk }, opts.okText) : null);
   const body = typeof opts.body === 'string' ? h('div', { class: 'modal-b', html: opts.body }) : h('div', { class: 'modal-b' }, opts.body);
   const box = h('div', { class: 'modal', style: { width: opts.width || '560px' } },
     h('div', { class: 'modal-h' }, h('h3', {}, opts.title || ''), h('span', { class: 'x', onclick: close }, '\u2715')),
@@ -52,7 +63,7 @@ export function modal(opts) {
   root.appendChild(h('div', { class: 'scrim', onclick: opts.dismissable === false ? null : close }));
   root.appendChild(box);
   root.classList.add('on');
-  return { close, box, body };
+  return { close, box, body, ok: runOk };
 }
 export function fmtDate(iso) {
   try {

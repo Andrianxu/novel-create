@@ -19,9 +19,12 @@
         <path d="M174 178 h-74 q-22 0 -22 -22 v-34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
         <path d="M120 88 l24 44 l-24 -13 l-24 13 Z" fill="#A8322A"/>
       </svg>
-      <div class="brandtxt">
-        <div class="bn" id="bookTitle">卷帙</div>
-        <div class="bs">NOVELFOLIO</div>
+      <!-- 当前书籍：点一下打开书库，可新建 / 切换 / 改名 / 复制 / 删除 -->
+      <div class="bookchip" id="bookChip" title="当前书籍 · 点这里新建或切换" data-probe="book-chip">
+        <div class="brandtxt">
+          <div class="bn"><span id="bookTitle">卷帙</span><span class="bk-caret">▾</span></div>
+          <div class="bs" id="bookScope">NOVELFOLIO</div>
+        </div>
       </div>
     </div>
     <nav class="modes" id="nav"></nav>
