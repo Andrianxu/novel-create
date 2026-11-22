@@ -215,6 +215,8 @@ const page = {
     function plotStatusCls(p) { return p.status === 'ending' ? 'ending' : p.status === 'done' ? 'done' : 'later'; }
     function plotStatusLabel(p) { return p.status === 'ending' ? '结局' : p.status === 'done' ? '已发生' : '计划'; }
     const manuscriptNo = m => chNum(m.title) || (m.chapterNo || 0);
+    /* 卷内按章号排序：手写「第五章」和自动生成的「第八章」混在一起也能排对 */
+    const byNo = (a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9);
     /* 卷 → 这些稿件的章号区间（取卷内最小 / 最大章号） */
     function volumeRange(vid) {
       const ms = doc.manuscripts.filter(m => m.volumeId === vid).map(manuscriptNo).filter(Boolean);
@@ -377,6 +379,14 @@ const page = {
       syncSideOn();
     }
 
+    /* 切卷：卷选中了，正文也得跟着切过去（以前只重画左栏，右半屏还停在上一个卷的章节上） */
+    function selectVolume(id) {
+      const vms = doc.manuscripts.filter(m => m.volumeId === id).slice().sort(byNo);
+      st.vol = id;
+      st.id = vms.length ? vms[0].id : null;
+      renderSide(); renderMain();
+    }
+
     function renderSide() {
       /* 只清列表：顶部操作条是常驻节点，清掉它按钮就跟着没了 */
       const plots = plotsSorted();
@@ -397,8 +407,6 @@ const page = {
 
       /* ---- 卷 / 章列表 ---- */
       clear(sideList);
-      /* 卷内按章号排序：手写「第五章」和自动生成的「第八章」混在一起也能排对 */
-      const byNo = (a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9);
       doc.chapters.forEach(v => {
         const range = volumeRange(v.id);
         const volPlots = plots.filter(p => {
@@ -406,7 +414,7 @@ const page = {
           return range && no >= range.min && no <= range.max && plotManuscript(p, v.id) === null;
         });
         const vms = doc.manuscripts.filter(m => m.volumeId === v.id).sort(byNo);
-        sideList.appendChild(h('div', { class: 'ch-vol' + (v.id === st.vol ? ' on' : ''), onclick: () => { st.vol = v.id; renderSide(); } },
+        sideList.appendChild(h('div', { class: 'ch-vol' + (v.id === st.vol ? ' on' : ''), title: '点一下切到这一卷', onclick: () => selectVolume(v.id) },
           h('span', {}, v.title),
           h('small', {}, vms.length + ' 篇')));
         if (v.id === st.vol) {
@@ -475,7 +483,11 @@ const page = {
       clear(main);
       const m = cur();
       if (!m) {
-        main.appendChild(h('div', { class: 'ch-empty' }, '左边还没有章节。点侧栏顶上的「＋ 新的章节」开始写，章号会自动排'));
+        /* 空白分两种：整本书一篇都还没有 / 这一卷还没有章节（刚建完卷就是这种） */
+        const v = (doc.chapters || []).find(x => x.id === st.vol);
+        main.appendChild(h('div', { class: 'ch-empty' },
+          v ? '「' + v.title + '」还没有章节：点侧栏的「＋ 新的章节」往里加第一章'
+            : '左边还没有章节。点侧栏顶上的「＋ 新的章节」开始写，章号会自动排'));
         return;
       }
       /* 标题框只写「章名」：「第N章」由系统按当前卷自动编号、自动排序，
@@ -515,12 +527,23 @@ const page = {
       ed.addEventListener('scroll', () => { if (hlLayer) hlLayer.scrollTop = ed.scrollTop; });
       upd();
       const delBtn = h('button', { class: 'btn xs', onclick: () => {
-        if (!confirm('把这篇移入废案篓？内容会保留，可以恢复。')) return;
-        doc.scraps = doc.scraps || [];
-        doc.scraps.unshift({ id: uid('x'), kind: 'chapter', title: m.title, origin: '章节写作', reason: '手动移入', removedAt: new Date().toISOString(), summary: (m.content || '').slice(0, 60), payload: m });
-        doc.manuscripts = doc.manuscripts.filter(x => x.id !== m.id);
-        st.id = (doc.manuscripts.find(x => x.volumeId === st.vol) || {}).id || null;
-        NF.save(); renderSide(); renderMain(); toast('已移入废案篓', 'ok');
+        /* 用弹窗确认，不用原生 confirm（原生对话框会卡住整个界面，而且风格和别处不一样） */
+        const dlg = modal({
+          title: '移入废案篓', width: '440px', okText: '移入废案篓',
+          body: h('div', { class: 'col', style: { gap: '8px' } },
+            h('div', { class: 'small', style: { lineHeight: '1.8' } },
+              '把「', h('b', {}, titleOf(m) || m.title || '这一篇'), '」移入废案篓？'),
+            h('div', { class: 'tiny muted', style: { lineHeight: '1.8' } },
+              '正文一个字都不会丢：情节页的废案篓里随时可以恢复；按 Ctrl+Z 也能撤销这一步。')),
+          onOk: () => {
+            doc.scraps = doc.scraps || [];
+            doc.scraps.unshift({ id: uid('x'), kind: 'chapter', title: m.title, origin: '章节写作', reason: '手动移入', removedAt: new Date().toISOString(), summary: (m.content || '').slice(0, 60), payload: m });
+            doc.manuscripts = doc.manuscripts.filter(x => x.id !== m.id);
+            st.id = (doc.manuscripts.find(x => x.volumeId === st.vol) || {}).id || null;
+            NF.save(); renderSide(); renderMain(); toast('已移入废案篓', 'ok');
+          }
+        });
+        return dlg;
       } }, '移入废案');
       main.appendChild(h('div', { class: 'ch-top' },
         no ? h('span', { class: 'ch-no', title: '章号按当前卷自动排序，不用手写' }, '第' + intToCn(no) + '章') : null,
@@ -695,11 +718,38 @@ const page = {
       });
       return n;
     }
+    /* 新建一卷。
+     * 注意：以前这里用的是 window.prompt()，而 Electron 里 prompt 是"不支持"的
+     * （控制台只报一句 Uncaught Error: prompt() is not supported.），
+     * 所以点「＋ 卷」看起来就是完全没反应。改成和其它地方一样的弹窗，并给个默认卷名。 */
     function addVolume() {
-      const t = prompt('卷名（例如：卷四 · 无界海）');
-      if (!t) return;
-      const v = { id: uid('v'), title: t, status: 'plan', words: 0 };
-      doc.chapters.push(v); st.vol = v.id; NF.save(); renderSide();
+      const list = doc.chapters || (doc.chapters = []);
+      const dft = '卷' + intToCn(list.length + 1);
+      const nameIn = h('input', { class: 'input', value: dft, placeholder: '例如：卷四 · 无界海' });
+      const hint = h('div', { class: 'tiny muted', style: { lineHeight: '1.8' } },
+        '卷只是目录分组：章号在卷内自己排，所以建完这卷要从「＋ 新的章节」开始加。');
+      const dlg = modal({
+        title: '新建一卷', width: '460px', okText: '新建',
+        body: h('div', { class: 'col', style: { gap: '10px' } },
+          h('div', { class: 'field' }, h('label', {}, '卷名'), nameIn),
+          hint),
+        onOk: () => {
+          const t = nameIn.value.trim();
+          if (!t) { toast('卷名不能为空', 'err'); return false; }
+          if ((doc.chapters || []).some(v => v.title === t)) { toast('已经有一卷叫「' + t + '」了，换个名字', 'err'); return false; }
+          const v = { id: uid('v'), title: t, status: 'plan', words: 0 };
+          doc.chapters.push(v);
+          /* 建完直接切到这卷：左边选中、右边显示"这卷还没有章节"的提示 */
+          st.vol = v.id;
+          st.id = null;
+          NF.save(); renderSide(); renderMain();
+          toast('已新建「' + t + '」，点「＋ 新的章节」往里加第一章', 'ok');
+        }
+      });
+      nameIn.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); const b = dlg.box.querySelector('.modal-f .btn.pri'); if (b) b.click(); }
+      });
+      setTimeout(() => { nameIn.focus(); nameIn.select(); }, 30);
     }
 
     /* ================= 右下角 AI 写作助手 ================= */

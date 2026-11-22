@@ -50,15 +50,23 @@ injectStyle('characters', `
 .tlhead h3{font-size:13px;margin:0}
 .legend{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#5B5348}
 .legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
-.track{position:relative;height:118px;margin-top:6px}
+.track{position:relative;height:118px;margin-top:6px;user-select:none;-webkit-user-select:none}
 .axis{position:absolute;left:0;right:0;top:70px;height:2px;background:linear-gradient(90deg,#2F6F63,#B98A3C 62%,#A8322A);border-radius:2px}
-.tick{position:absolute;top:70px;width:11px;height:11px;margin-left:-5.5px;margin-top:-4.5px;border-radius:50%;background:#FFFCF5;border:2px solid #2F6F63;cursor:pointer}
+.tick{position:absolute;top:70px;width:11px;height:11px;margin-left:-5.5px;margin-top:-4.5px;border-radius:50%;background:#FFFCF5;border:2px solid #2F6F63;cursor:grab}
 .tick.done{background:#2F6F63}
 .tick.later{border-style:dashed;border-color:#C9973C;background:#FFFCF5}
 .tick.ending{background:#A8322A;border-color:#A8322A;width:13px;height:13px;margin-left:-6.5px;margin-top:-5.5px}
 .tick.on{box-shadow:0 0 0 4px rgba(47,111,99,.2)}
 .tick b{position:absolute;left:50%;transform:translateX(-50%);top:-19px;font-size:10px;font-weight:400;color:#201C18;white-space:nowrap}
 .tick s{position:absolute;left:50%;transform:translateX(-50%);top:12px;font-size:9px;color:#8C8272;text-decoration:none;white-space:nowrap}
+/* 拖动中：正在拖的那个放大变亮，别的淡下去（和情节页时间轴一个手感） */
+.tick.dragging{cursor:grabbing;z-index:6;box-shadow:0 0 0 5px rgba(47,111,99,.22)}
+.track.dragging .tick:not(.dragging){opacity:.5}
+/* 拖动时跟着鼠标的小气泡：「时间点 7」 */
+.tp-hint{position:absolute;top:99px;transform:translateX(-50%);z-index:7;font-size:10px;line-height:1.5;background:#201C18;color:#F6F1E6;border-radius:5px;padding:1px 7px;white-space:nowrap;pointer-events:none}
+/* 相关人物胶囊：选中的高亮（新建情节时默认带上当前这位） */
+.chip.on{background:#E2EEEA;border-color:#BFDACF;color:#23604F}
+.chip.on i{box-shadow:0 0 0 2px rgba(47,111,99,.25)}
 .detail{padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-height:130px}
 .dhead{display:flex;align-items:center;gap:8px}
 .dhead h3{font-family:var(--kai);font-size:15px;margin:0}
@@ -86,6 +94,95 @@ export default {
 
     const getChar = () => doc.characters.find(c => c.id === st.id);
     const touch = () => { NF.save(); };
+
+    /* ---------------- 情节时间轴用的小工具 ----------------
+     * 人物页这条轴和情节页那条是同一套规矩：位置 = 时间点在刻度上的百分比、
+     * 轴左右各留 2%、拖动松手才落库、时间点取整数刻度。
+     * 两边改的是同一份 doc.plots，所以在这儿拖完，情节页那边立刻就是新的。 */
+    const AXIS_PAD = 2, AXIS_SPAN = 94;
+    const tpNum = p => { const n = Number(p && p.timePoint); return isFinite(n) ? n : 0; };
+    const fmtTp = v => {
+      const n = Number(v);
+      if (!isFinite(n)) return '—';
+      return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+    };
+    /* 鼠标横坐标 → 时间点（按整条轴的总刻度反算，整数） */
+    function timeAt(track, clientX, maxT) {
+      const r = track.getBoundingClientRect();
+      const pct = Math.max(AXIS_PAD, Math.min(100, ((clientX - r.left) / (r.width || 1)) * 100));
+      return Math.max(0, Math.round(((pct - AXIS_PAD) / AXIS_SPAN) * Math.max(1, maxT)));
+    }
+    /* 稿件标题里的章号：「第18章」「第十八章」都认。新建情节时按章节写 chapterNo，
+     * 章节页靠它把情节挂到对应那一篇上 */
+    const CN_NUM = { '〇': 0, '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+    function chNo(s) {
+      const t = String(s || '');
+      const ar = t.match(/第\s*(\d+)\s*[章回节]/);
+      if (ar) return Number(ar[1]);
+      const cn = t.match(/第\s*([〇零一二三四五六七八九十百两]+)\s*[章回节]/);
+      if (!cn) return 0;
+      let total = 0, cur = 0;
+      for (const ch of cn[1]) {
+        if (ch === '百') { total += (cur || 1) * 100; cur = 0; }
+        else if (ch === '十') { total += (cur || 1) * 10; cur = 0; }
+        else if (CN_NUM[ch] != null) cur = CN_NUM[ch];
+      }
+      return total + cur;
+    }
+    /* 拖完松手浏览器还会补一个 click：用它挡掉那次"选中 / 打开编辑" */
+    let suppressClick = false;
+
+    /* 拖动轴上的圆点：跟手走，松手按落点刻度改时间点（只改这一条，别的节点不动）。
+     * 拖动过程中视口锁死（maxT 用按下那一刻的），否则时间点一变整条轴重新缩放，圆点会漂。 */
+    function startTickDrag(ev, p, node) {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      const track = node.parentNode;
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      const maxT = Math.max(1, ...doc.plots.map(tpNum));
+      const left0 = node.style.left;
+      const startX = Number(ev.clientX) || rect.left + (rect.width || 0) / 2;
+      let moved = false, lastPct = null;
+      node.classList.add('dragging');
+      track.classList.add('dragging');
+      const hint = h('div', { class: 'tp-hint' });
+      track.appendChild(hint);
+      const paint = x => {
+        const pct = Math.max(0, Math.min(100, ((x - rect.left) / (rect.width || 1)) * 100));
+        lastPct = pct;
+        node.style.left = pct.toFixed(2) + '%';
+        hint.textContent = '时间点 ' + timeAt(track, x, maxT);
+        hint.style.left = pct.toFixed(2) + '%';
+      };
+      paint(startX);
+      const move = e => {
+        const x = Number(e.clientX) || startX;
+        if (Math.abs(x - startX) > 2) moved = true;
+        paint(x);
+      };
+      const up = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', up);
+        node.classList.remove('dragging');
+        track.classList.remove('dragging');
+        hint.remove();
+        /* 没真的挪动：当成单击，恢复原位即可（菜单/选中交给 click 处理） */
+        if (!moved || lastPct == null) { node.style.left = left0; return; }
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 350);
+        const tp = timeAt(track, rect.left + (lastPct / 100) * (rect.width || 0), maxT);
+        const before = tpNum(p);
+        if (tp === before) { renderMain(); return; }
+        p.timePoint = tp;
+        touch();
+        st.selPlot = p.id;
+        renderMain();
+        toast('「' + (p.title || '情节') + '」时间点改为 ' + fmtTp(tp), 'ok');
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
+    }
 
     /* 左栏的"壳"（标题 + 搜索框）只建一次，下面只换人物列表。
      * 以前每次输入都整块重画，搜索框刚敲一个字就丢焦点，只能点一下再敲一个字。 */
@@ -253,21 +350,45 @@ export default {
           })));
       }
 
-      /* ---- timeline ---- */
-      const mine = doc.plots.filter(p => (p.characterIds || []).includes(c.id));
-      const all = doc.plots.slice().sort((a, b) => (a.timePoint || 0) - (b.timePoint || 0));
-      const maxT = Math.max(1, ...all.map(p => p.timePoint || 0));
+      /* ---- timeline ----
+       * 这个人物的情节节点，画法/手感都跟情节页那条轴对齐：
+       *   · 拖动圆点 → 改时间点（跟手走、松手才落库，别的节点不动）；
+       *   · 轴上空白处双击 → 在这个刻度新建一条（默认把当前人物算进相关人物）；
+       *   · 点一下选中看详情，再点一下正在选中的圆点 = 打开编辑框。
+       * 数据是同一份 doc.plots，人物页改完情节页那边立刻就是新的。 */
+      const mine = doc.plots
+        .filter(p => (p.characterIds || []).includes(c.id))
+        .slice().sort((a, b) => tpNum(a) - tpNum(b));
+      const maxT = Math.max(1, ...doc.plots.map(tpNum));
       const track = h('div', { class: 'track', 'data-probe': 'timeline' });
       track.appendChild(h('div', { class: 'axis' }));
-      mine.forEach(p => {
-        const left = Math.round(((p.timePoint || 1) / maxT) * 94) + 2;
+      /* 同一刻度上挤了好几条时往右错开一点，名字才不会叠成一团（和情节页的 MIN_GAP 一个意思） */
+      const MIN_GAP = 2.2;
+      const spots = [];
+      const tickOf = p => {
+        let x = 2 + (Math.min(maxT, Math.max(0, tpNum(p))) / maxT) * 94;
+        spots.forEach(q => { if (Math.abs(q - x) < MIN_GAP) x = Math.min(97, q + MIN_GAP); });
+        spots.push(x);
         const cls = p.status === 'ending' ? 'ending' : p.status === 'later' ? 'later' : 'done';
-        track.appendChild(h('div', {
+        const tick = h('div', {
           class: 'tick ' + cls + (st.selPlot === p.id ? ' on' : ''),
-          style: { left: left + '%' },
-          onclick: () => { st.selPlot = p.id; renderMain(); },
-          title: p.title
-        }, h('b', {}, p.title), h('s', {}, p.chapter || '')));
+          style: { left: x.toFixed(2) + '%' },
+          dataset: { plot: p.id },
+          title: (p.title || '未命名') + ' · 时间点 ' + fmtTp(tpNum(p)) + '（拖动改时间点 · 再点一下编辑）',
+          onclick: () => {
+            if (suppressClick) { suppressClick = false; return; }
+            if (st.selPlot === p.id) { openPlotForm(p); return; }
+            st.selPlot = p.id; renderMain();
+          },
+          onmousedown: ev => startTickDrag(ev, p, tick)
+        }, h('b', {}, p.title), h('s', {}, p.chapter || ''));
+        return tick;
+      };
+      mine.forEach(p => track.appendChild(tickOf(p)));
+      /* 空白处双击 = 在这个刻度新建（只认轴那条带子，双击名字/标签不算） */
+      track.addEventListener('dblclick', ev => {
+        if (ev.target.closest('.tick')) return;
+        openPlotForm(null, { timePoint: timeAt(track, ev.clientX, maxT), charId: c.id });
       });
       main.appendChild(h('div', { class: 'card tlcard' },
         h('div', { class: 'tlhead' },
@@ -276,9 +397,12 @@ export default {
           h('span', { class: 'legend' }, h('i', { style: { background: '#C9973C', border: '1px dashed #C9973C' } }), '后续计划'),
           h('span', { class: 'legend' }, h('i', { style: { background: '#A8322A' } }), '结局'),
           h('span', { class: 'grow' }),
+          h('button', { class: 'btn xs', title: '新建一条和这个人物有关的情节', onclick: () => openPlotForm(null, { charId: c.id }) }, '＋ 情节'),
           h('button', { class: 'btn xs', onclick: () => NF.go('plot') }, '在情节页管理 ›')),
         track,
-        h('div', { class: 'tiny muted', style: { paddingBottom: '6px' } }, mine.length ? '共 ' + mine.length + ' 个节点 · 点圆点看详情' : '这个人物还没有情节节点')));
+        h('div', { class: 'tiny muted', style: { paddingBottom: '6px' } }, mine.length
+          ? '共 ' + mine.length + ' 个节点 · 拖圆点改时间点 · 双击轴空白处新建 · 点圆点看详情'
+          : '这个人物还没有情节节点：双击上面的轴就能新建一条')));
 
       /* ---- detail ---- */
       const sel = mine.find(p => p.id === st.selPlot) || mine.find(p => p.status === 'done') || mine[0];
@@ -288,7 +412,7 @@ export default {
             h('h3', {}, (sel.chapter ? sel.chapter + ' · ' : '') + sel.title),
             h('span', { class: 'pill ' + (STATUS[sel.status] || {}).cls }, (STATUS[sel.status] || {}).label || sel.status),
             h('span', { class: 'grow' }),
-            h('button', { class: 'btn xs', onclick: () => editPlot(sel) }, '编辑情节'),
+            h('button', { class: 'btn xs', onclick: () => openPlotForm(sel) }, '编辑情节'),
             h('button', { class: 'btn xs pri', onclick: () => NF.go('chapter') }, '跳转正文')),
           h('p', {}, sel.summary || '（还没有写摘要）'),
           h('div', { class: 'dmeta' },
@@ -450,17 +574,92 @@ export default {
       doc.characters.push(c); st.id = c.id; st.selPlot = null; touch(); renderList(); renderMain();
       setTimeout(() => renameChar(c), 50);
     }
-    function editPlot(p) {
-      const t = h('input', { class: 'input', value: p.title });
-      const s = h('textarea', { class: 'ta', style: { minHeight: '80px' } }, p.summary || '');
-      const pl = h('input', { class: 'input', value: p.place || '' });
-      modal({ title: '编辑情节', width: '560px',
-        body: h('div', { class: 'col' },
-          h('div', { class: 'field' }, h('label', {}, '情节名'), t),
-          h('div', { class: 'field' }, h('label', {}, '摘要'), s),
-          h('div', { class: 'field' }, h('label', {}, '地点'), pl)),
-        okText: '保存',
-        onOk: () => { p.title = t.value; p.summary = s.value; p.place = pl.value; touch(); renderMain(); } });
+    /* ---------------- 新建 / 编辑情节 ----------------
+     * 人物页这边也要能改「时间点」和「相关人物」，所以字段和情节页的表单对齐：
+     * 情节名 / 章节 / 时间点 / 状态 / 地点 / 摘要 / 相关人物。
+     * preset.timePoint 是双击轴上空白处落下来的刻度，preset.charId 是当前人物（默认算在场）。
+     * 不去碰 lane（属于哪条暗线）这类人物页管不到的字段，编辑时原样保留。 */
+    function openPlotForm(p, preset) {
+      const isNew = !p;
+      const c = getChar();
+      /* 新建时时间点默认接在这个人物最后一条情节后面（双击轴的话用落点刻度） */
+      const dftTp = preset && typeof preset.timePoint === 'number'
+        ? preset.timePoint
+        : Math.round(Math.max(0, ...(doc.plots || [])
+          .filter(q => c && (q.characterIds || []).includes(c.id)).map(tpNum))) + 1;
+      const seed = isNew ? {
+        title: '', summary: '', place: '', chapter: '', status: 'later',
+        timePoint: dftTp,
+        characterIds: preset && preset.charId ? [preset.charId] : (c ? [c.id] : [])
+      } : p;
+      const ids = (seed.characterIds || []).slice();
+      const titleIn = h('input', { class: 'input', value: seed.title || '', placeholder: '例如：雪夜断桥' });
+      const chapSel = h('select', { class: 'select' },
+        [h('option', { value: '' }, '（不指定章节）')].concat(
+          (doc.manuscripts || []).map(m => h('option', { value: m.title, selected: m.title === (seed.chapter || '') }, m.title))));
+      /* 老数据里的章节名可能不在稿件列表里：补一条，别把已有值弄丢 */
+      if (seed.chapter && !(doc.manuscripts || []).some(m => m.title === seed.chapter)) {
+        chapSel.appendChild(h('option', { value: seed.chapter, selected: true }, seed.chapter + '（原有，未对上稿件）'));
+      }
+      const tpIn = h('input', { class: 'input', type: 'number', min: '0', step: '1', value: String(fmtTp(seed.timePoint) === '—' ? 0 : fmtTp(seed.timePoint)) });
+      const statusSel = h('select', { class: 'select' },
+        Object.keys(STATUS).map(k => h('option', { value: k, selected: k === (seed.status || 'later') }, (STATUS[k] || {}).label || k)));
+      const placeIn = h('input', { class: 'input', value: seed.place || '', placeholder: '例如：临水 · 断桥' });
+      const sumTa = h('textarea', { class: 'ta', style: { minHeight: '72px' } }, seed.summary || '');
+      const pick = h('div', { class: 'relrow' });
+      if (!(doc.characters || []).length) pick.appendChild(h('span', { class: 'small muted' }, '还没有人物'));
+      (doc.characters || []).forEach(cc => {
+        const on = ids.indexOf(cc.id) >= 0;
+        const chip = h('span', { class: 'chip' + (on ? ' on' : ''), title: '点一下加入 / 移出相关人物' },
+          h('i', { style: { background: cc.color || '#2F6F63' } }, cc.name.slice(0, 1)), cc.name);
+        chip.addEventListener('click', () => {
+          const i = ids.indexOf(cc.id);
+          if (i >= 0) { ids.splice(i, 1); chip.classList.remove('on'); }
+          else { ids.push(cc.id); chip.classList.add('on'); }
+        });
+        pick.appendChild(chip);
+      });
+      const dlg = modal({
+        title: isNew ? '新建情节' : '编辑情节', width: '660px',
+        body: h('div', { class: 'col', style: { gap: '9px' } },
+          h('div', { class: 'field' }, h('label', {}, '情节名'), titleIn),
+          h('div', { class: 'row', style: { gap: '10px' } },
+            h('div', { class: 'field', style: { flex: '2' } }, h('label', {}, '章节（对应章节写作里的稿件）'), chapSel),
+            h('div', { class: 'field', style: { flex: '0.8' } }, h('label', {}, '时间点'), tpIn),
+            h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '状态'), statusSel)),
+          h('div', { class: 'field' }, h('label', {}, '地点'), placeIn),
+          h('div', { class: 'field' }, h('label', {}, '摘要'), sumTa),
+          h('div', { class: 'field' }, h('label', {}, '相关人物'), pick),
+          h('div', { class: 'tiny muted' },
+            '时间点 = 情节在这条轴上的位置（整数刻度）；也可以直接拖轴上的圆点，松手即按落点改。')),
+        okText: isNew ? '新建' : '保存',
+        onOk: () => {
+          const title = titleIn.value.trim();
+          if (!title) { toast('请填写情节名', 'err'); return false; }
+          const tpRaw = Number(tpIn.value);
+          const patch = {
+            title, summary: sumTa.value.trim(), place: placeIn.value.trim(),
+            chapter: chapSel.value || '', chapterNo: chNo(chapSel.value || ''),
+            status: statusSel.value,
+            timePoint: isFinite(tpRaw) ? Math.max(0, Math.round(tpRaw)) : 0,
+            characterIds: ids.slice()
+          };
+          if (isNew) {
+            const np = Object.assign({ id: uid('g'), lane: '' }, patch);
+            doc.plots.push(np);
+            st.selPlot = np.id;
+          } else {
+            Object.assign(p, patch);
+            st.selPlot = p.id;
+          }
+          touch(); renderMain();
+          toast(isNew ? '已新建情节节点（时间点 ' + fmtTp(patch.timePoint) + '）' : '情节已保存', 'ok');
+        }
+      });
+      titleIn.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); const b = dlg.box.querySelector('.modal-f .btn.pri'); if (b) b.click(); }
+      });
+      setTimeout(() => titleIn.focus(), 40);
     }
 
     renderList(); renderMain();
