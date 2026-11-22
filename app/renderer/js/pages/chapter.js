@@ -1,8 +1,27 @@
-import { h, clear, toast, injectStyle, uid, debounce, words, ago } from '../util.js';
+import { h, clear, toast, modal, injectStyle, uid, debounce, words, ago } from '../util.js';
 
 injectStyle('chapter', `
 .ch-wrap{flex:1;min-width:0;display:flex}
-.ch-side{width:252px;flex:none;background:#F1EADA;border-right:1px solid #DFD4BF;display:flex;flex-direction:column;padding:10px 9px;gap:4px;overflow:auto}
+.ch-side{width:252px;flex:none;background:#F1EADA;border-right:1px solid #DFD4BF;display:flex;flex-direction:column;padding:10px 9px;gap:4px;overflow:hidden}
+.ch-sidelist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:4px}
+/* 侧栏顶部常驻的操作条：不随列表滚动，「新的章节」永远在第一屏一眼能看见 */
+.ch-sidehead{display:flex;align-items:center;gap:6px;flex:none;padding:0 2px 8px;margin-bottom:2px;border-bottom:1px solid #E3D8C3}
+.ch-sidehead .lab{font-size:12px;font-weight:700;color:#3B342C}
+.ch-new{font-family:var(--kai);font-size:12.5px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:5px;
+  padding:6px 11px;border-radius:8px;border:1px solid var(--seal);background:var(--seal);color:#FFF8EE;cursor:pointer;
+  box-shadow:0 2px 8px rgba(168,50,42,.22);transition:transform .1s,box-shadow .15s,background .15s;white-space:nowrap}
+.ch-new .plus{font-size:14px;line-height:1;font-weight:400}
+.ch-new:hover{background:#8E2A23;border-color:#8E2A23;transform:translateY(-1px);box-shadow:0 4px 12px rgba(168,50,42,.3)}
+.ch-new:active{transform:translateY(0)}
+.ch-sidehead .btn.xs{font-size:11px;padding:4px 8px}
+.ch-headrow{display:flex;align-items:center;gap:6px}
+.ch-newrow{display:flex;align-items:center;gap:7px;margin-top:7px}
+.ch-newrow .ch-new{width:100%;justify-content:center}
+/* 章条目右侧的行内「＋」：平时很淡，hover 时显形，点它就在这一章后面插一章 */
+.ch-ins-line{flex:none;width:16px;height:16px;line-height:14px;text-align:center;border-radius:5px;font-size:11px;
+  color:#A99C84;border:1px solid transparent;opacity:.3;transition:opacity .12s,background .12s,color .12s}
+.ch-doc:hover .ch-ins-line{opacity:1}
+.ch-ins-line:hover{background:#F7EBD3;border-color:#DCCBA8;color:#8A6421}
 .ch-vol{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:8px;cursor:pointer;font-size:12px}
 .ch-vol:hover{background:rgba(255,255,255,.5)}
 .ch-vol.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF}
@@ -10,11 +29,24 @@ injectStyle('chapter', `
 .ch-doc{display:flex;gap:6px;align-items:center;padding:5px 7px 5px 20px;border-radius:7px;cursor:pointer;font-size:11.5px;color:#5B5348}
 .ch-doc:hover{background:rgba(255,255,255,.55)}
 .ch-doc.on{background:#FFFCF5;box-shadow:inset 0 0 0 1px #DFD4BF;color:#201C18}
+/* 卷末的「＋ 加上一章」：比正文条目更淡，但给一圈虚线，一眼看出是「加」不是「一篇」 */
+.ch-doc-add{color:#8A6421;border:1px dashed #DCCBA8;background:rgba(255,252,245,.5);margin:2px 0 4px 12px;font-size:11px}
+.ch-doc-add:hover{background:#FBF3DF;border-color:#CBB894;color:#5B4A22}
 .ch-doc .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 章节行左边的收起 / 展开记号：有情节的章才显示，收起时变成「＋」 */
+.ch-fold{flex:none;width:12px;text-align:center;font-size:11px;line-height:1;color:#A99C84;display:none}
+.ch-doc .ch-fold:not(.off){display:inline}
+.ch-doc.folded .ch-fold{display:inline;color:#8A6421}
+.ch-doc:hover .ch-fold{color:#5B5348}
+/* 收起后的小提示行：看得出这里藏着几条情节，点一下展开 */
+.ch-folded{display:flex;align-items:center;gap:6px;padding:2px 7px 2px 27px;font-size:9.5px;color:#B0A491;cursor:pointer}
+.ch-folded:hover{color:#7A6A4E}
+.ch-folded .lnk{color:var(--jade);text-decoration:underline}
+.ch-folded:hover .lnk{color:#23604F}
 .ch-plots{display:flex;flex-direction:column;gap:1px;padding:2px 0 4px 34px}
 .ch-plot{display:flex;align-items:center;gap:6px;padding:3px 7px;border-radius:6px;cursor:pointer;font-size:10.5px;color:#6B6357;min-width:0}
 .ch-plot:hover{background:rgba(255,255,255,.6);color:#201C18}
-.ch-plot.on{background:#F3EBDA;color:#201C18}
+.ch-plot.on{background:#F3EBDA;color:#201C18;box-shadow:inset 2px 0 0 var(--gold)}
 .ch-plot i{width:6px;height:6px;border-radius:50%;flex:none;background:var(--jade)}
 .ch-plot.later i{border:1px dashed #C9973C;background:transparent}
 .ch-plot.ending i{border-radius:1px;background:var(--seal);transform:rotate(45deg)}
@@ -22,10 +54,16 @@ injectStyle('chapter', `
 .ch-plot small{margin-left:auto;font-size:9px;color:#A99C84;flex:none}
 .ch-vplot{display:flex;align-items:center;gap:6px;padding:2px 7px 2px 20px;border-radius:6px;cursor:pointer;font-size:10px;color:#8C8272;min-width:0}
 .ch-vplot:hover{background:rgba(255,255,255,.55);color:#5B5348}
+.ch-vplot.on{background:#F3EBDA;color:#3B342C}
 .ch-vplot span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 两种情节条目「正在标着」时都用同一种标记：左侧一道细金竖条 + 略深的底 */
+[data-plot].on{box-shadow:inset 2px 0 0 var(--gold)}
 .ch-main{flex:1;min-width:0;display:flex;flex-direction:column;padding:12px 18px 0}
 .ch-top{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid #EAE1CF}
 .ch-title{font-family:var(--kai);font-size:21px;border:none;background:transparent;outline:none;flex:1;min-width:0;color:#201C18;letter-spacing:.04em}
+/* 标题左边的章号：系统自动编号，只读展示 */
+.ch-no{font-family:var(--kai);font-size:16px;color:#8A6421;background:#F7EBD3;border:1px solid #E7D6AF;
+  border-radius:7px;padding:2px 7px;white-space:nowrap;flex:none;letter-spacing:.04em}
 .ch-title::placeholder{color:#B6AB98}
 .ch-editor{flex:1;min-height:0;width:100%;border:none;outline:none;resize:none;background:transparent;
   font-family:var(--kai);font-size:17px;line-height:2.05;color:#2A2521;padding:18px 2px;letter-spacing:.02em}
@@ -35,21 +73,38 @@ injectStyle('chapter', `
 .ch-focus .ch-editor{font-size:19px;max-width:820px;margin:0 auto;padding-top:28px}
 .ch-focus .ch-top,.ch-focus .ch-foot{max-width:820px;margin:0 auto;width:100%}
 .ch-empty{flex:1;display:grid;place-items:center;color:#8C8272;font-size:12px}
-/* 正文里标出的情节对应内容：textarea 下面垫一层高亮影子，字色透明只露底色 */
+/* 正文里标出的情节对应内容：textarea 下面垫一层高亮影子，字色透明只露底色
+ * 质感 = 「荧光玻璃」：只有底色，不碰文字——
+ *   暖琥珀底（比纸色沉一档）+ 上下细细的亮边（玻璃厚度）+ 极缓的荧光呼吸；
+ *   行内文字仍由 textarea 自己渲染，影子层里的字一律透明，绝不叠加描边或发光。 */
 .ch-ed{position:relative;flex:1;min-height:0;display:flex}
 .ch-ed-hl{position:absolute;inset:0;overflow:hidden;pointer-events:none;padding:18px 2px;
   font-family:var(--kai);font-size:17px;line-height:2.05;letter-spacing:.02em;white-space:pre-wrap;word-break:break-word;
   color:transparent;background:transparent}
-.ch-ed-hl mark{background:rgba(201,151,60,.30);color:transparent;border-radius:3px;
-  box-shadow:0 0 0 1px rgba(201,151,60,.55);animation:chHlIn .5s ease}
-@keyframes chHlIn{from{background:rgba(201,151,60,.72)}to{background:rgba(201,151,60,.30)}}
+.ch-ed-hl mark{position:relative;color:transparent;border-radius:5px;padding:1px 3px;margin:0 -3px;
+  background:linear-gradient(180deg, rgba(226,201,157,.42) 0%, rgba(233,213,173,.54) 38%, rgba(228,204,158,.60) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92), inset 0 -1px 0 rgba(201,151,60,.20),
+    0 0 0 1px rgba(201,151,60,.20), 0 2px 7px rgba(185,138,60,.13);
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
+  animation:chGlassIn .66s cubic-bezier(.22,.9,.28,1), chGlassBreathe 3.4s ease-in-out .66s infinite}
+/* 落下：先亮成一块发光玻璃，再退回安静的稳定态 */
+@keyframes chGlassIn{
+  0%{background-color:rgba(255,246,224,.80);box-shadow:inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(201,151,60,.3),
+     0 0 0 1px rgba(201,151,60,.40), 0 0 22px 7px rgba(255,234,182,.85)}
+  60%{background-color:rgba(238,218,180,.50)}
+  100%{background-color:rgba(0,0,0,0);box-shadow:inset 0 1px 0 rgba(255,255,255,.92), inset 0 -1px 0 rgba(201,151,60,.20),
+     0 0 0 1px rgba(201,151,60,.20), 0 2px 7px rgba(185,138,60,.13)}
+}
+/* 常驻：只让外轮廓那圈荧光极缓起伏，底色不动，不打扰阅读 */
+@keyframes chGlassBreathe{
+  0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.92), inset 0 -1px 0 rgba(201,151,60,.20),
+    0 0 0 1px rgba(201,151,60,.20), 0 2px 7px rgba(185,138,60,.13)}
+  50%{box-shadow:inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(201,151,60,.24),
+    0 0 0 1px rgba(206,160,74,.32), 0 3px 11px rgba(201,155,76,.20)}
+}
+@media (prefers-reduced-motion: reduce){ .ch-ed-hl mark{animation:chGlassIn .3s ease} }
 .ch-focus .ch-ed-hl{font-size:19px;max-width:820px;margin:0 auto;padding-top:28px}
-.ch-hlbar{display:flex;align-items:center;gap:8px;font-size:10.5px;color:#7A6A4E;background:#FBF3DF;
-  border:1px solid #E7D6AF;border-radius:8px;padding:5px 9px;margin:8px 0 0}
-.ch-hlbar b{font-weight:700;color:#201C18}
-.ch-hlbar .x{margin-left:auto;cursor:pointer;color:#A99C84;font-size:13px;line-height:1;padding:0 2px}
-.ch-hlbar .x:hover{color:var(--ink)}
-.ch-hlbar .miss{color:#A9542A}
+/* 标出情节时页面上不再出现任何说明条 / 徽标：只有正文里那层荧光玻璃 */
 
 /* ---------- 右下角 AI 写作助手 ---------- */
 .ch-ai{position:fixed;right:18px;bottom:40px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
@@ -108,11 +163,18 @@ const page = {
 
     const wrap = h('div', { class: 'ch-wrap' });
     const side = h('aside', { class: 'ch-side', 'data-probe': 'chapter-side' });
+    /* 侧栏只滚列表本身，头顶那排按钮（新的章节 / 卷 / 情节）不跟着滚走 */
+    const sideHead = h('div', { class: 'ch-sidehead' });
+    const sideList = h('div', { class: 'ch-sidelist' });
+    side.appendChild(sideHead); side.appendChild(sideList);
     const main = h('main', { class: 'ch-main', 'data-probe': 'chapter-main' });
     wrap.appendChild(side); wrap.appendChild(main); root.appendChild(wrap);
 
     const cur = () => doc.manuscripts.find(m => m.id === st.id);
     const saveDebounced = debounce(() => NF.save(), 700);
+    /* 哪几章的情节被收起了：{ [稿件id]: true }。只活在本次页面里，不写进数据——
+     * 打开软件还是全部展开的干净样子。 */
+    const foldSet = Object.create(null);
 
     /* AI 助手用到的几个可变引用：编辑器、面板、聊天记录和请求状态 */
     let edRef = null;      /* 当前正文 textarea，AI 改完要回写它 */
@@ -170,9 +232,7 @@ const page = {
      * 不再跳到情节页：在正文 textarea 下面垫一层同样排版的影子（ch-ed-hl），
      * 把命中的段落包进 <mark>，正文里那块底色就亮起来，且会把视角滚过去。 */
     let hlLayer = null;      /* 正文下面的高亮影子层 */
-    let hlHost = null;       /* 放提示条的小容器 */
-    let hlRef = null;        /* { start, end, plotId } 当前标出的区间 */
-    let hlBar = null;        /* 正文上方的提示条 */
+    let hlRef = null;        /* { start, end, plotId } 当前标出的区间；null = 没有标记 */
 
     /* 在正文里找这一段情节对应的文字：
      * 1) 摘要里的一句话 / 情节名，能在正文里原样找到 → 命中那句
@@ -230,8 +290,16 @@ const page = {
       const before = escHtml(val.slice(0, s));
       const hit = escHtml(val.slice(s, e2));
       const after = escHtml(val.slice(e2));
-      /* textarea 末尾的换行会被吃掉，补一个换行让影子高度对齐 */
-      box.innerHTML = before + '<mark>' + hit + '</mark>' + after + '\n';
+      /* textarea 末尾的换行会被吃掉，补一个换行让影子高度对齐。
+       * 影子层里的文字只用来占位（全透明），不会在正文上叠任何额外的字或描边。 */
+      box.innerHTML = before + '<mark data-plot="' + escHtml(String(hlRef.plotId || '')) + '">' + hit + '</mark>' + after + '\n';
+      /* 重新触发一次「荧光亮起」：点同一情节、或从一条情节换到另一条，都会再亮一下作为反馈。
+       * 先清掉动画、读一次布局，浏览器才会把新挂上的动画当成一次全新的播放。 */
+      box.querySelectorAll('mark').forEach(mk => {
+        mk.style.animation = 'none';
+        void mk.offsetWidth;
+        mk.style.animation = '';
+      });
     }
     function scrollToHl() {
       const ed2 = edRef;
@@ -246,26 +314,52 @@ const page = {
       const top = Math.max(0, lines * lineH - ed2.clientHeight * 0.3);
       ed2.scrollTop = top;
       if (hlLayer) hlLayer.scrollTop = top;
+      /* 只把视线带过去，不选中文字：选中会盖一层蓝底、也会让「选中了就是当前情节」的错觉
+       * 把内容标记和编辑状态混在一起。要标记的只是那层荧光玻璃。 */
       ed2.blur();
       ed2.focus({ preventScroll: true });
-      ed2.setSelectionRange(hlRef.start, hlRef.end);
+      const at = Math.min(hlRef.start, val.length);
+      ed2.setSelectionRange(at, at);
     }
+    /* 关掉荧光玻璃：清数据 + 清影子层。不再有常驻的提示条，页面上一句话都不留 */
     function clearHl() {
       hlRef = null;
       if (hlLayer) clear(hlLayer);
-      if (hlBar && hlBar.parentNode) hlBar.remove();
-      hlBar = null;
     }
-    /* 点侧栏情节：标正文 */
+    /* 侧栏里只让「正在用荧光玻璃标出的那一条」有标记 */
+    function syncSideOn() {
+      side.querySelectorAll('.ch-plot, .ch-vplot').forEach(el => {
+        const on = !!(hlRef && el.dataset.plot === hlRef.plotId);
+        el.classList.toggle('on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    /* 点侧栏情节：标正文（没有选中，只有一层荧光玻璃） */
     function focusPlot(p) {
       if (!p) return;
+      /* 再点一次正在标着的那条 = 关掉特效 */
+      if (hlRef && hlRef.plotId === p.id) {
+        clearHl();
+        syncSideOn();
+        toast('已收起荧光玻璃标记', 'ok');
+        return;
+      }
       /* 若这篇情节不在当前稿件里，先切到它对应的稿件 */
       const curM = cur();
       if (curM) {
         const target = plotManuscript(p, curM.volumeId || st.vol);
         if (target && target !== curM.id) {
           const tm = doc.manuscripts.find(x => x.id === target);
-          if (tm) { st.id = tm.id; st.vol = tm.volumeId; renderSide(); renderMain(); }
+          if (tm) {
+            st.id = tm.id; st.vol = tm.volumeId;
+            renderSide(); renderMain();
+            /* 重画过页面后重新查一次这条情节的落点 */
+            const r2 = findRange((cur() || {}).content || '', p);
+            if (!r2) { clearHl(); syncSideOn(); toast('这一章正文里还没找到「' + (p.title || '该情节') + '」对应的内容，先写出来再点我', 'err'); return; }
+            hlRef = { start: r2.start, end: r2.end, plotId: p.id };
+            paintHl(); scrollToHl(); syncSideOn();
+            return;
+          }
         }
       }
       const m2 = cur();
@@ -273,69 +367,105 @@ const page = {
       const r = findRange(text, p);
       if (!r) {
         clearHl();
+        syncSideOn();
         toast('这一章正文里还没找到「' + (p.title || '该情节') + '」对应的内容，先写出来再点我', 'err');
         return;
       }
       hlRef = { start: r.start, end: r.end, plotId: p.id };
       paintHl();
       scrollToHl();
-      renderHlBar(p, r);
-    }
-    function renderHlBar(p, r) {
-      if (hlBar && hlBar.parentNode) hlBar.remove();
-      hlBar = h('div', { class: 'ch-hlbar' },
-        h('b', {}, '情节「' + p.title + '」'),
-        h('span', {}, r.kind === 'quote' ? '已在正文里标出对应文字' : '正文里没找到原句，已标出最相关的一段'),
-        h('span', { class: 'grow' }),
-        h('span', { class: 'x', title: '取消标记', onclick: () => { clearHl(); if (hlHost && hlHost.parentNode) hlHost.style.display = 'none'; } }, '✕'));
-      if (hlHost) { clear(hlHost); hlHost.appendChild(hlBar); hlHost.style.display = ''; }
+      syncSideOn();
     }
 
     function renderSide() {
-      clear(side);
+      /* 只清列表：顶部操作条是常驻节点，清掉它按钮就跟着没了 */
       const plots = plotsSorted();
-      side.appendChild(h('div', { class: 'row', style: { padding: '0 4px 6px' } },
-        h('div', { style: { fontSize: '12px', fontWeight: '700' } }, '正文'),
-        h('div', { class: 'grow' }),
-        h('button', { class: 'btn xs', onclick: () => NF.go('plot'), title: '去情节页管理时间轴' }, '情节 ' + (doc.plots || []).length),
-        h('button', { class: 'btn xs', onclick: addVolume }, '＋ 卷')));
+      /* ---- 顶部操作条（常驻，不随列表滚动）---- */
+      clear(sideHead);
+      /* 第一行：标题 + ＋卷 + 情节；第二行：新建章节（点开填章号和标题名） */
+      const headRow = h('div', { class: 'ch-headrow' });
+      headRow.appendChild(h('span', { class: 'lab' }, '正文'));
+      headRow.appendChild(h('span', { class: 'grow' }));
+      headRow.appendChild(h('button', { class: 'btn xs', onclick: addVolume, title: '新建一卷' }, '＋ 卷'));
+      headRow.appendChild(h('button', { class: 'btn xs', onclick: () => NF.go('plot'), title: '去情节页管理时间轴' }, '情节 ' + (doc.plots || []).length));
+      sideHead.appendChild(headRow);
+
+      sideHead.appendChild(h('div', { class: 'ch-newrow' },
+        h('button', {
+          class: 'ch-new', title: '填「第几章 + 标题名」，章号已有的话会插进去、其余自动顺延', onclick: () => addDoc()
+        }, h('span', { class: 'plus' }, '＋'), '新的章节')));
+
+      /* ---- 卷 / 章列表 ---- */
+      clear(sideList);
+      /* 卷内按章号排序：手写「第五章」和自动生成的「第八章」混在一起也能排对 */
+      const byNo = (a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9);
       doc.chapters.forEach(v => {
         const range = volumeRange(v.id);
         const volPlots = plots.filter(p => {
           const no = chNum(p.chapter);
           return range && no >= range.min && no <= range.max && plotManuscript(p, v.id) === null;
         });
-        side.appendChild(h('div', { class: 'ch-vol' + (v.id === st.vol ? ' on' : ''), onclick: () => { st.vol = v.id; renderSide(); } },
+        const vms = doc.manuscripts.filter(m => m.volumeId === v.id).sort(byNo);
+        sideList.appendChild(h('div', { class: 'ch-vol' + (v.id === st.vol ? ' on' : ''), onclick: () => { st.vol = v.id; renderSide(); } },
           h('span', {}, v.title),
-          h('small', {}, (doc.manuscripts.filter(m => m.volumeId === v.id).length) + ' 篇')));
+          h('small', {}, vms.length + ' 篇')));
         if (v.id === st.vol) {
-          doc.manuscripts.filter(m => m.volumeId === v.id).forEach(m => {
-            side.appendChild(h('div', { class: 'ch-doc' + (m.id === st.id ? ' on' : ''), onclick: () => { st.id = m.id; renderSide(); renderMain(); } },
-              h('span', { class: 'grow' }, m.title || '未命名'),
-              h('span', { class: 'tiny muted' }, words(m.content) + ' 字')));
-            /* 这一章挂的情节，点一下跳去情节页 */
+          vms.forEach(m => {
             const mine = plots.filter(p => plotManuscript(p, v.id) === m.id);
-            if (mine.length) {
-              side.appendChild(h('div', { class: 'ch-plots' }, mine.map(p => h('div', {
+            const folded = !!foldSet[m.id];
+            const row = h('div', {
+              class: 'ch-doc' + (m.id === st.id ? ' on' : '') + (folded ? ' folded' : ''),
+              title: mine.length ? (folded ? '点一下展开这一章的情节' : '点一下收起这一章的情节') : '',
+              onclick: () => {
+                /* 点这一章：切到这一章；若它挂着情节，同时收起 / 展开情节。
+                 * 收起只影响侧栏列表，不动正文里那层荧光玻璃。 */
+                st.id = m.id;
+                if (mine.length) foldSet[m.id] = !folded;
+                renderSide(); renderMain();
+              }
+            },
+              h('span', { class: 'ch-fold' + (folded ? ' off' : '') }, folded ? '＋' : '−'),
+              h('span', { class: 'grow' }, m.title || '未命名'),
+              h('span', { class: 'tiny muted' }, words(m.content) + ' 字'),
+              /* 行内「插一章」：在这一章后面原地加一章，章号自动顺延 */
+              h('span', {
+                class: 'ch-ins-line', title: '在「' + (m.title || '这一章') + '」后面插一章（章号自动顺延）',
+                onclick: (e) => { e.stopPropagation(); addDoc({ mode: 'after:' + m.id }); }
+              }, '＋'));
+            sideList.appendChild(row);
+            /* 这一章挂的情节，点一下在正文里标出；收起后整组不渲染 */
+            if (mine.length && !folded) {
+              sideList.appendChild(h('div', { class: 'ch-plots' }, mine.map(p => h('div', {
                 class: 'ch-plot ' + plotStatusCls(p),
-                title: (p.summary || p.title) + ' · 时间点 ' + (p.timePoint == null ? '—' : p.timePoint) + '（点击在正文里标出）',
+                dataset: { plot: p.id },
+                title: (p.summary || p.title) + ' · 时间点 ' + (p.timePoint == null ? '—' : p.timePoint) + '（点一下在正文里标出，再点一下收起）',
                 onclick: () => focusPlot(p)
               }, h('i', {}), h('span', {}, p.title), h('small', {}, plotStatusLabel(p))))));
             }
+            /* 收起时在章名下面留一行淡淡的提示，看得出这里藏着几条情节 */
+            if (mine.length && folded) {
+              sideList.appendChild(h('div', { class: 'ch-folded', onclick: () => { foldSet[m.id] = false; renderSide(); } },
+                h('span', {}, '情节 ' + mine.length + ' 条已收起'), h('span', { class: 'lnk' }, '展开')));
+            }
           });
-          side.appendChild(h('div', { class: 'ch-doc', style: { color: '#2F6F63' }, onclick: addDoc }, '＋ 新的章节'));
+          /* 卷末再放一个小号入口，写完一章顺手往下加；每一章下面也能原地插一章 */
+          sideList.appendChild(h('div', { class: 'ch-doc ch-doc-add', title: '在本卷末尾新增一章', onclick: () => addDoc({ mode: 'end' }) },
+            h('span', { class: 'grow' }, '＋ 加上一章')));
           /* 标了卷但没对上具体章节的情节，单独列在卷底下 */
           if (volPlots.length) {
-            side.appendChild(h('div', { class: 'ch-vplot', style: { cursor: 'default', fontSize: '9px', letterSpacing: '.1em' } }, '本卷情节（未对上章节）'));
-            volPlots.forEach(p => side.appendChild(h('div', {
+            sideList.appendChild(h('div', { class: 'ch-vplot', style: { cursor: 'default', fontSize: '9px', letterSpacing: '.1em' } }, '本卷情节（未对上章节）'));
+            volPlots.forEach(p => sideList.appendChild(h('div', {
               class: 'ch-vplot',
-              title: (p.summary || p.title) + '（点击在正文里标出）',
+              dataset: { plot: p.id },
+              title: (p.summary || p.title) + '（点一下在正文里标出，再点一下收起）',
               onclick: () => focusPlot(p)
             }, h('i', { style: { width: '6px', height: '6px', borderRadius: '50%', background: p.status === 'ending' ? 'var(--seal)' : p.status === 'later' ? '#C9973C' : 'var(--jade)', flex: 'none' } }), h('span', {}, p.title), h('small', { style: { marginLeft: 'auto', fontSize: '9px', color: '#A99C84' } }, p.chapter || ''))));
           }
         }
       });
-      side.appendChild(h('div', { style: { marginTop: 'auto' } },
+      /* 重画侧栏后，把「正在标着的那条」重新挂上标记 */
+      syncSideOn();
+      sideList.appendChild(h('div', { style: { marginTop: 'auto' } },
         h('div', { class: 'tiny muted', style: { lineHeight: '1.7', padding: '8px 4px' } },
           '写的时候按 Ctrl+S 立刻保存，按 Ctrl+Z 撤销上一步；关掉软件也会自动存。每 5 分钟生成一份备份，可在设置里恢复。')));
     }
@@ -345,11 +475,25 @@ const page = {
       clear(main);
       const m = cur();
       if (!m) {
-        main.appendChild(h('div', { class: 'ch-empty' }, '左边还没有章节，点「＋ 卷」再「＋ 新的章节」开始写'));
+        main.appendChild(h('div', { class: 'ch-empty' }, '左边还没有章节。点侧栏顶上的「＋ 新的章节」开始写，章号会自动排'));
         return;
       }
-      const titleIn = h('input', { class: 'ch-title', value: m.title || '', placeholder: '章节标题' });
-      titleIn.addEventListener('input', () => { m.title = titleIn.value; saveDebounced(); renderSideSoon(); });
+      /* 标题框只写「章名」：「第N章」由系统按当前卷自动编号、自动排序，
+       * 所以这里只显、只改章名那一截（手写进去的「第五章 · 」前缀会被自动剥掉）。 */
+      const no = manuscriptNo(m);
+      const titleIn = h('input', {
+        class: 'ch-title',
+        value: titleOf(m),
+        placeholder: no ? '这一章的章名（如：雨夜入冢）' : '章节标题'
+      });
+      titleIn.addEventListener('input', () => {
+        const name = titleIn.value.replace(/^[·、.．:：\-—\s]+/u, '');
+        const n2 = manuscriptNo(m) || no;
+        m.title = n2 ? ('第' + intToCn(n2) + '章' + (name.trim() ? ' · ' + name : '')) : name;
+        saveDebounced(); renderSideSoon();
+      });
+      /* 失焦时把框里残留的前缀清干净，保证框内永远只有章名 */
+      titleIn.addEventListener('blur', () => { const t2 = titleOf(m); if (titleIn.value !== t2) titleIn.value = t2; });
       /* 正文的撤销走全篇那一套（app.js 的 Ctrl+Z）：连续打一段算一步，撤到打之前的样子 */
       const ed = h('textarea', { class: 'ch-editor', placeholder: '从这里开始写…', spellcheck: 'false', autocomplete: 'off' });
       ed.value = m.content || '';
@@ -357,7 +501,6 @@ const page = {
       /* 高亮影子层：和 textarea 同样字号排版，只用来露底色 */
       const hl = h('div', { class: 'ch-ed-hl', 'aria-hidden': 'true' });
       hlLayer = hl;
-      hlHost = h('div', { style: { display: 'none' } });
       const cnt = h('span', {}, '');
       const upd = () => {
         const w = words(ed.value);
@@ -380,11 +523,11 @@ const page = {
         NF.save(); renderSide(); renderMain(); toast('已移入废案篓', 'ok');
       } }, '移入废案');
       main.appendChild(h('div', { class: 'ch-top' },
+        no ? h('span', { class: 'ch-no', title: '章号按当前卷自动排序，不用手写' }, '第' + intToCn(no) + '章') : null,
         titleIn,
         h('span', { class: 'pill' }, ago(m.updatedAt)),
         h('button', { class: 'btn xs', onclick: () => { st.focus = !st.focus; wrap.classList.toggle('ch-focus', st.focus); } }, '专注'),
         delBtn));
-      main.appendChild(hlHost);
       main.appendChild(h('div', { class: 'ch-ed' }, hl, ed));
       main.appendChild(h('div', { class: 'ch-foot' },
         cnt,
@@ -419,9 +562,138 @@ const page = {
     let sideTimer = null;
     const renderSideSoon = () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSide, 400); };
 
-    function addDoc() {
-      const m = { id: uid('m'), volumeId: st.vol, title: '新章节', content: '', updatedAt: new Date().toISOString() };
-      doc.manuscripts.push(m); st.id = m.id; NF.save(); renderSide(); renderMain();
+    /* ---------- 新建章节：章号自动接上、自动插到正确顺序位 ---------- */
+    const CN_DIGIT = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+    /* 1 → 一，10 → 十，12 → 十二，20 → 二十，25 → 二十五，105 → 一百零五 */
+    function intToCn(n) {
+      n = Math.max(0, Math.floor(Number(n) || 0));
+      if (n < 10) return CN_DIGIT[n];
+      if (n < 20) return '十' + (n % 10 ? CN_DIGIT[n % 10] : '');
+      if (n < 100) return CN_DIGIT[Math.floor(n / 10)] + '十' + (n % 10 ? CN_DIGIT[n % 10] : '');
+      let s = '', rest = n, hit = false;
+      for (const u of [[1000, '千'], [100, '百']]) {
+        const d = Math.floor(rest / u[0]);
+        if (d) { s += CN_DIGIT[d] + u[1]; rest -= d * u[0]; hit = true; }
+        else if (hit && rest) s += '零';
+      }
+      if (rest) s += n > 100 && rest < 10 ? '零' + CN_DIGIT[rest] : CN_DIGIT[rest];
+      return s;
+    }
+    /* 从标题里摘出「章名」本身（去掉「第五章 · 」这种前缀）；标题不是章节体就原样返回 */
+    function titleOf(m) {
+      const raw = String((m && m.title) || '');
+      const t = raw.replace(/^\s*第?\s*[〇零一二三四五六七八九十百千0-9]+\s*[章回节]\s*[·、.．:：\-—]?\s*/u, '').trim();
+      return t || '';
+    }
+    /* 新建一章：弹窗里自己填「第几章 + 标题名」。
+     * 这个编号如果已经有人（比如已有第三章），新章就按这个号插进去，原来的第三章及之后全部顺次 +1；
+     * 编号大于现有章数就当成在末尾加一章，中间没有的空号不补。 */
+    function addDoc(opts) {
+      if (!st.vol) { toast('先点「＋ 卷」建一卷，再往里加章节', 'err'); return; }
+      /* 在某一章行内点「＋」时，默认号 = 那一章之后（等于它现在的号 + 1） */
+      let dftNo = doc.manuscripts.filter(m => m.volumeId === st.vol).length + 1;
+      if (opts && opts.mode && opts.mode.indexOf('after:') === 0) {
+        const id = opts.mode.split(':')[1];
+        const vms = doc.manuscripts.filter(m => m.volumeId === st.vol)
+          .slice().sort((a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9));
+        const at = vms.findIndex(x => x.id === id);
+        if (at >= 0) dftNo = at + 2;
+      }
+      openNewChapterDialog(dftNo);
+    }
+
+    /* 「第几章」+ 章名 的输入框：弹窗和目录都用同一个（中文数字、阿拉伯数字、「第3章」都认） */
+    function openNewChapterDialog(dftNo) {
+      const numIn = h('input', { class: 'input', inputmode: 'numeric', value: String(dftNo), style: { width: '96px' } });
+      const nameIn = h('input', { class: 'input', placeholder: '这一章的标题名，例如：雨夜入冢' });
+      const hint = h('div', { class: 'tiny muted', style: { lineHeight: '1.8', marginTop: '2px', minHeight: '16px' } });
+      const vms = () => doc.manuscripts.filter(m => m.volumeId === st.vol)
+        .slice().sort((a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9));
+
+      const preview = () => {
+        const want = parseChapterNo(numIn.value);
+        if (!want) { hint.textContent = '请输入要插入的章号（1、2、3…）'; hint.style.color = '#A9542A'; return; }
+        const list = vms();
+        const name = nameIn.value.trim();
+        const label = '第' + intToCn(want) + '章' + (name ? ' · ' + name : '');
+        if (want > list.length) {
+          hint.style.color = '';
+          hint.textContent = '本卷现有 ' + list.length + ' 章 → 会作为「' + label + '」加在末尾'
+            + (want > list.length + 1 ? '（实际编号第 ' + (list.length + 1) + ' 章；中间空号不补）' : '') + '。';
+        } else {
+          const hit = list[want - 1];
+          hint.style.color = '';
+          hint.textContent = '第 ' + want + ' 章已有「' + (titleOf(hit) || hit.title || '未命名') + '」→ 新的「' + label + '」插到这里，'
+            + '原来的第 ' + want + ' 章起全部顺延为第 ' + (want + 1) + (list.length ? '…' + (list.length + 1) : '') + ' 章，标题不变。';
+        }
+      };
+      numIn.addEventListener('input', preview);
+      nameIn.addEventListener('input', preview);
+
+      const dlg = modal({
+        title: '新建章节', okText: '新建',
+        body: h('div', { class: 'col', style: { gap: '10px' } },
+          h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-end' } },
+            h('div', { class: 'field' }, h('label', {}, '插入到第几章'), numIn),
+            h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '标题名'), nameIn)),
+          hint),
+        onOk: () => {
+          const want = parseChapterNo(numIn.value);
+          if (!want) { toast('章号要填数字（1、2、3…）', 'err'); return false; }
+          const name = nameIn.value.trim();
+          const list = vms();
+          /* want > 现有章数：直接作为第 list.length+1 章放末尾，中间空号不补 */
+          const pos = Math.min(want - 1, list.length);
+          const mm = {
+            id: uid('m'), volumeId: st.vol, chapterNo: pos + 1,
+            title: '第' + intToCn(pos + 1) + '章' + (name ? ' · ' + name : ''),
+            content: '', updatedAt: new Date().toISOString()
+          };
+          let at;
+          if (pos < list.length) at = doc.manuscripts.findIndex(x => x.id === list[pos].id);
+          else at = doc.manuscripts.length;
+          doc.manuscripts.splice(Math.max(0, at), 0, mm);
+          /* 插进中间 → 整卷按顺序重编号，原来的第三章起顺延成第四章…；只动这一卷 */
+          const changed = pos < list.length ? renumberVolume(st.vol) : 0;
+          st.id = mm.id;
+          NF.save();
+          renderSide(); renderMain();
+          toast('已新建「' + mm.title + '」' + (changed ? '，本卷后面的章号已顺延' : ''), 'ok');
+        }
+      });
+      /* 回车 = 确定：两个输入框都绑上 */
+      [numIn, nameIn].forEach(el => el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); const b = dlg.box.querySelector('.modal-f .btn.pri'); if (b) b.click(); }
+      }));
+      setTimeout(() => { preview(); nameIn.focus(); }, 30);
+    }
+    /* 把「1」「第3章」「第三章」「十二」都读成数字；读不出返回 0 */
+    function parseChapterNo(v) {
+      const t = String(v || '').trim();
+      if (!t) return 0;
+      const ar = t.match(/(\d+)/);
+      if (ar) return Math.min(9999, Number(ar[1]));
+      const cn = t.match(/[〇零一二三四五六七八九十百千]+/u);
+      if (cn) return Math.min(9999, cnToInt(cn[0]));
+      return 0;
+    }
+    /* 把一卷里的稿件按当前顺序重编为 第一章、第二章……；只动章号，章名保留。
+     * 返回改动过的篇数。chapterNo 与标题前缀一起改，情节页靠章号↔章节对应。 */
+    function renumberVolume(vid) {
+      const vms = doc.manuscripts.filter(m => m.volumeId === vid)
+        .slice().sort((a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9));
+      let n = 0;
+      vms.forEach((m, i) => {
+        const no = i + 1;
+        const name = titleOf(m);
+        const next = '第' + intToCn(no) + '章' + (name ? ' · ' + name : '');
+        if (m.chapterNo !== no || m.title !== next) {
+          m.chapterNo = no;
+          m.title = next;
+          n++;
+        }
+      });
+      return n;
     }
     function addVolume() {
       const t = prompt('卷名（例如：卷四 · 无界海）');
