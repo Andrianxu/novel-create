@@ -333,6 +333,152 @@ export default {
             try { window.nf.image.openExternal(urlIn.value); } catch (e) { toast(e.message, 'err'); }
           } }, '打开试试')))));
 
+
+    /* ---------- 同步（书稿放进你自己的网盘） ---------- */
+    const sy = Object.assign({ enabled: false, kind: 'folder', folder: '', url: '', user: '', encrypt: false, autoMinutes: 0 },
+      (NF.settings && NF.settings.sync) || {});
+    const syPill = h('span', { class: 'pill ' + (sy.enabled ? 'jade' : 'seal') }, sy.enabled ? '已开启' : '未开启');
+
+    const kindSel = h('select', { class: 'input' },
+      h('option', { value: 'folder', selected: sy.kind !== 'webdav' }, '本地同步文件夹（OneDrive / 坚果云 / iCloud）'),
+      h('option', { value: 'webdav', selected: sy.kind === 'webdav' }, 'WebDAV（坚果云 / 群晖 NAS / Nextcloud）'));
+
+    const folderIn = h('input', { class: 'input', value: sy.folder || '', placeholder: '例如 C:\\Users\\我\\OneDrive\\卷帙' });
+    const urlIn2 = h('input', { class: 'input', value: sy.url || '', placeholder: 'https://dav.jianguoyun.com/dav/你的目录' });
+    const userIn = h('input', { class: 'input', value: sy.user || '', placeholder: '坚果云账号邮箱' });
+    const passIn = h('input', { class: 'input', type: 'password', placeholder: sy.hasDavPass ? '已保存（留空则不修改）' : '应用密码（不是登录密码）' });
+    const passIn2 = h('input', { class: 'input', type: 'password', placeholder: sy.hasPass ? '已保存（留空则不修改）' : '设置一个同步口令，至少 8 位' });
+    const encChk = h('input', { type: 'checkbox', checked: !!sy.encrypt });
+
+    const folderRow = h('div', { class: 'field' },
+      h('label', {}, '同步文件夹'),
+      h('div', { class: 'krow' }, folderIn,
+        h('button', { class: 'btn xs', onclick: async () => {
+          try {
+            const r = await window.nf.sync.pickFolder();
+            if (r && r.folder) folderIn.value = r.folder;
+          } catch (e) { toast(e.message, 'err'); }
+        } }, '选择…')));
+    const davRow = h('div', { class: 'field-col' },
+      h('div', { class: 'field' }, h('label', {}, 'WebDAV 地址'), urlIn2),
+      h('div', { class: 'krow' },
+        h('div', { class: 'field' }, h('label', {}, '账号'), userIn),
+        h('div', { class: 'field' }, h('label', {}, '密码 / 应用密码'), passIn)));
+
+    function paintKind() {
+      const isDav = kindSel.value === 'webdav';
+      folderRow.hidden = isDav;
+      davRow.hidden = !isDav;
+    }
+    kindSel.addEventListener('change', paintKind);
+
+    const syOut = h('div', { class: 'tiny muted' }, '');
+
+    function collectSync() {
+      return {
+        enabled: true,
+        kind: kindSel.value,
+        folder: folderIn.value.trim(),
+        url: urlIn2.value.trim(),
+        user: userIn.value.trim(),
+        encrypt: encChk.checked,
+        autoMinutes: 0
+      };
+    }
+
+    async function saveSync(showToast) {
+      const patch = collectSync();
+      if (patch.kind === 'folder' && !patch.folder) throw new Error('请先选择同步文件夹');
+      if (patch.kind === 'webdav' && !patch.url) throw new Error('请先填 WebDAV 地址');
+      if (passIn.value.trim()) await window.nf.settings.setSyncSecret('davPass', passIn.value.trim());
+      if (passIn2.value.trim()) {
+        if (passIn2.value.trim().length < 8) throw new Error('同步口令至少 8 位');
+        await window.nf.settings.setSyncSecret('syncPass', passIn2.value.trim());
+      }
+      NF.settings = await window.nf.settings.set({ sync: patch });
+      syPill.textContent = '已开启';
+      syPill.className = 'pill jade';
+      /* 顶栏状态点要跟着亮起来：它是按 NF.settings 判断显不显示的 */
+      if (window.NF && typeof NF.paintSync === 'function') NF.paintSync('busy', '已就绪，点「立即同步」');
+      passIn.value = ''; passIn2.value = '';
+      const cur = NF.settings.sync || {};
+      passIn.placeholder = cur.hasDavPass ? '已保存（留空则不修改）' : '应用密码（不是登录密码）';
+      passIn2.placeholder = cur.hasPass ? '已保存（留空则不修改）' : '设置一个同步口令，至少 8 位';
+      if (showToast) toast('同步设置已保存', 'ok');
+    }
+
+    const syTest = h('button', { class: 'btn', onclick: async () => {
+      syTest.disabled = true;
+      syOut.textContent = '正在连接…';
+      try { await saveSync(false); } catch (e) { syOut.textContent = e.message; syTest.disabled = false; return; }
+      try {
+        const r = await window.nf.sync.test();
+        syOut.textContent = r.ok ? ('连接成功：' + r.detail + (r.hasRemote ? ' · 云端已有书稿' : ' · 云端还没有书稿（第一次同步会建立）')) : ('连接失败：' + r.message);
+        toast(r.ok ? '网盘连接正常' : '连接失败：' + r.message, r.ok ? 'ok' : 'err');
+      } catch (e) { syOut.textContent = '连接失败：' + ipcErr(e); toast('连接失败', 'err'); }
+      syTest.disabled = false;
+    } }, '测试连接');
+
+    const syNow = h('button', { class: 'btn pri', onclick: async () => {
+      syNow.disabled = true;
+      syOut.textContent = '同步中…';
+      const off = window.nf.on('sync:progress', m => { syOut.textContent = m; });
+      try { await saveSync(false); } catch (e) { syOut.textContent = e.message; syNow.disabled = false; if (typeof off === 'function') off(); return; }
+      try {
+        /* 先把当前数据交主进程落盘：同步合并的是那份，别把刚改的漏掉 */
+        try { await window.nf.data.save(NF.doc); } catch (e) {}
+        const r = await window.nf.sync.now();
+        if (r.ok) {
+          syOut.textContent = r.message + (r.changed ? '（本机数据已更新，界面刷新中）' : '');
+          toast(r.message, r.conflicts && r.conflicts.length ? '' : 'ok');
+          if (window.NF && typeof NF.paintSync === 'function') NF.paintSync(r.conflicts && r.conflicts.length ? 'warn' : 'ok', r.message);
+          if (r.changed) {
+            try { NF.doc = await window.nf.data.load(); } catch (e) {}
+            if (window.NF && typeof NF.refresh === 'function') NF.refresh();
+          }
+        } else {
+          syOut.textContent = '同步失败：' + r.message;
+          toast('同步失败：' + r.message, 'err');
+          if (window.NF && typeof NF.paintSync === 'function') NF.paintSync('err', r.message);
+        }
+      } catch (e) { syOut.textContent = '同步失败：' + ipcErr(e); toast('同步失败', 'err'); }
+      if (typeof off === 'function') off();
+      syNow.disabled = false;
+    } }, '立即同步');
+
+    const syOff = h('button', { class: 'btn', onclick: async () => {
+      NF.settings = await window.nf.settings.set({ sync: { enabled: false } });
+      syPill.textContent = '未开启';
+      syPill.className = 'pill seal';
+      syOut.textContent = '同步已关闭；网盘里已有的书稿不会被删除。';
+      toast('同步已关闭', 'ok');
+    } }, '关闭同步');
+
+    left.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'set-h' }, h('h3', {}, '多设备同步'), syPill),
+      h('div', { class: 'set-b' },
+        h('div', { class: 'set-note safe' },
+          h('b', {}, '数据存在你自己的网盘里：'),
+          '卷帙不经过任何服务器，也不保存你的稿子。电脑和手机填同一个网盘目录，就自动同步；两边都改过的同一章会',
+          h('b', {}, '各留一份'),
+          '，不会覆盖。'),
+        h('div', { class: 'field' }, h('label', {}, '连接方式'), kindSel),
+        folderRow,
+        davRow,
+        h('div', { class: 'field' },
+          h('label', {}, '端到端加密'),
+          h('label', { class: 'ai-opt', style: { display: 'inline-flex', gap: '7px', alignItems: 'center' } },
+            encChk,
+            h('span', {}, '加密后上传（网盘服务商也看不到正文；' + '忘记口令将无法恢复）'))),
+        h('div', { class: 'field' }, h('label', {}, '同步口令'), passIn2),
+        h('div', { class: 'row' }, syOut),
+        h('div', { class: 'row' }, h('div', { class: 'grow' }), syOff, syTest, syNow),
+        h('div', { class: 'tiny muted' },
+          '文件会以 ', h('code', { class: 'mono tiny' }, 'novelfolio.sync'), ' 的名字放在你选的网盘目录里。',
+          '本机始终保留 30 份备份，网盘出问题也不会丢稿。'))));
+
+    paintKind();
+
     /* ---------- 数据与备份 ---------- */
     const bkBox = h('div', { class: 'col', style: { gap: '0' } });
     async function loadBackups() {

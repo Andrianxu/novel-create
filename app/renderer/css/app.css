@@ -27,8 +27,17 @@ body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--paper);f
 .mtab.on{background:var(--ink);color:var(--paper);font-weight:700}
 .search{height:30px;min-width:210px;border-radius:8px;background:#F4EEE2;border:1px solid var(--line);display:flex;align-items:center;gap:7px;padding:0 9px;font-size:11.5px;color:var(--muted);cursor:pointer}
 .search .kbd{margin-left:auto;font-size:9px;border:1px solid var(--line2);border-radius:3px;padding:0 4px;background:#fff}
-.uchip{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--sub)}
+.uchip{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--sub);cursor:pointer;border-radius:8px;padding:2px 6px 2px 2px;transition:background .12s}
+.uchip:hover{background:rgba(255,255,255,.6)}
 .uchip .av{width:23px;height:23px;border-radius:7px;background:var(--seal);color:#fff;display:grid;place-items:center;font-size:11px}
+/* 顶栏同步状态点：灰=未开启 / 绿=已同步 / 金=同步中 / 红=出错 / 橙=有冲突 */
+.sync-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#B6AB98;
+  box-shadow:0 0 0 3px rgba(182,171,152,.18);transition:background .2s,box-shadow .2s}
+.sync-dot.ok{background:#2F6F63;box-shadow:0 0 0 3px rgba(47,111,99,.18)}
+.sync-dot.busy{background:#C9973C;box-shadow:0 0 0 3px rgba(201,151,60,.2);animation:syncPulse 1s ease-in-out infinite}
+.sync-dot.err{background:#A8322A;box-shadow:0 0 0 3px rgba(168,50,42,.18)}
+.sync-dot.warn{background:#D98324;box-shadow:0 0 0 3px rgba(217,131,36,.2)}
+@keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.35}}
 /* ---------- statusbar ---------- */
 .statusbar{height:24px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;font-size:10px;color:var(--muted);background:var(--panel);border-top:1px solid var(--line2)}
 /* 状态栏里的撤销 / 重做 */

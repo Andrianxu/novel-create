@@ -170,6 +170,82 @@ function route() {
   NF.status(page.statusText ? page.statusText(NF.doc) : '就绪');
 }
 
+/* ---------------- 顶栏：同步状态 + 作者名 ---------------- */
+
+function paintSyncDot(state, title) {
+  const el = document.getElementById('syncDot');
+  if (!el) return;
+  const s = NF.settings && NF.settings.sync;
+  if (!s || !s.enabled) { el.hidden = true; return; }
+  el.hidden = false;
+  el.className = 'sync-dot ' + (state || '');
+  el.title = '同步：' + (title || '已就绪');
+}
+
+async function runSync(silent) {
+  const s = NF.settings && NF.settings.sync;
+  if (!s || !s.enabled) return null;
+  paintSyncDot('busy', '正在同步…');
+  try {
+    /* 先把界面里最新的数据落盘。主进程同步用的是它自己缓存的那份 doc，
+     * 渲染层刚改、还没来得及自动保存的内容必须先交过去，否则会被云端覆盖掉。 */
+    clearTimeout(saveTimer);
+    try { await window.nf.data.save(NF.doc); } catch (e) { console.error(e); }
+    const r = await window.nf.sync.now();
+    if (!r.ok) { paintSyncDot('err', r.message || '同步失败'); if (!silent) toast('同步失败：' + r.message, 'err'); return r; }
+    if (r.changed) {
+      /* 云端带来了新内容：换一份新数据并原地重画，别丢焦点和滚动位置 */
+      try {
+        const d = await window.nf.data.load();
+        NF.doc = d;
+        if (NF.current) history.prime && history.prime();
+        NF.refresh();
+      } catch (e) { console.error(e); }
+    }
+    paintSyncDot(r.conflicts && r.conflicts.length ? 'warn' : 'ok', r.message);
+    if (!silent) toast(r.message, r.conflicts && r.conflicts.length ? '' : 'ok');
+    return r;
+  } catch (e) {
+    paintSyncDot('err', e.message || '同步失败');
+    if (!silent) toast('同步失败：' + e.message, 'err');
+    return { ok: false, message: e.message };
+  }
+}
+NF.runSync = runSync;
+NF.paintSync = paintSyncDot;
+NF.paintAuthor = paintAuthor;
+
+function paintAuthor() {
+  const name = (NF.doc.meta && NF.doc.meta.author) || '我';
+  const n = document.getElementById('authorName');
+  const a = document.getElementById('authorAv');
+  if (n) n.textContent = name;
+  if (a) a.textContent = name.slice(0, 1);
+}
+
+function bindAuthorChip() {
+  const chip = document.getElementById('authorChip');
+  if (!chip) return;
+  chip.addEventListener('click', () => {
+    const cur = (NF.doc.meta && NF.doc.meta.author) || '';
+    const inp = h('input', { class: 'input', value: cur, placeholder: '你的名字（显示在右上角）', maxlength: '24' });
+    const m = modal({
+      title: '作者名', body: h('div', {}, inp,
+        h('div', { class: 'tiny muted', style: { marginTop: '8px' } }, '只是显示用的名字，不是账号，也不影响书稿内容。')),
+      okText: '保存',
+      onOk: () => {
+        NF.doc.meta = NF.doc.meta || {};
+        NF.doc.meta.author = inp.value.trim() || '我';
+        document.getElementById('authorName').textContent = NF.doc.meta.author;
+        const av = document.getElementById('authorAv');
+        if (av) av.textContent = NF.doc.meta.author.slice(0, 1);
+        NF.save(); toast('作者名已更新', 'ok');
+      }
+    });
+    setTimeout(() => inp.focus(), 30);
+  });
+}
+
 function quickSearch() {
   const list = [];
   (NF.doc.characters || []).forEach(c => list.push({ t: '人物', n: c.name, go: () => NF.go('characters', { id: c.id }) }));
@@ -201,7 +277,8 @@ async function boot() {
     return;
   }
   document.getElementById('bookTitle').textContent = (NF.doc.meta && NF.doc.meta.title) || '卷帙';
-  document.getElementById('authorName').textContent = (NF.doc.meta && NF.doc.meta.author) || '我';
+  paintAuthor();
+  bindAuthorChip();
   document.getElementById('statRight').textContent =
     'v' + NF.info.version + ' · 数据在 ' + NF.info.userData + (NF.info.encrypt ? ' · 密钥已系统加密' : ' · 系统不支持加密');
   const bootEl = document.getElementById('boot');
@@ -226,6 +303,13 @@ async function boot() {
     else if (e.inputType === 'historyRedo') { e.preventDefault(); redoStep(); }
   }, true);
   route();
-  NF.status('已就绪 · 数据只存在本机');
+
+  /* 开了同步：启动后悄悄拉一次，把别的设备改过的内容并进来 */
+  const syn = NF.settings && NF.settings.sync;
+  NF.status(syn && syn.enabled ? '已就绪 · 书稿在你的网盘里同步' : '已就绪 · 数据只存在本机');
+  if (syn && syn.enabled) {
+    paintSyncDot('busy', '正在同步…');
+    setTimeout(() => { runSync(true); }, 800);
+  }
 }
 boot();

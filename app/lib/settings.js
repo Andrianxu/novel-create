@@ -17,6 +17,16 @@ const DEFAULTS = {
     sendFullText: false,
     redactNames: false,
     logRequests: false
+  },
+  /* 同步：书稿放在用户自己的网盘 / 本地同步盘里，卷帙不经过任何服务器 */
+  sync: {
+    enabled: false,
+    kind: 'folder',          /* folder | webdav */
+    folder: '',
+    url: '',
+    user: '',
+    encrypt: false,          /* 端到端加密开关 */
+    autoMinutes: 0           /* 0 = 只在手动 / 启动时同步 */
   }
 };
 
@@ -103,6 +113,23 @@ async function getApiKey() {
 /* 同步镜像，仅供日志脱敏这类「不能 await」的地方使用 */
 function getApiKeySync() { return process.env.NF_API_KEY || keyCache; }
 
+/* ---- 同步凭据：WebDAV 密码与端到端加密口令，和 API Key 同一套加密存储 ----
+ * 口令不落明文、不回渲染层；界面只能看到「有没有设过」和口令指纹。 */
+async function setSyncCredential(name, value) {
+  const obj = (await keyStore()) || {};
+  if (!value) delete obj[name];
+  else obj[name] = String(value);
+  const plain = JSON.stringify(obj);
+  if (await encAvailable()) fs.writeFileSync(P.secretsFile(), await encryptText(plain));
+  else fs.writeFileSync(P.secretsFile(), JSON.stringify({ plain: obj }), 'utf8');
+  return true;
+}
+
+async function getSyncCredential(name) {
+  const k = await keyStore();
+  return (k && k[name]) || '';
+}
+
 function maskKey(k) {
   if (!k) return '';
   if (k.length <= 8) return '****';
@@ -114,9 +141,19 @@ async function publicSettings() {
   const cfg = getConfig();
   const key = await getApiKey();
   const enc = await encAvailable();
+  /* 同步设置：口令和密码一律不外发，只告诉界面「设没设过」 */
+  const sync = cfg.sync || {};
+  const syncPass = await getSyncCredential('syncPass');
+  const davPass = await getSyncCredential('davPass');
   return {
     llm: cfg.llm,
     privacy: cfg.privacy,
+    sync: {
+      enabled: !!sync.enabled, kind: sync.kind || 'folder', folder: sync.folder || '',
+      url: sync.url || '', user: sync.user || '', encrypt: !!sync.encrypt, autoMinutes: sync.autoMinutes || 0,
+      hasDavPass: !!davPass, hasPass: !!syncPass,
+      passFingerprint: syncPass ? require('./crypto').fingerprint(syncPass) : ''
+    },
     hasApiKey: !!key,
     keyMasked: maskKey(key),
     keyFromEnv: !!process.env.NF_API_KEY,
@@ -124,4 +161,7 @@ async function publicSettings() {
   };
 }
 
-module.exports = { getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable };
+module.exports = {
+  getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable,
+  setSyncCredential, getSyncCredential
+};

@@ -7,6 +7,7 @@ const store = require('./lib/store');
 const settings = require('./lib/settings');
 const llm = require('./lib/llm');
 const parse = require('./lib/parse');
+const syncer = require('./lib/syncer');
 
 let win = null;
 let doc = null;
@@ -138,11 +139,33 @@ ipcMain.handle('data:importJson', async () => {
   return doc;
 });
 
+/* ---------------- 同步（书稿放进用户自己的网盘） ---------------- */
+ipcMain.handle('sync:test', (e, conf) => syncer.testConnection(conf));
+ipcMain.handle('sync:status', () => syncer.status());
+ipcMain.handle('sync:now', async (e) => {
+  /* 以磁盘上的最新数据为准：渲染层刚落盘的内容才不会被内存里的旧 doc 覆盖 */
+  try { const onDisk = store.load(); if (onDisk) doc = onDisk; } catch (err) {}
+  const r = await syncer.syncNow({ doc: getDoc(), onProgress: m => { if (win && !win.isDestroyed()) win.webContents.send('sync:progress', m); } });
+  if (r && r.ok && r.doc) { doc = r.doc; persist(); }     /* 只有成功才换本机数据 */
+  return { ok: r.ok, changed: !!r.changed, message: r.message, conflicts: r.conflicts || [], stats: r.stats || null };
+});
+ipcMain.handle('sync:pickFolder', async () => {
+  const r = await dialog.showOpenDialog(win, { title: '选择同步文件夹', properties: ['openDirectory', 'createDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return { canceled: true };
+  return { folder: r.filePaths[0] };
+});
+
 /* ---------------- settings ---------------- */
 ipcMain.handle('settings:get', () => settings.publicSettings());
 ipcMain.handle('settings:set', async (e, patch) => { settings.setConfig(patch); return await settings.publicSettings(); });
 ipcMain.handle('settings:setApiKey', async (e, k) => {
   await settings.setApiKey(String(k || '').trim());
+  return await settings.publicSettings();
+});
+/* 同步凭据：WebDAV 密码 / 端到端加密口令，加密后存进 secrets.bin，不回传界面 */
+ipcMain.handle('settings:setSyncSecret', async (e, name, value) => {
+  if (!['davPass', 'syncPass'].includes(name)) throw new Error('未知的凭据类型');
+  await settings.setSyncCredential(name, String(value || ''));
   return await settings.publicSettings();
 });
 

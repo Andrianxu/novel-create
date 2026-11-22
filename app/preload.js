@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('nf', {
   settings: {
     get: () => call('settings:get'),
     set: (patch) => call('settings:set', patch),
+    setSyncSecret: (name, value) => call('settings:setSyncSecret', name, value),
     setApiKey: (k) => call('settings:setApiKey', k),
     clearApiKey: () => call('settings:setApiKey', '')
   },
@@ -42,6 +43,12 @@ contextBridge.exposeInMainWorld('nf', {
     commit: (opts) => call('book:commit', opts),
     remove: (bookId) => call('book:remove', bookId)
   },
+  sync: {
+    test: (conf) => call('sync:test', conf),
+    now: () => call('sync:now'),
+    status: () => call('sync:status'),
+    pickFolder: () => call('sync:pickFolder')
+  },
   clip: {
     write: (text) => call('clipboard:write', text)
   },
@@ -55,7 +62,8 @@ contextBridge.exposeInMainWorld('nf', {
   },
   on: (evt, fn) => {
     const m = {
-      'book:progress': (e, d) => fn(d)
+      'book:progress': (e, d) => fn(d),
+      'sync:progress': (e, d) => fn(d)
     }[evt];
     if (!m) return () => {};
     ipcRenderer.on(evt, m);

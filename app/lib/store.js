@@ -7,6 +7,52 @@ const makeSeed = require('./seed');
 const MAX_BACKUPS = 30;
 let lastBackupAt = 0;
 
+/* ---- 自动打戳：谁改了条目，就给它盖上「改过」的时间 ----
+ *
+ * 为什么需要：各页面改数据时大多直接改字段、再调 NF.save()，并不管 updatedAt。
+ * 同步按 updatedAt 判断新旧，条目没戳就会被当成「没改过」而被云端覆盖 —— 这是丢稿的路。
+ *
+ * 做法：每次落盘前，把每条内容与「上次落盘时的样子」比对；内容变了的就更新 updatedAt。
+ * 保存路径只有这一个，所以任何页面、任何改法都能覆盖到。
+ */
+const COLLECTIONS = ['characters', 'planes', 'plots', 'scraps', 'chapters', 'manuscripts', 'books'];
+const lastSig = new Map();          /* "集合/id" -> 内容签名 */
+
+function itemSig(it) {
+  if (!it || typeof it !== 'object') return '';
+  const copy = {};
+  for (const k of Object.keys(it)) if (k !== 'updatedAt') copy[k] = it[k];
+  return JSON.stringify(copy, Object.keys(copy).sort());
+}
+
+function stampChanges(doc) {
+  const now = new Date().toISOString();
+  const seen = new Set();
+  for (const key of COLLECTIONS) {
+    const arr = Array.isArray(doc[key]) ? doc[key] : [];
+    for (const it of arr) {
+      if (!it || it.id == null) continue;
+      const id = key + '/' + it.id;
+      seen.add(id);
+      const sig = itemSig(it);
+      const prev = lastSig.get(id);
+      if (prev !== undefined && prev !== sig) it.updatedAt = now;   /* 改过：盖新戳 */
+      lastSig.set(id, sig);
+    }
+  }
+  /* 被删掉的条目不再跟踪 */
+  for (const id of Array.from(lastSig.keys())) if (!seen.has(id)) lastSig.delete(id);
+}
+
+/* 载入后先把每条的现状记成基线，免得启动时把所有条目都当「刚改过」 */
+function primeSignatures(doc) {
+  lastSig.clear();
+  for (const key of COLLECTIONS) {
+    const arr = Array.isArray(doc[key]) ? doc[key] : [];
+    for (const it of arr) { if (it && it.id != null) lastSig.set(key + '/' + it.id, itemSig(it)); }
+  }
+}
+
 function seed() { return makeSeed(); }
 
 function readJson(file, fallback) {
@@ -29,12 +75,14 @@ function load() {
   }
   for (const k of ['characters', 'planes', 'plots', 'scraps', 'chapters', 'books']) if (!Array.isArray(doc[k])) doc[k] = [];
   if (!doc.settings) doc.settings = seed().settings;
+  primeSignatures(doc);
   return doc;
 }
 
 function save(doc) {
   doc.meta = doc.meta || {};
   doc.meta.updatedAt = new Date().toISOString();
+  stampChanges(doc);                 /* 改过的条目自动盖新戳，同步才不会把它当旧的 */
   writeAtomic(P.dataFile(), doc);
   const now = Date.now();
   if (now - lastBackupAt > 5 * 60 * 1000) { lastBackupAt = now; try { backup(doc); } catch (e) {} }
@@ -66,4 +114,4 @@ function restore(name) {
   return doc;
 }
 
-module.exports = { seed, load, save, backup, listBackups, restore, writeAtomic };
+module.exports = { seed, load, save, backup, listBackups, restore, writeAtomic, primeSignatures, stampChanges };
