@@ -298,25 +298,251 @@ ipcMain.handle('llm:test', async () => {
 ipcMain.handle('llm:chat', (e, messages, opts) => llm.chat(messages, opts || {}));
 ipcMain.handle('llm:models', (e, opts) => llm.listModels(opts || {}));
 
-/* ---------------- book (拆书) ---------------- */
+/* ---------------- book (拆书) ----------------
+ * 「书籍分析」这条流水线：导入整本书 → 分章 → 抽人物 / 情节 → 入库。
+ * 书页上那一本书的原文副本存在 data/books/<书号>.txt（bookcase.bookTextPath），
+ * 正文只在入库那一刻从主进程读出来 —— 几十万字不走 IPC。
+ *
+ * 一个容易踩的坑：入库前如果为了"新开一本书"调了 books:create，主进程缓存的那份 doc 会被作废、
+ * 重新从「当前书」读（那时当前书可能已经换掉了）。所以这里记住界面最近在看哪本书，
+ * 入库时优先用「当前书 > 界面正在看的那本」里真正有这本书的那一份。
+ */
 let cancelFlag = false;
 function bookTextPath(id) { return bookcase.bookTextPath(id); }
+
+/* 界面最近一次上报「我正在看哪本书」 */
+const bookTouched = new Map();
+function touchBook(id) {
+  if (!id) return;
+  for (const [k] of bookTouched) bookTouched.delete(k);       /* 只留最新那一本 */
+  bookTouched.set(String(id), Date.now());
+}
+
+/* 找到哪份 doc 里有这本书。顺序：当前书 → 界面正在看的那本（可能只在磁盘上，刚被 books:create 作废过）
+ * → 书库里最近改过的那些（books:create 每建一本就会把主进程的缓存作废一次，那时候内存里已经没这本书了）。 */
+function resolveBookDoc(bookId) {
+  const id = String(bookId || '');
+  if (!id) return null;
+  const cur = getDoc();
+  const inCur = cur && (cur.books || []).find(b => b.id === id);
+  if (inCur) return { doc: cur, book: inCur, ownerId: currentBookId() };
+  const tryLoad = bid => {
+    if (!bid || bid === currentBookId()) return null;
+    try {
+      const other = bookcase.loadBook(bid);
+      const hit = other && (other.books || []).find(b => b.id === id);
+      return hit ? { doc: other, book: hit, ownerId: bid } : null;
+    } catch (err) { return null; }
+  };
+  for (const bid of bookTouched.keys()) {
+    const r = tryLoad(bid);
+    if (r) return r;
+  }
+  const lib = bookcase.listBooks();
+  const order = (lib.books || []).slice()
+    .sort((a, b) => String(b.lastEditedAt || '').localeCompare(String(a.lastEditedAt || '')))
+    .map(b => b.id);
+  for (const bid of order) {
+    if (bid === currentBookId()) continue;
+    const r = tryLoad(bid);
+    if (r) return r;
+  }
+  return null;
+}
+
+/* 章标题拆成「第几章」+ 章名；拆不出数字的（前言 / 卷首 / 按空行切出来的）返回 null */
+const CN_D = { '〇': 0, '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+function cnInt(s) {
+  let total = 0, cur = 0;
+  for (const ch of String(s || '')) {
+    if (ch === '万') { total += (cur || 1) * 10000; cur = 0; }
+    else if (ch === '千') { total += (cur || 1) * 1000; cur = 0; }
+    else if (ch === '百') { total += (cur || 1) * 100; cur = 0; }
+    else if (ch === '十') { total += (cur || 1) * 10; cur = 0; }
+    else if (CN_D[ch] != null) cur = CN_D[ch];
+    else return 0;
+  }
+  return total + cur;
+}
+function cnNum(s) {
+  const m = /第\s*([0-9]+)/.exec(String(s || ''));
+  if (m) return Number(m[1]);
+  const c = /第\s*([零〇一二三四五六七八九十百千万两]+)/.exec(String(s || ''));
+  return c ? cnInt(c[1]) : 0;
+}
+/* 「第一章 下个路口见」→「下个路口见」；章号后面什么都没有就返回空串 */
+function chapterNameOf(title) {
+  return String(title || '').replace(/^\s*第\s*[零〇一二三四五六七八九十百千万两0-9]+\s*[章回节]\s*[·、.．:：\-—]?\s*/u, '').trim();
+}
+function chapterNoOf(title) {
+  const t = String(title || '').trim();
+  if (!/^第\s*[零〇一二三四五六七八九十百千万两0-9]+\s*[章回节]/.test(t)) return null;
+  return { no: cnNum(t), name: chapterNameOf(t) };
+}
+/* 数字 → 中文（1 → 一，12 → 十二）；章节页那边用的是同一套写法 */
+function cnIntTo(n) {
+  const D = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  n = Math.max(0, Math.floor(Number(n) || 0));
+  if (n < 10) return D[n];
+  if (n < 20) return '十' + (n % 10 ? D[n % 10] : '');
+  if (n < 100) return D[Math.floor(n / 10)] + '十' + (n % 10 ? D[n % 10] : '');
+  let s = '', rest = n, hit = false;
+  for (const u of [[1000, '千'], [100, '百']]) {
+    const dd = Math.floor(rest / u[0]);
+    if (dd) { s += D[dd] + u[1]; rest -= dd * u[0]; hit = true; }
+    else if (hit && rest) s += '零';
+  }
+  if (rest) s += (n > 100 && rest < 10) ? '零' + D[rest] : D[rest];
+  return s;
+}
+/* 这一段正文的"指纹"：去掉空白后的前 80 字，用来挡住同一段被重复导入 */
+function contentKey(s) { return String(s || '').replace(/\s+/g, '').slice(0, 80); }
+
+/* 把一段原文排进章节页：能认出章号的按章号依次编号；第一个章号之前的内容（书名 / 卷首 / 前言）
+ * 并进第一章开头，中间那些认不出章号的（第二卷 这种卷头）并进上一章末尾 ——
+ * 章节页每篇都是「第N章」，没有章号的位置放不进去，但正文一个字都不能丢。 */
+function planManuscripts(chapters) {
+  const out = [];
+  let head = '';
+  for (const c of chapters) {
+    const hit = chapterNoOf(c.title);
+    /* 纯正文从 body 取；前言 / 卷首这种"标题就是正文"的片段，整个 text 都是内容 */
+    const body = String((c.body && c.body.trim()) ? c.body : c.text || '').trim();
+    if (!hit) {
+      if (!out.length) head += (head && body ? '\n\n' : '') + body;
+      else if (body) out[out.length - 1].content += (out[out.length - 1].content ? '\n\n' : '') + body;
+      continue;
+    }
+    out.push({ title: hit.name, content: body });
+  }
+  if (head && out.length) out[0].content = (head + (out[0].content ? '\n\n' : '') + out[0].content).trim();
+  else if (head) out.push({ title: '', content: head });
+  return out;
+}
+
+/* 章表自愈：老版本导入的书，章表和现在这套分章算法可能对不上（卷首 / 前言的位置变过）。
+ * 分析 / 入库前先按当前算法重排一遍，勾选状态按标题搬过去 —— 不然界面上的「第 3 章」
+ * 和主进程算出来的「第 3 章」不是同一段，导进去的正文会整体错位（这一轮踩过，且很难看出来）。
+ * 返回的 stored 是重排之前的那张表：界面上的勾选序号是按它报上来的。 */
+function syncBookChapters(book) {
+  let fresh;
+  try { fresh = splitBook(book.id, book.rule || 'chapter', false).chapters; } catch (err) { return null; }
+  const old = book.chapters || [];
+  const same = old.length === fresh.length
+    && old.every((c, i) => String(c.title || '') === String(fresh[i].title || ''));
+  if (same) return { chapters: fresh, stored: old, changed: false };
+  const keptByTitle = new Map();
+  old.forEach(c => { if (c.kept !== undefined) keptByTitle.set(String(c.title || ''), !!c.kept); });
+  book.chapters = fresh.map(c => {
+    const t = String(c.title || '');
+    return {
+      idx: c.idx, title: c.title, chars: c.chars,
+      excerpt: (c.body || c.text || '').replace(/\s+/g, ' ').slice(0, 40),
+      /* 同名章节沿用原来的勾选；新冒出来的（多半是「前言」）默认勾上，不然会悄悄漏导 */
+      kept: keptByTitle.has(t) ? keptByTitle.get(t) : true
+    };
+  });
+  return { chapters: fresh, stored: old, changed: true };
+}
+
+/* 界面报上来的勾选是「书里存的章节序号」；重排过以后序号可能变了，所以按标题对到这次分出来的块。
+ * tables 按可信度排：先试界面当时显示的那张表，对不上再试重排后的。 */
+function pickByKeep(tables, fresh, keepIdx) {
+  if (!keepIdx || !keepIdx.size) return fresh;
+  const norm = t => String(t || '').replace(/\s+/g, '').trim();
+  const isChapter = fresh.map(c => chapterNoOf(c.title) != null);
+  const tryTable = stored => {
+    const want = new Set();
+    (stored || []).forEach(c => { if (keepIdx.has(c.idx)) want.add(norm(c.title)); });
+    if (!want.size) return null;
+    const onOf = i => want.has(norm(fresh[i].title));
+    const out = [];
+    fresh.forEach((c, i) => {
+      if (isChapter[i]) { if (onOf(i)) out.push(c); return; }
+      let on = false;
+      for (let j = i + 1; j < fresh.length && !on; j++) if (isChapter[j]) on = onOf(j);
+      if (!on) for (let j = i - 1; j >= 0 && !on; j--) if (isChapter[j]) on = onOf(j);
+      if (on) out.push(c);
+    });
+    return out;
+  };
+  for (const t of (Array.isArray(tables) ? tables : [tables])) {
+    const out = tryTable(t);
+    if (out && out.length) return out;
+  }
+  return fresh;
+}
+
+
+/* 界面报告「我正在看哪本书」：入库时主进程要靠它把拆书结果找回来（见 resolveBookDoc） */
+ipcMain.handle('book:touch', (e, bookId) => { touchBook(bookId); return { ok: true }; });
+
+/* 拆书用的那份分块：正文只在主进程里用，不往渲染层送 */
+function splitBook(bookId, rule, pages) {
+  const text = fs.readFileSync(bookTextPath(bookId), 'utf8');
+  const chapters = parse.splitChapters(text, rule || 'chapter');
+  const pre = /^前言/.test((chapters[0] || {}).title || '');
+  return {
+    chapters: (chapters || []).map(c => Object.assign({}, c, { preface: !!pre })),
+    pages: pages === false ? null : (chapters || []).map(c => ({
+      idx: c.idx, title: c.title, chars: c.chars,
+      excerpt: (c.body || c.text).replace(/\s+/g, ' ').slice(0, 40)
+    }))
+  };
+}
+
+/* 新导入的一本书：唯一的书号（不再只靠毫秒，连点两下也不会撞） */
+function newBookId() { return 'bk' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 ipcMain.handle('book:create', async (e, file) => {
   const parsed = parse.parseFile(file);
   if (parsed.kind !== 'text') throw new Error('拆书需要整本书的纯文本 / docx 文件');
-  const id = 'bk' + Date.now().toString(36);
+  const id = newBookId();
   fs.writeFileSync(bookTextPath(id), parsed.text, 'utf8');
   const chapters = parse.splitChapters(parsed.text, 'chapter');
   const book = {
     id, title: parsed.filename.replace(/\.[^.]+$/, ''), filename: parsed.filename,
     chars: parsed.text.replace(/\s/g, '').length,
     rule: 'chapter', createdAt: new Date().toISOString(), status: 'ready',
-    chapters: chapters.map(c => ({ idx: c.idx, title: c.title, chars: c.chars, excerpt: c.text.replace(/\s+/g, ' ').slice(0, 40) })),
+    chapters: (chapters || []).map(c => ({ idx: c.idx, title: c.title, chars: c.chars, excerpt: (c.body || c.text).replace(/\s+/g, ' ').slice(0, 40) })),
     analysis: null
   };
   getDoc().books.push(book); persist();
+  touchBook(currentBookId());
   return book;
+});
+
+/* 分析勾选了什么就存什么：关掉页面 / 切走再回来，勾选不会丢 */
+ipcMain.handle('book:tab', (e, opts) => {
+  const o = opts || {};
+  const found = resolveBookDoc(o.bookId);
+  const book = found && found.book;
+  if (!book) return { ok: false };
+  if (Array.isArray(o.keep)) {
+    const norm = t => String(t || '').replace(/\s+/g, '').trim();
+    const titles = (book.chapters || []).map(c => norm(c.title));
+    const wantT = Array.isArray(o.keepTitles) ? o.keepTitles.map(norm) : null;
+    /* 优先按标题对：界面上的勾选是"哪几章"，序号只是它当时看到的排序。
+     * 章表被重排过（老书会多出「前言」）时，按序号写回去会让最后一章掉勾（踩过）。 */
+    if (wantT && wantT.every(t => titles.indexOf(t) >= 0)) {
+      const want = new Set(wantT);
+      book.chapters = (book.chapters || []).map(c => Object.assign({}, c, { kept: want.has(norm(c.title)) }));
+    } else if (!wantT) {
+      const set = new Set(o.keep);
+      book.chapters = (book.chapters || []).map(c => Object.assign({}, c, { kept: set.has(c.idx) }));
+    }
+    /* 标题一个都对不上 = 界面拿的是旧章表：这一笔先不写，等界面重排后再报一次 */
+  }
+  if (book.analysis) {
+    book.analysis.tab = {
+      people: Array.isArray(o.people) ? o.people : ((book.analysis.tab && book.analysis.tab.people) || []),
+      plots: Array.isArray(o.plots) ? o.plots : ((book.analysis.tab && book.analysis.tab.plots) || []),
+      at: new Date().toISOString()
+    };
+  }
+  if (found.doc !== getDoc() && found.ownerId) { try { bookcase.saveBook(found.ownerId, found.doc); } catch (err) {} }
+  else persist();
+  return { ok: true };
 });
 ipcMain.handle('book:resplit', (e, bookId, rule) => {
   const book = getDoc().books.find(b => b.id === bookId);
@@ -331,8 +557,18 @@ ipcMain.handle('book:resplit', (e, bookId, rule) => {
 ipcMain.handle('book:remove', (e, bookId) => {
   const d = getDoc();
   d.books = d.books.filter(b => b.id !== bookId);
-  try { fs.unlinkSync(bookTextPath(bookId)); } catch (err) {}
-  persist(); return { ok: true };
+  persist();
+  /* 这条拆书记录可能在别的书里也有一份（入库到新书时会复制过去）：都删干净了才删原文 */
+  let others = 0;
+  try {
+    const lib = bookcase.listBooks();
+    for (const b of (lib.books || [])) {
+      if (b.id === currentBookId()) continue;
+      try { if ((bookcase.loadBook(b.id).books || []).some(x => x.id === bookId)) others++; } catch (err) {}
+    }
+  } catch (err) {}
+  if (!others) { try { fs.unlinkSync(bookTextPath(bookId)); } catch (err) {} }
+  return { ok: true };
 });
 ipcMain.handle('book:cancel', () => { cancelFlag = true; return { ok: true }; });
 
@@ -340,9 +576,10 @@ ipcMain.handle('book:analyze', async (e, opts) => {
   const { bookId, keepIndexes, steps } = opts || {};
   const book = getDoc().books.find(b => b.id === bookId);
   if (!book) throw new Error('找不到这本书');
-  const text = fs.readFileSync(bookTextPath(bookId), 'utf8');
-  let chapters = parse.splitChapters(text, book.rule || 'chapter');
-  if (Array.isArray(keepIndexes) && keepIndexes.length) chapters = chapters.filter(c => keepIndexes.includes(c.idx));
+  /* 章表和当前分章算法对不上时先重排（老版本导入的书），勾选按标题搬过去 */
+  const synced = syncBookChapters(book);
+  let chapters = (synced && synced.chapters) || splitBook(bookId, book.rule || 'chapter', false).chapters;
+  if (Array.isArray(keepIndexes) && keepIndexes.length) chapters = pickByKeep([synced && synced.stored, book.chapters], chapters, new Set(keepIndexes));
   if (!chapters.length) throw new Error('没有选中任何章节');
 
   cancelFlag = false;
@@ -431,50 +668,185 @@ ipcMain.handle('book:analyze', async (e, opts) => {
   return book;
 });
 
+/* 入库。
+ *
+ * 「存到现在的展示书籍」= 不传 targetBookId，写进当前打开的那本；
+ * 「新导入一个书籍」= 传 targetBookId（刚建好的新书）+ newBook，写进那本并切过去。
+ * 写入按书号来，不依赖"主进程此刻缓存的是哪一本"，所以先建书再入库也不会串。
+ *
+ * 除了人物与情节，勾了正文时还会把这本书的章节正文写进章节写作：
+ * 能认出章号的按章号顺序落一篇稿子，认不出章号的（前言 / 卷首）并进前一篇的开头。
+ * 同一段正文重复入库不会落成两份（按标题 + 正文前 80 字挡）。 */
 ipcMain.handle('book:commit', (e, opts) => {
-  /* 拆书结果只入库到「当前这本书」，不会串到别的书里 */
-  const d = getDoc();
-  const book = d.books.find(b => b.id === (opts && opts.bookId));
-  if (!book || !book.analysis) throw new Error('还没有分析结果');
-  const pickP = new Set((opts.people || []).map(x => x.name));
-  const pickPl = new Set(opts.plots || []);
-  const byName = new Map(d.characters.map(c => [c.name, c]));
+  const o = opts || {};
+  const found = resolveBookDoc(o.bookId);
+  if (!found) throw new Error('找不到这本书的拆书结果：它可能已经被移出书库，请重新导入整本书');
+  const book = found.book;
+  const hasAn = !!(book.analysis && ((book.analysis.people || []).length || (book.analysis.plots || []).length));
+  const wantText = !!o.text;
+  if (!hasAn && !wantText) throw new Error('还没有分析结果');
+  if (!hasAn && !(book.chapters || []).length) throw new Error('还没有分析结果');
+
+  /* 章表自愈：老版本导入的书，章表可能和现在的分章算法对不上（见 syncBookChapters）。
+   * 要放在下面"先把有这本书的那份 doc 落盘"之前，重排结果才会跟着写回去。 */
+  const synced = (hasAn || wantText) ? syncBookChapters(book) : null;
+
+  /* 写进哪一本 */
+  const lib = bookcase.listBooks();
+  const curId = lib.activeId;
+  const targetId = o.targetBookId || curId;
+  if (!lib.books.some(b => b.id === targetId)) throw new Error('要写入的那本书不在书库里');
+  /* 先把「有这本书的那份 doc」落盘：界面为了新开一本书调过 books:create 时，
+   * 主进程内存里那份已经作废、重新读的是当前书，别让分析结果跟着丢 */
+  try {
+    if (found.doc === getDoc()) { store.save(found.doc); }
+    else if (!found.ownerId || found.ownerId !== curId) { if (found.ownerId) bookcase.saveBook(found.ownerId, found.doc); }
+  } catch (err) { console.error('[book:commit] save failed', err); }
+  const target = targetId === curId ? getDoc() : bookcase.loadBook(targetId);
+  /* 新导入的书里也放一份拆书记录：不然切过去以后「书籍分析」是空的，作者会以为分析结果丢了，
+   * 也没法从新书这边再入库。原文（data/books/<书号>.txt）本来就是共用的，两份按同一份原文重读。 */
+  if (o.newBook) {
+    target.books = target.books || [];
+    if (!target.books.some(x => x.id === book.id)) {
+      try { target.books.push(JSON.parse(JSON.stringify(book))); } catch (err) { console.error('[book:commit] copy record failed', err); }
+    }
+  }
+
+  /* ---- 人物 ---- */
+  const pickP = new Set((o.people || []).map(x => (x && typeof x === 'object' ? x.name : x)));
+  const pickPl = new Set(o.plots || []);
+  target.characters = target.characters || [];
+  const byName = new Map(target.characters.map(c => [c.name, c]));
   let addedC = 0, mergedC = 0, addedP = 0;
-  const idOf = name => {
-    const c = byName.get(name);
-    return c ? c.id : null;
-  };
-  for (const p of book.analysis.people) {
+  const idOf = name => { const c = byName.get(name); return c ? c.id : null; };
+  const analysis = book.analysis || { people: [], plots: [] };
+  for (const p of analysis.people || []) {
     if (!pickP.has(p.name)) continue;
     const exist = byName.get(p.name);
     if (exist) {
       if (!exist.identity && p.identity) exist.identity = p.identity;
       if (!exist.persona && p.persona) exist.persona = p.persona;
-      for (const a of p.aliases) if (exist.aliases.indexOf(a) < 0) exist.aliases.push(a);
+      if (!exist.age && p.age) exist.age = p.age;
+      exist.aliases = exist.aliases || [];
+      for (const a of (p.aliases || [])) if (exist.aliases.indexOf(a) < 0) exist.aliases.push(a);
       mergedC++;
     } else {
       const nc = {
         id: 'ch' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        name: p.name, aliases: p.aliases.slice(), age: p.age || '', identity: p.identity || '',
+        name: p.name, aliases: (p.aliases || []).slice(), age: p.age || '', identity: p.identity || '',
         realm: '', persona: p.persona || '', ending: '', group: '拆书导入',
         color: '#8A6A2F', portrait: null, relations: [], source: { book: book.title, count: p.count }
       };
-      d.characters.push(nc); byName.set(nc.name, nc); addedC++;
+      target.characters.push(nc); byName.set(nc.name, nc); addedC++;
     }
   }
-  for (const p of book.analysis.plots) {
+
+  /* ---- 情节 ---- */
+  target.plots = target.plots || [];
+  for (const p of analysis.plots || []) {
     if (!pickPl.has(p.title)) continue;
-    d.plots.push({
+    target.plots.push({
       id: 'pl' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       title: p.title, summary: p.summary, place: p.place, chapter: p.chapter,
-      chapterNo: 0, timePoint: p.batch, status: 'done',
+      chapterNo: cnNum(p.chapter), timePoint: p.batch, status: 'done',
       characterIds: (p.characters || []).map(idOf).filter(Boolean),
       source: { book: book.title }
     });
     addedP++;
   }
-  persist();
-  return { addedC, mergedC, addedP };
+
+  /* ---- 正文：章节原文 → 章节写作的稿件 ---- */
+  let addedM = 0, filledM = 0, textChars = 0;
+  if (wantText) {
+    /* 勾选按标题对到这次分出来的块（见 pickByKeep）：界面上勾的 idx 可能来自重排前的章表 */
+    const all = (synced && synced.chapters) || (() => {
+      try { return splitBook(book.id, book.rule || 'chapter', false).chapters; }
+      catch (err) { throw new Error('读不到这本书的原文，没法导入正文：' + (err && err.message || err)); }
+    })();
+    const keep = Array.isArray(o.keep) && o.keep.length ? new Set(o.keep) : null;
+    const picked = keep ? pickByKeep([synced && synced.stored, book.chapters], all, keep) : all;
+    const plans = planManuscripts(picked);
+
+    /* 落在哪一卷：已经有「导入的正文」那一卷就接着往里加；否则落进章号最大的那一卷
+     * （= 书里最后那一卷，接着往后排章号），一卷都没有才新建「导入的正文」 */
+    target.chapters = target.chapters || [];
+    target.manuscripts = target.manuscripts || [];
+    const volWithLastChapter = () => {
+      let best = null, bestNo = -1;
+      for (const v of target.chapters) {
+        const mx = target.manuscripts.filter(m => m.volumeId === v.id)
+          .reduce((a, m) => Math.max(a, Number(m.chapterNo) || cnNum(m.title)), -1);
+        if (mx > bestNo) { bestNo = mx; best = v; }
+      }
+      return best;
+    };
+    let vol = target.chapters.find(v => v.imported) || volWithLastChapter() || target.chapters[target.chapters.length - 1];
+    if (!vol) {
+      vol = { id: 'vo' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: '导入的正文', status: 'plan', words: 0, imported: true };
+      target.chapters.push(vol);
+    }
+    const volId = vol.id;
+    /* 章号接着这一卷现有的往下排 */
+    let no = target.manuscripts.filter(m => m.volumeId === volId)
+      .reduce((mx, m) => Math.max(mx, Number(m.chapterNo) || cnNum(m.title)), 0);
+    const stampAt = new Date().toISOString();
+    /* 这一卷现有的稿件，按两种键找：「第N章 · 章名」和「正文前 80 字」 */
+    const bySig = new Map();
+    target.manuscripts.filter(m => m.volumeId === volId).forEach(m => {
+      bySig.set('t:' + String(m.title || ''), m);
+      const k = contentKey(m.content);
+      if (k) bySig.set('c:' + k, m);
+    });
+    plans.forEach(plan => {
+      const title = '第' + cnIntTo(no + 1) + '章' + (plan.title ? ' · ' + plan.title : '');
+      const sig = contentKey(plan.content);
+      const hit = bySig.get('t:' + title) || (sig ? bySig.get('c:' + sig) : null);
+      if (hit) {
+        no++;
+        /* 已有的不动；空稿才把正文填进去 */
+        if (!String(hit.content || '').trim() && plan.content) {
+          hit.content = plan.content; hit.updatedAt = stampAt;
+          textChars += plan.content.length; filledM++;
+        }
+        return;
+      }
+      no++;
+      const m = {
+        id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        volumeId: volId, chapterNo: no, title, content: plan.content,
+        imported: true, source: { book: book.title }, updatedAt: stampAt
+      };
+      target.manuscripts.push(m);
+      bySig.set('t:' + title, m);
+      if (sig) bySig.set('c:' + sig, m);
+      addedM++; textChars += plan.content.length;
+    });
+    vol.words = target.manuscripts.filter(m => m.volumeId === volId).reduce((a, m) => a + String(m.content || '').replace(/\s/g, '').length, 0);
+    /* 情节里的「第N章」对上篇名，章节页点情节就能在正文里标出来 */
+    for (const pl of target.plots) {
+      if (!pl || !(pl.chapterNo > 0) || pl.manuscriptId) continue;
+      const hit = target.manuscripts.find(m => m.volumeId === volId && (m.chapterNo || 0) === pl.chapterNo);
+      if (hit) { pl.manuscriptId = hit.id; pl.chapter = pl.chapter || hit.title; }
+    }
+  }
+
+  /* ---- 落盘 ---- */
+  if (targetId === curId) {
+    persist();
+  } else {
+    bookcase.saveBook(targetId, target);
+  }
+
+  let switched = false;
+  if (o.newBook) {
+    /* 新开的书：切过去，界面下一轮拿到的就是这本书 */
+    bookcase.switchBook(targetId);
+    doc = null;
+    switched = true;
+  }
+  let title = '';
+  try { title = (bookcase.listBooks().books.find(b => b.id === targetId) || {}).title || ''; } catch (err) {}
+  return { addedC, mergedC, addedP, addedM, filledM, textChars, targetId, switched, title };
 });
 
 /* ---------------- images ---------------- */

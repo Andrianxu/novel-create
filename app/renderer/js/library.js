@@ -250,3 +250,13 @@ export function openLibrary(NF) {
   if (document.getElementById('modalRoot').classList.contains('on')) return;
   libraryModal(NF);
 }
+
+/* 书籍分析入库时用：按书名在书库里找一本（新导入的书可能已经存在，不要重复建） */
+export function findBookByName(NF, title) {
+  const t = String(title || '').trim();
+  if (!t) return null;
+  const list = ((NF.library || {}).books || []);
+  return list.find(b => b.title === t)
+    || list.find(b => b.title.replace(/（\d+）$/, '') === t.replace(/（\d+）$/, ''))
+    || null;
+}
