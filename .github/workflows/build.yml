@@ -65,26 +65,35 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          $ErrorActionPreference = 'Stop'
           $tag = "${{ github.ref_name }}"
           # 资产名故意不带版本号：releases/latest/download/NovelFolio-portable.exe 永远指向最新一次发布，
           # 打包在应用里的更新器就是靠这个固定名字找新版的（见 app/lib/updater.js 的 ASSET_NAME）。
           $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
-          if (-not $exe) { throw '没找到打包产物' }
+          if (-not $exe) { throw '没找到打包产物，dist 目录里没有 exe' }
           $mb = [math]::Round($exe.Length/1MB,1)
           $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
-          $notes = @"
-          卷帙 NovelFolio $tag —— 离线优先的中文长篇小说创作工作台。
 
-          **下载**：$($exe.Name)（$mb MB，免安装，双击即用，Windows 10/11 x64）
+          # 说明文字用数组拼：不用 here-string。
+          # here-string 里给变量加反引号在 pwsh 7 上会被当成转义符，
+          # v0.2.2 那次 Release 就是因为这一步整段脚本解析失败、exe 打包好却发不出去。
+          $notesLines = @(
+            '卷帙 NovelFolio ' + $tag + ' —— 离线优先的中文长篇小说创作工作台。'
+            ''
+            '**下载**：' + $exe.Name + '（' + $mb + ' MB，免安装，双击即用，Windows 10/11 x64）'
+            ''
+            '首次启动会在 %APPDATA%\novelfolio 生成一份演示作品（《临水问剑》），'
+            '想换成自己的可以「设置 → 导入 JSON」。作品数据与系统加密的 API Key 都只存在这个目录。'
+            ''
+            '拆书（书籍分析）需要自己在「设置 → 模型接口」里填 OpenAI 兼容接口的地址、'
+            '模型名和 Key；其余模块完全离线可用，软件没有账号、没有埋点、没有崩溃上报。'
+            ''
+            '**校验**：SHA256 ' + $hash + '（下载后可用 Get-FileHash 文件名 -Algorithm SHA256 核对）'
+            ''
+            '完整改动见 [提交记录](https://github.com/Andrianxu/novel-create/commits/' + $tag + ')。'
+          )
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -Path $notesFile -Value $notesLines -Encoding utf8
 
-          首次启动会在 %APPDATA%\novelfolio 生成一份演示作品（《临水问剑》），
-          想换成自己的可以「设置 → 导入 JSON」。作品数据与系统加密的 API Key 都只存在这个目录。
-
-          拆书（书籍分析）需要自己在「设置 → 模型接口」里填 OpenAI 兼容接口的地址、
-          模型名和 Key；其余模块完全离线可用，软件没有账号、没有埋点、没有崩溃上报。
-
-          **校验**：SHA256 `$hash`（下载后可用 `Get-FileHash 文件名 -Algorithm SHA256` 核对）
-
-          完整改动见 [提交记录](https://github.com/Andrianxu/novel-create/commits/$tag)。
-          "@
-          gh release create $tag $exe.FullName --title "卷帙 NovelFolio $tag" --notes $notes --verify-tag --latest
+          # --notes-file 比 --notes 稳：不经过命令行参数的转义
+          gh release create $tag $exe.FullName --title ("卷帙 NovelFolio " + $tag) --notes-file $notesFile --verify-tag --latest
