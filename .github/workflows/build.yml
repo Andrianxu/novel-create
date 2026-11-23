@@ -22,10 +22,37 @@ jobs:
         run: npm ci
       - name: 确认 Electron 运行时
         run: npm run electron:ensure
+      # 打包前先核对版本号：tag 必须和 package.json 里的 version 完全一致。
+      # v0.2.1 那次踩过：tag 打在了版本号还是 0.2.0 的提交上，CI 照样打包发布，
+      # 结果 Release 写的是 v0.2.1、exe 里的 app.getVersion() 却是 0.2.0，
+      # 用户「更新成功」后版本号纹丝不动，更新器每次还以为有新版本。
+      - name: 校验版本号与 tag 一致
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $pkg = (Get-Content package.json -Raw -Encoding utf8 | ConvertFrom-Json).version
+          $tagVer = $tag.TrimStart('v')
+          if ($tagVer -ne $pkg) {
+            throw "tag '$tag' 与 package.json 的 version '$pkg' 不一致：请先把 version 改成 $tagVer 并提交，再重新打 tag"
+          }
+          Write-Host "版本号校验通过：$tag = package.json $pkg"
       - name: 打包免安装 exe
         run: npm run dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # 打完再验一次：确认 exe 里 app.asar 的 package.json 版本就是这次要发布的版本。
+      # 上一步只保证「打包输入」对，这一步保证「打包产物」对（防止用了残留的旧产物）。
+      - name: 校验产物版本
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $want = (Get-Content package.json -Raw -Encoding utf8 | ConvertFrom-Json).version
+          $asar = 'dist/win-unpacked/resources/app.asar'
+          if (-not (Test-Path $asar)) { throw "没找到 $asar" }
+          $got = node -e "const a=require('@electron/asar');process.stdout.write(JSON.parse(a.extractFile('$asar','package.json').toString()).version)"
+          if ($got -ne $want) { throw "打包产物版本是 $got，应为 $want（多半是用了残留的旧产物）" }
+          Write-Host "产物版本校验通过：$got"
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:

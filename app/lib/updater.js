@@ -205,8 +205,10 @@ async function checkForUpdate(opts) {
     out.hasUpdate = compareVer(rel.version, cur) > 0;
     /* 待安装的新版还在（上次下好了没装），直接告诉界面「可以装」。
      * 注意这里必须用【刚下载的版本】判定，不能用磁盘上那个 exe 的版本（便携版尤其不能）：
-     * 用户正跑着 0.1.0、刚下好 0.2.0，旧 exe 的版本号当然还是 0.1.0。 */
-    const st = readState();
+     * 用户正跑着 0.1.0、刚下好 0.2.0，旧 exe 的版本号当然还是 0.1.0。
+     * 用 cleanupApplied() 而不是 readState()：换装成功以后（暂存文件已删 / 磁盘版本已到位）
+     * 那一轮就该判为结束，否则「检查更新」会一直说「新版本已经下载好」。 */
+    const st = cleanupApplied();
     const staged = !!(st.targetVersion && compareVer(st.targetVersion, cur) > 0 && fs.existsSync(stagedExe()));
     out.staged = staged ? { version: st.targetVersion, size: st.size || 0, verified: st.verified || '', at: st.at || '' } : null;
     if (staged) out.hasUpdate = true;
@@ -536,19 +538,41 @@ function quitForUpdate() {
 /* ---------------- 给界面用的一览 ---------------- */
 function safeTarget() { try { return targetPath() || ''; } catch (e) { return ''; } }
 
-/* 换成新版后新起的实例：磁盘上那个 exe 的版本已经比进程里跑的还高 —— 说明上次换装成功，
- * 把暂存的新版清掉，别让它下次又提示一遍。
- * 只在「安装版」（exe 直接就是磁盘上那个文件）上判断：便携版进程里 process.execPath 是临时解包目录里的
- * 中间层，拿它读文件版本会把「刚下好的新版」误判成「已经装上了」—— 这个坑踩过。
+/* 换装完以后把「待安装」的状态清掉，别让它下次检查又报「已经下载好」。
+ *
+ * 三种「这一轮已经结束了」的情况：
+ *   1. 暂存的 exe 已经不在（apply-update.js 换装成功后会 rm 掉它）—— 直接清。这是最可靠的判据，
+ *      便携版 / 安装版都适用：换装脚本跑完第一件事就是把 NovelFolio-new.exe 删掉。
+ *   2. 磁盘上那个 exe 的版本已经 ≥ 目标版本 —— 装上了。
+ *   3. applyStartedAt 过去很久、暂存文件也没了 —— 上次换装半路失败，别再拿这个状态卡住用户。
+ *
+ * 以前这里只在「非便携版」判断，便携版永远跳过：author 的便携版换装成功、
+ * NovelFolio-new.exe 都被删了，update-state.json 里的 targetVersion 却一直留着，
+ * 于是每次「检查更新」都说「新版本已经下载好，可以直接安装」—— 正是用户遇到的现象。
  * 读文件版本要起一个 PowerShell（约 1 秒），所以放在 update:state 里做，不进「检查更新」的快路径。 */
 function cleanupApplied() {
   const st = readState();
+  if (!st || !st.targetVersion) return st || {};
   const cur = app.getVersion();
-  if (!isPortable() && st.targetVersion && compareVer(st.targetVersion, cur) > 0) {
+  const hasStaged = fs.existsSync(stagedExe());
+
+  /* 1. 暂存文件已经没了：这一轮一定结束了（换装成功，或者被清理掉了） */
+  if (!hasStaged) {
+    const next = Object.assign({}, st, {
+      applied: true, appliedAt: st.appliedAt || new Date().toISOString(), targetVersion: '', file: ''
+    });
+    writeState(next);
+    return next;
+  }
+
+  /* 2. 还留着暂存文件时看磁盘上的 exe：版本已经到位就算装上了。
+   *    便携版不能拿 process.execPath 判（那是临时解包目录里的中间层），
+   *    但 targetPath() 对便携版返回的就是用户双击的那个 exe，读它的版本是对的。 */
+  if (compareVer(st.targetVersion, cur) > 0) {
     const onDisk = fileVersion(targetPath());
-    if (onDisk && compareVer(onDisk, cur) > 0) {
+    if (onDisk && compareVer(onDisk, st.targetVersion) >= 0) {
       try { fs.rmSync(stagedExe(), { force: true }); } catch (e) {}
-      const next = Object.assign({}, st, { applied: true, appliedAt: new Date().toISOString(), targetVersion: '' });
+      const next = Object.assign({}, st, { applied: true, appliedAt: new Date().toISOString(), targetVersion: '', file: '' });
       writeState(next);
       return next;
     }
