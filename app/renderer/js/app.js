@@ -211,6 +211,29 @@ function renderNav(activeId) {
     nav.appendChild(h('div', { class: 'mtab' + (id === activeId ? ' on' : ''), onclick: () => NF.go(id) }, p ? p.label : id));
   }
   nav.appendChild(h('div', { class: 'mtab' + (activeId === 'settings' ? ' on' : ''), onclick: () => NF.go('settings'), title: '设置' }, '设置'));
+  nav.appendChild(starButton());
+}
+
+/* 顶栏「设置」右边的一键 star：跳到本项目的 GitHub 仓库。
+ * 渲染进程跑在 contextIsolation 下，window.open 出不去；和生图网站一样走 IPC shell.openExternal
+ * （main.js 那边只放行 http/https）。窗口露出来时顺手把按钮点亮，点过之后就一直是亮的。
+ * 不带数字、不拉 GitHub API（CSP 里 connect-src 'none'，而且离线也要能用）——就是去点颗星。 */
+const REPO_URL = 'https://github.com/Andrianxu/novel-create';
+let starred = false;
+function starButton() {
+  return h('div', {
+    class: 'mtab star' + (starred ? ' on' : ''),
+    'data-probe': 'nav-star',
+    title: starred ? '已经去点过星了，谢谢你 ☆' : '喜欢的话给「卷帙」点颗 star 吧 → ' + REPO_URL,
+    onclick: async () => {
+      try {
+        await window.nf.image.openExternal(REPO_URL);
+        starred = true;
+        toast('已打开 GitHub，点右上角的 ★ Star 就好', 'ok');
+        route();                          /* 重画导航：按钮变亮 */
+      } catch (e) { toast('打开链接失败：' + e.message, 'err'); }
+    }
+  }, '★ Star');
 }
 
 function route() {

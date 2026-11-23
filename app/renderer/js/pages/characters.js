@@ -196,8 +196,6 @@ export default {
     aside.appendChild(search);
     const listHost = h('div', { class: 'cllist' });
     aside.appendChild(listHost);
-    aside.appendChild(h('div', { class: 'genbox', style: { marginTop: 'auto', fontSize: '10.5px' } },
-      '没有立绘的人物会自动用楷体名字占位。点立绘下方的「去生图」可以跳到生图网站，画好存回本地再点「上传」即可。'));
 
     function renderList() {
       listTitle.textContent = '人物 · ' + doc.characters.length;
