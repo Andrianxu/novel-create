@@ -44,6 +44,11 @@ injectStyle('characters', `
 .nameline{display:flex;align-items:baseline;gap:10px}
 .nameline h1{font-family:var(--kai);font-size:34px;line-height:1.05;margin:0;letter-spacing:.05em}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:4px}
+/* 年龄 / 身份 / 目前修为：鼠标移上去时标签后面浮出一个小笔，点标签也能把光标送进输入框 */
+.fgrid .field.editable>label{cursor:pointer}
+.fgrid .field.editable>label:hover{color:#8A6421}
+.fgrid .field.editable>label::after{content:'✎';margin-left:5px;font-size:9px;color:#B98A3C;opacity:0;transition:opacity .12s}
+.fgrid .field.editable:hover>label::after{opacity:.75}
 .endbar{font-size:12px;line-height:1.55;background:#F6EEDC;border:1px solid #E2D3B5;border-radius:8px;padding:7px 10px}
 .tlcard{padding:10px 14px 4px}
 .tlhead{display:flex;align-items:center;gap:10px;font-size:12px}
@@ -277,22 +282,33 @@ export default {
       return h('div', { class: 'gsel' }, chips, input);
     }
 
+    /* 人物档案里的小字段：点进去就能直接键入，改一个字存一个字（不弹窗、不用按保存）。
+     * 标签也绑了 focus —— 有人习惯先点「年龄」两个字，现在点完光标就在框里。 */
     function fieldChar(label, key, opts) {
       const c = getChar();
-      const input = h(opts && opts.area ? 'textarea' : 'input', {
-        class: opts && opts.area ? 'ta' : 'input',
+      const o = opts || {};
+      const input = h(o.area ? 'textarea' : 'input', {
+        class: o.area ? 'ta' : 'input',
         value: c[key] || '',
-        placeholder: (opts && opts.ph) || '',
-        style: opts && opts.area ? { minHeight: '52px', fontSize: '12px' } : { fontSize: '12.5px' }
+        placeholder: o.ph || '',
+        style: o.area ? { minHeight: '52px', fontSize: '12px' } : { fontSize: '12.5px' }
       });
-      if (opts && opts.list) {
-        const dl = h('datalist', { id: 'dl-' + key }, opts.list.map(x => h('option', { value: x })));
-        input.setAttribute('list', 'dl-' + key);
-        input.addEventListener('input', () => { c[key] = input.value; touch(); });
-        return h('div', { class: 'field' }, h('label', {}, label), input, dl);
+      if (o.probe) input.setAttribute('data-probe', o.probe);
+      const lab = h('label', { title: label ? '点一下就能改，改完自动保存' : '' }, label);
+      if (label) {
+        lab.addEventListener('click', () => {
+          input.focus();
+          try { const n = input.value.length; input.setSelectionRange(n, n); } catch (e) {}
+        });
       }
       input.addEventListener('input', () => { c[key] = input.value; touch(); });
-      return h('div', { class: 'field' }, h('label', {}, label), input);
+      const box = h('div', { class: 'field' + (label ? ' editable' : '') }, lab, input);
+      if (o.list) {
+        const dl = h('datalist', { id: 'dl-' + key }, o.list.map(x => h('option', { value: x })));
+        input.setAttribute('list', 'dl-' + key);
+        box.appendChild(dl);
+      }
+      return box;
     }
 
     function renderMain() {
@@ -326,9 +342,9 @@ export default {
           h('button', { class: 'btn xs', onclick: () => openGenModal(c) }, '✧ 生成立绘'),
           h('button', { class: 'btn xs danger', 'data-probe': 'char-delete', title: '删除这个人物（相关引用会一并清理，并留一份在废案篓里）', onclick: () => removeChar(c) }, '⌫ 删除')),
         h('div', { class: 'fgrid' },
-          fieldChar('年龄', 'age', { ph: '十九' }),
-          fieldChar('身份', 'identity', { ph: '临水剑冢 · 第三峰首徒' }),
-          fieldChar('目前修为', 'realm', { ph: '练气九层', list: (plane.realms || []).map(r => r.name) }),
+          fieldChar('年龄', 'age', { ph: '十九', probe: 'char-age' }),
+          fieldChar('身份', 'identity', { ph: '临水剑冢 · 第三峰首徒', probe: 'char-identity' }),
+          fieldChar('目前修为', 'realm', { ph: '练气九层', probe: 'char-realm', list: (plane.realms || []).map(r => r.name) }),
           h('div', { class: 'field' }, h('label', {}, '分类'), groupSelect(c))),
         fieldChar('人设', 'persona', { area: true, ph: '一句话说清这个人' }),
         h('div', { class: 'endbar' },

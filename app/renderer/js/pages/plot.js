@@ -1656,11 +1656,13 @@ export default {
       }).join('\n');
       const plane = (doc.planes && doc.planes[0]) || null;
       const realms = plane && plane.realms && plane.realms.length ? plane.realms.map(r => r.name).filter(Boolean).join(' → ') : '';
+      /* 标题跟着世界观右栏走（作者改过就用改过的） */
+      const realmTitle = (plane && plane.realmTitle || '').trim() || '修为体系';
       const cur = current();
       return [
         PLOT_AI_PROMPT,
         '',
-        realms ? '【修为体系】' + realms : '',
+        realms ? '【' + realmTitle + '】' + realms : '',
         people ? '【人物】\n' + people : '',
         '【当前情节时间轴】\n' + part,
         cur ? '【作者正在看的情节】' + cur.title + (cur.summary ? '：' + cur.summary : '') : ''

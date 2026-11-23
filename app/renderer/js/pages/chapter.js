@@ -812,11 +812,13 @@ const page = {
         return '- ' + bits.join('：');
       }).join('\n');
       const realms = p && p.realms && p.realms.length ? p.realms.map(r => r.name).filter(Boolean).join(' → ') : '';
+      /* 标题用世界观页里作者自己起的名字（没改就是「修为体系」） */
+      const realmTitle = (p && p.realmTitle || '').trim() || '修为体系';
       return [
         AI_PROMPT,
         '',
         '【当前章节】' + (m.title || '未命名'),
-        realms ? '【修为体系】' + realms : '',
+        realms ? '【' + realmTitle + '】' + realms : '',
         people ? '【人物】\n' + people : '',
         tail ? '【当前正文】\n' + tail : '【当前正文】（还是空的，这是新章节，请直接开篇）'
       ].filter(Boolean).join('\n');

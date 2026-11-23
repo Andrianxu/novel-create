@@ -68,6 +68,12 @@ injectStyle('world', `
 .wld-rcard{padding:10px 12px 12px;display:flex;flex-direction:column;gap:1px}
 .wld-rh{display:flex;align-items:center;gap:8px;padding-bottom:7px;border-bottom:1px solid #EAE1CF;margin-bottom:6px}
 .wld-rh h3{font-family:var(--kai);font-size:14px;margin:0;letter-spacing:.08em}
+/* 「修为体系」这个标题本身也是输入框：平时看着像标题，鼠标移上去才浮出边框 */
+.wld-rh input.rtitle{font-family:var(--kai);font-size:14px;font-weight:700;margin:0;letter-spacing:.08em;color:#201C18;
+  background:transparent;border:1px solid transparent;border-radius:5px;padding:1px 4px;height:22px;min-width:0;width:auto}
+.wld-rh input.rtitle::placeholder{color:#B3A790;font-weight:700}
+.wld-rh input.rtitle:hover{background:#FFFCF5;border-color:#EAE1CF}
+.wld-rh input.rtitle:focus{background:#FFFDF8;border-color:#C2A97D;outline:none;box-shadow:0 0 0 2px rgba(185,138,60,.12)}
 .wld-realms{display:flex;flex-direction:column}
 .wld-realm{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:7px;font-size:11.5px;color:#3B342C;min-width:0}
 .wld-realm i{width:16px;height:16px;border-radius:50%;background:#EFE7D7;color:#9C9080;font-style:normal;font-size:9px;display:grid;place-items:center;flex:none}
@@ -219,6 +225,14 @@ function currentRealmIndex(p) {
   if (!n) return -1;
   const raw = Number.isInteger(p.currentRealm) ? p.currentRealm : DEFAULT_CURRENT;
   return Math.max(0, Math.min(n - 1, raw));
+}
+
+/* 右栏卡片的标题也能改：存在位面上（plane.realmTitle），留空 = 回到默认的「修为体系」。
+ * 改的是这张卡的标题，不改数据字段名 —— 导出、AI 上下文里也跟着用作者起的名字。 */
+const REALM_TITLE = '修为体系';
+function realmTitleOf(p) {
+  const t = p && typeof p.realmTitle === 'string' ? p.realmTitle.trim() : '';
+  return t || REALM_TITLE;
 }
 
 /* 右栏的多行文本框随内容长高，省得设定被裁掉 */
@@ -665,7 +679,7 @@ export default {
             h('span', { class: 'grow' }),
             h('span', { class: 'tiny muted' }, '点地图上的宗门节点查看详情 · 节点可拖动改位置')),
           h('p', { class: 'wld-desc' },
-            (p.lore && p.lore.length) ? p.lore[0].text : '这位面还没有填写设定，先在右栏补齐修为体系与关键设定。')));
+            (p.lore && p.lore.length) ? p.lore[0].text : '这位面还没有填写设定，先在右栏补齐' + realmTitleOf(p) + '与关键设定。')));
         return;
       }
 
@@ -846,15 +860,58 @@ export default {
           noteIn);
       }));
 
+      /* 标题就地可改：平时长得像卡头，鼠标移上去 / 聚焦才浮出边框；宽度跟着字数走，
+       * 留空时回到默认的「修为体系」。 */
+      const titleIn = h('input', {
+        class: 'rtitle', value: realmTitleOf(p), placeholder: REALM_TITLE,
+        title: '点一下就能改标题（比如「修真九境」「境界等级」）',
+        'data-probe': 'realm-title', spellcheck: 'false'
+      });
+      const fitTitle = () => {
+        const n = Math.max(4, String(titleIn.value || '').length);
+        titleIn.style.width = Math.min(150, n * 15 + 14) + 'px';
+      };
+      titleIn.addEventListener('input', () => {
+        /* 打字过程中就落库，切页 / 关掉软件都不丢；暂时空着先不写，失焦时再回到默认四个字 */
+        if (titleIn.value.trim()) p.realmTitle = titleIn.value;
+        else delete p.realmTitle;
+        fitTitle();
+        NF.save();
+      });
+      titleIn.addEventListener('change', () => {
+        const v = titleIn.value.trim();
+        if (v) p.realmTitle = v; else delete p.realmTitle;
+        titleIn.value = realmTitleOf(p);
+        fitTitle();
+        NF.save();
+        /* 没选中宗门时，详情卡里那句「先在右栏补齐…」用的也是这个标题 */
+        renderDetail();
+      });
+      /* 回车 = 改完（失焦落库）；Esc = 不要这次改动，退回进来时的标题。
+       * 注意快照要在 focus 时取：打字过程中已经写进 p.realmTitle 了，按 Esc 再读它等于没撤。 */
+      let titleBefore = null;
+      titleIn.addEventListener('focus', () => { titleBefore = p.realmTitle || ''; });
+      titleIn.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); titleIn.blur(); return; }
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        if (titleBefore) p.realmTitle = titleBefore; else delete p.realmTitle;
+        titleIn.value = realmTitleOf(p);
+        fitTitle();
+        NF.save();
+        titleIn.blur();
+      });
+      fitTitle();
+
       rail.appendChild(h('div', { class: 'card wld-rcard', 'data-probe': 'wld-realms' },
         h('div', { class: 'wld-rh' },
-          h('h3', {}, '修为体系'),
+          titleIn,
           h('span', { class: 'grow' }),
           h('span', { class: 'tiny muted' }, realms.length ? realms.length + ' 境' : '未填写'),
           h('button', { class: 'btn xs', onclick: addRealm, title: '在末尾加一境' }, '＋ 一境')),
         realms.length
           ? realmBox
-          : h('div', { class: 'empty', style: { padding: '16px 8px', fontSize: '11px' } }, '还没有修为体系，点「＋ 一境」开始写')));
+          : h('div', { class: 'empty', style: { padding: '16px 8px', fontSize: '11px' } }, '还没有' + realmTitleOf(p) + '，点「＋ 一境」开始写')));
 
       const lore = p.lore || (p.lore = []);
       const loreTAs = [];
@@ -921,6 +978,8 @@ export default {
           np.note = noteIn.value.trim() || '新位面';
           np.continents = (src.continents || []).map(c => Object.assign({}, c, { id: uid('k') }));
           np.realms = (src.realms || []).map(r => ({ name: r.name, note: r.note }));
+          /* 标题也算这套体系的一部分：作者改过就一起带过去 */
+          if (src.realmTitle) np.realmTitle = src.realmTitle;
           doc.planes.push(np);
           st.planeId = np.id; st.continentId = null; st.sectId = null;
           NF.save();

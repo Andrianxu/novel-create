@@ -184,7 +184,8 @@ function bodyWorld(doc) {
     }
     const realms = p.realms || [];
     if (realms.length) {
-      out.push({ t: 'h2', text: '修为体系' });
+      /* 标题跟着世界观右栏走：作者可以把「修为体系」改成「修真九境」之类 */
+      out.push({ t: 'h2', text: (p.realmTitle || '').trim() || '修为体系' });
       out.push({ t: 'p', text: realms.map(r => (r.name || '未命名') + (r.note ? '（' + oneLine(r.note) + '）' : '')).join(' → ') });
     }
     const lore = p.lore || [];
