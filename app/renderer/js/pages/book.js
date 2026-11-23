@@ -155,6 +155,13 @@ injectStyle('book', `
 let unsubscribeProgress = null;
 /* 模块级：当前挂载页的销毁钩子，避免离开页面后异步回调继续改 DOM */
 let disposeMount = null;
+/* 模块级：正在跑（或刚跑完还没收）的那一轮分析。
+ * 放在模块级而不是页面里：作者切到别的页面时这一页会被卸载，但分析还在主进程里跑，
+ * 状态得留在这里，切回来才能接着显示（以前它跟着页面一起没了，看着就是"分析自己停了"）。 */
+const anaJob = {
+  bookId: null, running: false, progress: null,
+  lastErr: null, result: null, error: null, phase: null, finishedAt: null
+};
 
 const RULES = [
   { k: 'chapter', label: '按第X章' },
@@ -195,6 +202,7 @@ export default {
     const done = list.filter(b => hasResult(b)).length;
     return '书库 ' + list.length + ' 本 · 已拆解 ' + done + ' 本 · 人物 ' + (doc.characters || []).length + ' · 情节 ' + (doc.plots || []).length;
   },
+  /* 离开页面只拆监听、停掉回调 —— 分析本身在主进程里跑着，切页不算取消 */
   unmount() {
     if (disposeMount) { try { disposeMount(); } catch (e) { /* ignore */ } disposeMount = null; }
     if (unsubscribeProgress) { try { unsubscribeProgress(); } catch (e) { /* ignore */ } unsubscribeProgress = null; }
@@ -254,10 +262,11 @@ export default {
       st.pickP = new Set((tab && tab.people) || ((an && an.people) || []).map(p => p.name));
       st.pickPl = new Set((tab && tab.plots) || ((an && an.plots) || []).map(p => p.title));
       st.tab = (memo.tab === 'plots' ? 'plots' : 'people');
-      st.analyzing = false;
       st.committed = false;
       st.commitTo = null;
-      st.progress = null;
+      /* 「分析中」是这本书的状态，由模块级的 anaJob 说了算：主进程里那一轮还在跑的话，
+       * 换书 / 重开页面回来都要继续显示「分析中」，别把它当成没在跑 */
+      syncClock();
       snapSel(b);
     }
     /* 章表重排（主进程会给老书同步章表，比如多出一个「前言」）以后，勾选要按标题搬过去：
@@ -359,6 +368,14 @@ export default {
         }, '书籍库 ›')));
       aside.appendChild(h('div', { class: 'tiny muted', style: { padding: '0 3px', lineHeight: '1.6' } },
         '正在写作：《' + curBookTitle() + '》'));
+      /* 分析在后台跑着：提示一句，作者可以放心切到别的页面去写 */
+      if (anaJob.running) {
+        const jb = doc.books.find(x => x.id === anaJob.bookId);
+        aside.appendChild(h('div', {
+          class: 'tiny',
+          style: { padding: '4px 7px', lineHeight: '1.6', borderRadius: '7px', background: '#FAF0DC', border: '1px dashed #E3C89A', color: '#8A6421' }
+        }, '· 正在分析《' + ((jb && jb.title) || '书籍') + '》', h('br'), '切到别的页面也会继续，回来自动接上进度'));
+      }
       const box = h('div', { class: 'bk-books', 'data-probe': 'bk-books' });
       if (!list.length) {
         box.appendChild(h('div', { class: 'empty', style: { padding: '22px 8px', fontSize: '11px', lineHeight: '1.8' } }, '还没有书', h('span', { class: 'tiny' }, '导入整本小说后会出现在这里')));
@@ -897,53 +914,161 @@ export default {
       }
     }
 
-    /* ---------------- 动作：分析 ---------------- */
+    /* ---------------- 动作：分析 ----------------
+     * 分析本身跑在主进程的 job 里（见 main.js 的 runAnalysis）：
+     *   · 这里只负责「开一轮」「接上进度」「收结果」，页面卸载不会带走分析；
+     *   · 切到别的页面再切回来，mount 时会用 resume 问一次主进程，进度条和结果照常接上；
+     *   · 只有作者点「取消」才真的停，切页不算取消。 */
+    const jobBookId = () => anaJob.bookId;
+    const isJobRunning = (b) => !!anaJob.running && anaJob.bookId === (b && b.id);
+    /* 分析状态是「这本书」的，不是「这一页」的：换书看的时候别把状态算到别的书上 */
+    function syncClock() {
+      if (!anaJob.bookId) { st.analyzing = false; st.progress = null; return; }
+      const running = !!anaJob.running;
+      st.analyzing = running && anaJob.bookId === st.bookId;
+      st.progress = running ? (anaJob.progress || null) : null;
+    }
+    function applyJob(snap) {
+      if (!snap) return false;
+      anaJob.bookId = snap.bookId || anaJob.bookId;
+      anaJob.running = !!snap.running;
+      anaJob.progress = snap.running ? {
+        phase: snap.phase, done: snap.done, total: snap.total, message: snap.message
+      } : null;
+      anaJob.lastErr = snap.lastErr || null;
+      anaJob.result = snap.result || null;
+      anaJob.error = snap.error || null;
+      anaJob.finishedAt = snap.finishedAt || null;
+      syncClock();
+      return true;
+    }
+    /* 一轮分析结束：结果已经在主进程落盘到书里，这里把界面对齐 */
+    async function settleJob() {
+      const b = book();
+      const result = anaJob.result;
+      anaJob.running = false;
+      anaJob.progress = null;
+      st.analyzing = false;
+      if (!alive) return;
+      if (result && b && result.id === b.id) {
+        Object.assign(b, result);
+        reloadDoc();
+        const an = b.analysis || { people: [], plots: [] };
+        st.pickP = new Set((an.people || []).map(p => p.name));
+        st.pickPl = new Set((an.plots || []).map(p => p.title));
+        st.tab = 'people';
+        const n = (an.people || []).length, m = (an.plots || []).length;
+        if (!n && !m) toast('这一轮没有抽到内容' + (anaJob.lastErr ? '：' + anaJob.lastErr : '，可能是接口报错或章节太少'), 'err');
+        else toast('拆解完成：人物 ' + n + ' · 情节 ' + m, 'ok');
+      } else if (anaJob.error && !/已取消|cancel/i.test(anaJob.error)) {
+        toast('分析失败：' + anaJob.error, 'err');
+      } else if (anaJob.phase === 'canceled' || /已取消|cancel/i.test(anaJob.error || '')) {
+        toast('已取消分析');
+      }
+      anaJob.lastErr = null;
+      anaJob.error = null;
+      anaJob.phase = null;
+      anaJob.result = null;
+      renderSide();
+      renderMain();
+    }
+    /* 点了「开始分析」：起 job 之后立刻返回，所以这一页就算马上切走，分析也在主进程里继续跑 */
     async function startAnalyze() {
       const b = book();
-      if (!b || st.analyzing) return;
+      if (!b || isJobRunning(b)) return;
       if (!hasKey()) {
         toast('还没有配置模型接口：请在设置里填好接口地址、模型和 API Key', 'err');
         return;
       }
       const keep = selChapters().map(c => c.idx);
       if (!keep.length) { toast('至少勾选一章再开始分析', 'err'); return; }
-      st.analyzing = true;
+      anaJob.bookId = b.id;
+      anaJob.running = true;
+      anaJob.lastErr = null;
+      anaJob.result = null;
+      anaJob.error = null;
+      anaJob.progress = { phase: 'start', done: 0, total: 0, message: '准备把 ' + keep.length + ' 章分批发送…' };
       st.committed = false;
-      st.lastErr = null;
-      st.progress = { phase: 'start', done: 0, total: 0, message: '准备把 ' + keep.length + ' 章分批发送…' };
+      syncClock();
       renderMain();
       try {
-        const nb = await window.nf.book.analyze({ bookId: b.id, keepIndexes: keep, steps: ['people', 'plots'] });
-        Object.assign(b, nb);
-        const an = nb.analysis || { people: [], plots: [] };
-        st.pickP = new Set((an.people || []).map(p => p.name));
-        st.pickPl = new Set((an.plots || []).map(p => p.title));
-        st.analyzing = false;
-        st.tab = 'people';
-        if (!(an.people || []).length && !(an.plots || []).length) {
-          toast('这一轮没有抽到内容' + (st.lastErr ? '：' + st.lastErr : '，可能是接口报错或章节太少'), 'err');
-          st.lastErr = null;
-        } else {
-          toast('拆解完成：人物 ' + (an.people || []).length + ' · 情节 ' + (an.plots || []).length, 'ok');
-        }
+        const snap = await window.nf.book.analyze({ bookId: b.id, keepIndexes: keep, steps: ['people', 'plots'] });
+        if (snap) applyJob(snap);
+        if (alive) { renderMain(); }
       } catch (e) {
-        const msg = String((e && e.message) || e);
-        st.analyzing = false;
-        if (/已取消|cancel/i.test(msg)) toast('已取消分析');
-        else toast('分析失败：' + msg, 'err');
-      } finally {
-        if (!alive) return;
-        st.progress = null;
-        renderSide();
-        renderMain();
+        anaJob.running = false;
+        anaJob.progress = null;
+        syncClock();
+        if (alive) renderMain();
+        toast('分析启动失败：' + ((e && e.message) || e), 'err');
       }
     }
 
     async function cancelAnalyze() {
       try {
         await window.nf.book.cancel();
+        if (anaJob.running) {
+          anaJob.progress = Object.assign({}, anaJob.progress || {}, { message: '正在取消…' });
+          if (alive) renderPipe();
+        }
         toast('已请求取消，当前批次结束后会停下');
       } catch (e) { toast('取消失败：' + (e && e.message || e), 'err'); }
+    }
+
+    /* 收到 done（或切回来发现已跑完）：去主进程取这一轮的结果并当场对齐界面 */
+    async function fetchJobResult() {
+      if (anaJob.fetching) return;
+      anaJob.fetching = true;
+      try {
+        const snap = await window.nf.book.job(st.bookId);
+        if (!alive) return;
+        if (snap && !snap.running) {
+          applyJob(snap);
+          await settleJob();
+        } else if (!snap) {
+          /* 主进程那边已经交出去过了：直接从磁盘对齐一次 */
+          await reloadDoc();
+          if (!alive) return;
+          syncClock();
+          renderSide();
+          renderMain();
+        }
+      } catch (e) { /* 取不到不影响已经落盘的结果，下次进页面还会再读一次 */ }
+      finally { anaJob.fetching = false; }
+    }
+
+    /* 切回页面 / 原地重画时接上主进程那边的进度（不重新开一轮） */
+    async function resumeJob() {
+      let snap = null;
+      try { snap = await window.nf.book.job(st.bookId); } catch (e) { snap = null; }
+      if (!alive) return;
+      const wasRunning = !!anaJob.running;
+      if (!snap) {
+        /* 主进程那边没有这本书的 job：如果之前记录了「在跑」，说明中途被打断了（比如程序重开） */
+        if (wasRunning && anaJob.bookId === st.bookId) {
+          anaJob.running = false;
+          anaJob.progress = null;
+          syncClock();
+          renderSide();
+          renderMain();
+        }
+        return;
+      }
+      applyJob(snap);
+      if (snap.running) {
+        renderSide();
+        renderMain();
+        if (!wasRunning) toast('这本书的分析还在跑，接着往下走', 'ok');
+      } else {
+        /* 跑完了（结果主进程只给一次）：正看着这本书就当场对齐 */
+        if (snap.bookId === st.bookId) await settleJob();
+        else {
+          anaJob.running = false;
+          anaJob.progress = null;
+          anaJob.result = null;
+          syncClock();
+        }
+      }
     }
 
     /* 主进程那份 doc 重新读回来：入库 / 分析之后界面要和磁盘对齐 */
@@ -1300,21 +1425,59 @@ export default {
     /* ---------------- 进度监听：全页只注册一次 ---------------- */
     if (unsubscribeProgress) { try { unsubscribeProgress(); } catch (e) { /* ignore */ } unsubscribeProgress = null; }
     unsubscribeProgress = window.nf.on('book:progress', d => {
-      if (!alive || !d) return;
-      if (!st.analyzing) {
-        /* 不是本页发起的分析：只在开始时接管，其余忽略 */
-        if (d.phase !== 'start') return;
-        st.analyzing = true;
+      if (!d) return;
+      /* 进度记在模块级：本页卸载了（作者切到别的页面）也要记，
+       * 否则切回来时 anaJob 还是空的，看上去像分析被中断了 */
+      if (!anaJob.bookId) { const b0 = book(); if (b0) anaJob.bookId = b0.id; }
+      if (!anaJob.bookId) return;
+      if (d.phase === 'start' || d.phase === 'batch' || d.phase === 'cancel-requested') {
+        anaJob.running = true;
+        anaJob.progress = d;
+        anaJob.phase = d.phase;
+      } else if (d.phase === 'batch-done') {
+        anaJob.running = true;
+        anaJob.progress = d;
+        anaJob.phase = d.phase;
+      } else if (d.phase === 'batch-error') {
+        anaJob.running = true;
+        anaJob.lastErr = d.message;
+        anaJob.progress = Object.assign({}, anaJob.progress || {}, { done: d.done, total: d.total });
+      } else if (d.phase === 'done') {
+        anaJob.running = false;
+        anaJob.progress = null;
+        anaJob.phase = 'done';
+        /* book:analyze 是「起 job 就返回」，结果不在那个 Promise 里；
+         * 收到 done 要主动去主进程把结果取回来（只给一次），否则界面停在旧状态 */
+        if (alive) fetchJobResult();
+        return;
+      } else if (d.phase === 'canceled' || d.phase === 'error') {
+        anaJob.running = false;
+        anaJob.progress = null;
+        anaJob.phase = d.phase;
+        anaJob.error = d.phase === 'error' ? (d.message || '未知错误') : null;
+      } else {
+        return;
       }
-      st.progress = d;
-      if (d.phase === 'batch-error') st.lastErr = d.message;
+      if (!alive) return;           /* 本页不在：状态留住，切回来再画 */
+      if (d.phase === 'canceled' || d.phase === 'error') {
+        toast(d.phase === 'canceled' ? '已取消分析' : ('分析失败：' + (d.message || '未知错误')), d.phase === 'error' ? 'err' : '');
+        anaJob.error = null;
+        renderSide();
+        renderMain();
+        return;
+      }
+      syncClock();
       renderPipe();
+      renderActions();
     });
 
     /* ---------------- 首屏 ---------------- */
     initBookState(book());
+    syncClock();
     renderSide();
     renderMain();
+    /* 主进程里可能正有一轮分析在跑（作者刚切走又切了回来）：接上它的进度，别从零开始 */
+    resumeJob();
 
   }
 };

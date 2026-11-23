@@ -798,6 +798,11 @@ ipcMain.handle('book:remove', (e, bookId) => {
   const d = getDoc();
   d.books = d.books.filter(b => b.id !== bookId);
   persist();
+  /* 这本书正在分析：原文马上要删了，先让它停下（这是「取消」除按钮外唯一的来源） */
+  if (analysisJob && analysisJob.running && analysisJob.bookId === String(bookId)) {
+    cancelFlag = true;
+    analysisJob.message = '这本书已移出书库，正在停止分析…';
+  }
   /* 这条拆书记录可能在别的书里也有一份（入库到新书时会复制过去）：都删干净了才删原文 */
   let others = 0;
   try {
@@ -810,12 +815,58 @@ ipcMain.handle('book:remove', (e, bookId) => {
   if (!others) { try { fs.unlinkSync(bookTextPath(bookId)); } catch (err) {} }
   return { ok: true };
 });
-ipcMain.handle('book:cancel', () => { cancelFlag = true; return { ok: true }; });
+/* ---------------- 拆书 job：分析跑在主进程，切页面不影响 ----------------
+ * 以前「开始分析」是一个挂在界面调用上的 Promise：作者一切到别的页面，那一页就被卸载、
+ * 手里的 Promise 没人接了，取消按钮也跟着消失，看上去就是"分析自己停了"，几千字白跑。
+ * 现在分析改成主进程里的一个 job：
+ *   · 进度一边发 book:progress，一边留在 analysisJob 里（谁接管谁接着显示）；
+ *   · 界面切回来时用 book:job 查一次快照，进度条和「分析中」的状态立刻接上；
+ *   · 只有界面里明确点「取消」，或这本书被移出书库时才真的停下。
+ * 结果照旧落盘到书里，job.result 也给接手的界面留一份。
+ */
+let analysisJob = null;
+function jobSnapshot(job) {
+  if (!job) return null;
+  return {
+    id: job.id, bookId: job.bookId, running: job.running, done: job.done, total: job.total,
+    message: job.message, phase: job.phase, lastErr: job.lastErr,
+    startedAt: job.startedAt, finishedAt: job.finishedAt,
+    result: job.running ? null : job.result,
+    error: job.running ? null : job.error
+  };
+}
 
-ipcMain.handle('book:analyze', async (e, opts) => {
+ipcMain.handle('book:cancel', () => {
+  cancelFlag = true;
+  if (analysisJob && analysisJob.running) {
+    analysisJob.message = '正在取消…';
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('book:progress', { phase: 'cancel-requested', done: analysisJob.done, total: analysisJob.total, message: '正在取消…' });
+    }
+  }
+  return { ok: true };
+});
+
+/* 界面问「这本书的分析还在跑吗」：切页回来靠它接上进度 */
+ipcMain.handle('book:job', (e, bookId) => {
+  const id = String(bookId || '');
+  if (!analysisJob || analysisJob.bookId !== id) return null;
+  const snap = jobSnapshot(analysisJob);
+  /* 跑完的结论只交出去一次（结果已经落盘到书里了），交完就清掉 */
+  if (!analysisJob.running) { snap.retired = true; analysisJob = null; }
+  return snap;
+});
+
+/* 界面点「开始分析」：起一个 job 就返回，不等分析跑完。
+ * 这样渲染层整页卸载也不会把这一轮带走。 */
+ipcMain.handle('book:analyze', (e, opts) => {
   const { bookId, keepIndexes, steps } = opts || {};
-  const book = getDoc().books.find(b => b.id === bookId);
-  if (!book) throw new Error('找不到这本书');
+  /* 用 resolveBookDoc 而不是 getDoc().books：这本书可能只在磁盘上（界面刚切过书，
+   * 主进程缓存已经被作废过），直接改缓存里的对象，结果会落进一份不该保存的 doc 里 */
+  const found = resolveBookDoc(bookId);
+  if (!found) throw new Error('找不到这本书');
+  const book = found.book;
+  if (analysisJob && analysisJob.running) throw new Error('已经有一轮分析在跑，等它结束再开始');
   /* 章表和当前分章算法对不上时先重排（老版本导入的书），勾选按标题搬过去 */
   const synced = syncBookChapters(book);
   let chapters = (synced && synced.chapters) || splitBook(bookId, book.rule || 'chapter', false).chapters;
@@ -823,7 +874,54 @@ ipcMain.handle('book:analyze', async (e, opts) => {
   if (!chapters.length) throw new Error('没有选中任何章节');
 
   cancelFlag = false;
-  const send = d => { if (win && !win.isDestroyed()) win.webContents.send('book:progress', d); };
+  analysisJob = {
+    id: 'aj' + Date.now().toString(36), bookId: String(bookId), running: true,
+    done: 0, total: 0, message: '准备分析…', phase: 'start', lastErr: null,
+    startedAt: new Date().toISOString(), finishedAt: null, result: null, error: null
+  };
+  const job = analysisJob;
+  /* 结果写回哪个 doc：缓存里就是它 → persist()；否则（只在磁盘上）→ saveBook(ownerId)。
+   * 不记下来的话，几十秒后改完的对象根本没人保存，界面上就是「跑完了但没结果」。 */
+  job.doc = found.doc;
+  job.ownerId = found.ownerId;
+  /* 后台跑：这一轮不挂在任何一次 IPC 调用上，界面卸载也带不走它 */
+  runAnalysis(job, book, chapters, steps).catch(err => console.error('[book:analyze] job crashed', err));
+  return jobSnapshot(job);
+});
+
+async function runAnalysis(job, book, chapters, steps) {
+  /* 主进程里的 job 必须自己兜住所有异常：界面可能已经不在，没人接这个 Promise。
+   * 失败也要把 running 置回 false，否则这一轮会永远卡在「分析中」。 */
+  try {
+    return await runAnalysisInner(job, book, chapters, steps);
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    job.running = false;
+    job.finishedAt = new Date().toISOString();
+    job.phase = /已取消|cancel/i.test(msg) ? 'canceled' : 'error';
+    job.error = msg;
+    job.result = null;
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('book:progress', {
+        phase: /已取消|cancel/i.test(msg) ? 'canceled' : 'error',
+        done: job.done, total: job.total, message: /已取消|cancel/i.test(msg) ? '已取消' : ('分析失败：' + msg)
+      });
+    }
+    return null;
+  }
+}
+
+async function runAnalysisInner(job, book, chapters, steps) {
+  const send = d => {
+    if (d) {
+      if (d.done != null) job.done = d.done;
+      if (d.total != null) job.total = d.total;
+      if (d.message) job.message = d.message;
+      if (d.phase) job.phase = d.phase;
+      if (d.phase === 'batch-error' && d.message) job.lastErr = d.message;
+    }
+    if (win && !win.isDestroyed()) win.webContents.send('book:progress', d);
+  };
   const doPeople = !steps || steps.includes('people');
   const doPlots = !steps || steps.includes('plots');
 
@@ -903,10 +1001,29 @@ ipcMain.handle('book:analyze', async (e, opts) => {
     stats: { chapters: chapters.length, batches: batches.length }
   };
   book.status = 'analyzed';
-  persist();
+  /* 结果落盘：按 job 记下的归属保存，缓存里不是这本书时走 saveBook，别写进不该写的那份 */
+  try {
+    if (!job.doc || job.doc === getDoc()) persist();
+    else if (job.ownerId) bookcase.saveBook(job.ownerId, job.doc);
+    else persist();
+  } catch (err) { console.error('[book:analyze] save failed', err); }
+  /* 界面收到 done 以后会 data:load 一次来对齐：缓存里必须能看到这份结果。
+   * 这本书不在缓存里（只在磁盘上）时，把结果补进缓存那份的同一个书号上，
+   * 否则界面重新读回来的还是旧数据，看着就是「跑完了但没结果」。 */
+  try {
+    const cur = getDoc();
+    const inCur = (cur.books || []).find(b => b.id === book.id);
+    if (!inCur && cur.books) { cur.books.push(book); }
+    else if (inCur && inCur !== book) { Object.assign(inCur, book); }
+  } catch (err) { /* 补进缓存失败不影响已落盘的结果 */ }
+
+  job.running = false;
+  job.finishedAt = new Date().toISOString();
+  job.result = book;
+  job.phase = 'done';
   send({ phase: 'done', done: batches.length, total: batches.length, message: '分析完成' });
   return book;
-});
+}
 
 /* 入库。
  *

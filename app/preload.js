@@ -53,11 +53,14 @@ contextBridge.exposeInMainWorld('nf', {
   book: {
     /* 正文只在入库那一刻由主进程读出来，不走 IPC；这里只加界面真正用到的几个：
      *   touch  —— 报告"正在看哪本书"，入库时主进程靠它找回拆书结果
-     *   tab    —— 记住勾了哪几章 / 选了哪几条，切页不丢 */
+     *   tab    —— 记住勾了哪几章 / 选了哪几条，切页不丢
+     *   analyze —— 起一轮分析（主进程里的 job，切页 / 卸载页面都不会打断它）
+     *   job    —— 问主进程「这本书的分析跑到哪了」，切回页面时接上进度 */
     touch: (bookId) => call('book:touch', bookId),
     create: (file) => call('book:create', file),
     resplit: (bookId, rule) => call('book:resplit', bookId, rule),
     analyze: (opts) => call('book:analyze', opts),
+    job: (bookId) => call('book:job', bookId),
     cancel: () => call('book:cancel'),
     tab: (opts) => call('book:tab', opts),
     commit: (opts) => call('book:commit', opts),
