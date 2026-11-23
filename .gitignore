@@ -37,6 +37,13 @@ _*.json
 !package.json
 !package-lock.json
 
+# ---- 本地一键发版脚本（只留本机，不随仓库上传）----
+/release.cmd
+/release.ps1
+
+# ---- Electron 本机运行时数据（userData 镜像，绝不能进仓库）----
+/卷帙 NovelFolio/
+
 # ---- 系统 ----
 .DS_Store
 Thumbs.db
