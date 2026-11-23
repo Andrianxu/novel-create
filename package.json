@@ -50,7 +50,7 @@
       ]
     },
     "portable": {
-      "artifactName": "NovelFolio-${version}-portable.exe"
+      "artifactName": "NovelFolio-portable.exe"
     },
     "compression": "normal"
   },

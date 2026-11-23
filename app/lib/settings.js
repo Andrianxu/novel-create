@@ -22,6 +22,10 @@ const DEFAULTS = {
   ui: {
     launchAnim: true         /* 启动动画：关掉就直接进主界面 */
   },
+  /* 在线更新：只记「用户选择先不要这个版本」，确认更新不用改配置（配置只在主界面 / 设置页可改） */
+  update: {
+    skipVersion: ''
+  },
   /* 同步：书稿放在用户自己的网盘 / 本地同步盘里，卷帙不经过任何服务器 */
   sync: {
     enabled: false,
@@ -134,6 +138,15 @@ async function getSyncCredential(name) {
   return (k && k[name]) || '';
 }
 
+/* ---------------- 在线更新：忽略某个版本 ---------------- */
+function skipVersion() { try { return (getConfig().update || {}).skipVersion || ''; } catch (e) { return ''; } }
+function setSkipVersion(v) {
+  const next = getConfig();
+  next.update = Object.assign({}, next.update || {}, { skipVersion: String(v || '') });
+  fs.writeFileSync(P.configFile(), JSON.stringify(next, null, 1), 'utf8');
+  return next.update;
+}
+
 function maskKey(k) {
   if (!k) return '';
   if (k.length <= 8) return '****';
@@ -153,6 +166,7 @@ async function publicSettings() {
     llm: cfg.llm,
     privacy: cfg.privacy,
     ui: cfg.ui || { launchAnim: true },
+    update: { skipVersion: (cfg.update && cfg.update.skipVersion) || '' },
     sync: {
       enabled: !!sync.enabled, kind: sync.kind || 'folder', folder: sync.folder || '',
       url: sync.url || '', user: sync.user || '', encrypt: !!sync.encrypt, autoMinutes: sync.autoMinutes || 0,
@@ -168,5 +182,5 @@ async function publicSettings() {
 
 module.exports = {
   getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable,
-  setSyncCredential, getSyncCredential
+  setSyncCredential, getSyncCredential, skipVersion, setSkipVersion
 };

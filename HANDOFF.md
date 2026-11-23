@@ -1,14 +1,116 @@
-# 卷帙 NovelFolio · 交接说明（2026-11-22 第十轮更新）
+# 卷帙 NovelFolio · 交接说明（2026-11-23 第十一轮更新）
 
-> 这一轮修了两个「看着能用、其实点不动」的地方：
-> **人物页的情节时间轴**以前只能看，现在和情节页一样**能拖圆点改时间点、双击空白处新建**；
-> **章节写作的「＋ 卷」点了完全没反应**——原因很蠢也很典型：`window.prompt()` 在 Electron 里
-> 是不支持的，一点就抛 `prompt() is not supported.`，按钮就这么"哑"了。两个都修好了。
+> 这一轮回答的是「GitHub 上那个 exe 下载链接永远是 0.1.0，怎么让它自己更新」：
+> 现在 **exe 自己会查 GitHub Releases**，有新版就下载、核对 SHA256、换掉自己再重启，
+> 全程只有「设置 → 在线更新」里那几个按钮，不用再去 GitHub 手动下载。
 >
-> 上一轮（第九轮）的拆书入库（正文进章节写作 + 选导进哪本书）见下一节；
-> 第八轮的导出选范围 / 选格式、第七轮的人物页删减 / 改分类、第六轮的书库、
-> 第五轮的撤销 / 重做、第四轮的情节时间轴，依次在后面几节。
+> 顺带把「下载链接」这件事从根本上修了：资产名不再带版本号（`NovelFolio-portable.exe`），
+> `releases/latest/download/NovelFolio-portable.exe` 从此永远指向最新一次发布。
+>
+> 上一轮（第十轮）的人物页时间轴 /「＋ 卷」见下一节；第九轮的拆书入库、
+> 第八轮的导出选范围、第七轮的人物页删减、第六轮的书库等依次在后面。
 
+## 本轮重点：exe 自己会更新（第十一轮）
+
+### 1. 为什么以前的「下载链接」不更新
+
+两件事叠在一起：
+
+| 问题 | 说明 |
+| --- | --- |
+| 下载入口写死了版本号 | README / description 里的链接是 `releases/latest`，打开的是**最新那次 Release** —— 但用户存档的却是具体文件名 `NovelFolio-0.1.0-portable.exe`；资产名又是 `NovelFolio-${version}-portable.exe` |
+| exe 里没有任何自更新 | 便携版是一个文件，发出去就固定了；哪怕以后发 0.2.0，老用户手里那个也不会变 |
+
+所以这一轮两件事一起做：**资产名固定**（这个版本开始改），**程序自己查更新**（从这一版起的老 exe 就能用）。
+
+### 2. 资产名改成 `NovelFolio-portable.exe`（package.json）
+
+```json
+"portable": { "artifactName": "NovelFolio-portable.exe" }
+```
+
+好处是 GitHub 的固定入口 `releases/latest/download/NovelFolio-portable.exe` 永远指向最新发布，
+任何人都能用它做书签 / 网页上的「最新版下载」。
+**注意**：v0.1.0 那次 Release 里还是旧名字 `NovelFolio-0.1.0-portable.exe`。
+从**下一次**打 tag 开始的 Release 才会带新名字 —— 这也是为什么更新器下载时优先走 **API 资产接口**（不依赖文件名），
+网页那条 `latest/download/NovelFolio-portable.exe` 只作为回退。
+
+### 3. 新增 `app/lib/updater.js`：查 → 下 → 校 → 换
+
+| 步骤 | 怎么做 | 关键实现 |
+| --- | --- | --- |
+| 查 | `GET /repos/Andrianxu/novel-create/releases?per_page=30`，取**非预发布里 tag 最高的那个** | GitHub 的列表按发布时间倒序、不按版本号，直接取 `[0]` 会在补发旧版本时「降级」 |
+| 判 | 只认 tag：`v0.2.0` → `0.2.0`，`compareVer(线上, 当前) > 0` 才算有更新 | 同版本 / 更旧一律忽略，不回滚 |
+| 下 | 优先 `api.github.com/repos/.../releases/assets/<id>`（`Accept: application/octet-stream`），失败再回退网页 `releases/latest/download/<资产名>` | 见下面「为什么下载不走网页链接」 |
+| 校 | 流式 SHA256；优先核 **GitHub 公布的摘要**（API `digest` 字段 / Release 资源摘要页），再核发布说明里的 `SHA256 xxx` | 两样都没有才只按大小核，并在界面上写「这次发布没提供摘要」 |
+| 换 | 起一个独立安装器脚本，等本进程退出后复制新 exe 到位，再重开 | 见下面「换装」 |
+| 认 | 新版起来后，`update:state` 读一次磁盘 exe 的文件版本，比进程里高就清掉暂存文件、记 `applied` | 只在安装版上做（便携版 `process.execPath` 是临时解包目录） |
+
+**为什么下载不走网页链接**：本机实测 `github.com:443` 完全连不上（20 秒超时），`api.github.com` 正常；
+API 那条会 302 到 `release-assets.githubusercontent.com`，105 MB 的 exe 4~16 秒下完。
+国内网络这种情况很常见，所以把 API 那条放第一位。
+
+**换装怎么做到的**：Windows 上程序改不了自己正开着的 exe。安装器是个独立的几十行 node 脚本
+（`app/lib/updater.js` 里的 `SWAP_SCRIPT`，运行时写到 `%APPDATA%\novelfolio\updates\apply-update.js`），
+用 `ELECTRON_RUN_AS_NODE=1` 让 Electron 的 exe 以 node 方式跑 —— **用户机器上不需要装 Node**。
+流程：
+
+1. 等老进程退出（轮询 pid，最多 60 秒）；
+2. 新 exe 复制到目标目录旁边（带时间戳，绝不碰正在用的文件）→ 先 `rm` 目标再 `copy`，被占用就 750ms 重试，最多 40 次；
+3. 重开 `target`（真新版）；起不来就用挪开的旧文件兜底，至少让用户能继续干活；
+4. 5 秒后清理临时文件。
+
+所有失败都写进 `updates/update.log`，界面上看到的错误也来自这里。
+
+### 4. 界面：设置 → 在线更新（`settings.js`）
+
+| 状态 | 界面 |
+| --- | --- |
+| 开发态（`!app.isPackaged`） | 「开发态」灰标 + 一句解释，不联网 |
+| 未检查 | 「检查更新」「打开发布页」 |
+| 检查中 / 已是最新 | 当前版本、最新版本 |
+| 有新版 | 版本、大小、发布日期 +「下载并更新」「这个版本先不更新」「打开发布页」 |
+| 下载中 | 实时进度（事件 `update:progress`，120ms 节流） |
+| 可以安装 | 「立即重启安装」+ 校验结果（GitHub 摘要 / 发布说明） |
+| 安装中 → 关闭 | 3 秒倒数后调 `update:quit`，主进程退出，安装器接手 |
+| 出错 | 人话错误 + 「重新检查」「打开发布页手动下载」 |
+| 已忽略 | 「v0.2.0 已经标记为先不更新」 |
+
+启动 8 秒后主进程静默查一次（只在 `app.isPackaged` 时），结果留在 `updater.state().lastCheck` 里，
+设置页一进去就能看到，不弹窗、不打断写作。
+
+### 5. 本轮验证（脚本跑完已删，方法记在这里）
+
+| 覆盖 | 结果 |
+| --- | --- |
+| 版本比较 | `v0.2.0 > 0.1.0`、`0.1.0 == v0.1.0`、`0.10.0 > 0.9.9`、`1.0 == 1.0.0` 全对 |
+| 查真 Release | 假版本 9.9.9 → 「已经是最新版本」；0.0.1 → 「发现新版本 v0.1.0」，API 路由 + 网页路由都在，摘要解析出 `c1d7e40a…` |
+| 下载 + 校验 | 105.4 MB，4.6 秒，`verified=github`，落盘文件 SHA256 复算一致 |
+| 下载后再查 | 「新版本 v0.1.0 已经下载好，可以直接安装」（`staged` 判定用下载的版本，不是磁盘 exe 版本） |
+| 换装脚本（文本文件演练） | 老进程退出后覆盖成功、暂存文件清掉、日志有「替换完成」 |
+| 换装脚本（**真打包 exe**） | 复制 `dist/win-unpacked` 到带空格的目录 → 起老进程 → 安装器覆盖 → exe 头仍是 `MZ`、`newGone=true`、日志「已重开」 |
+| 设置页 UI | 用临时环境钩子喂假状态，逐个截图核对：「有新版 / 可以安装 / 已是最新 / 出错了 / 已忽略」五个状态的文案与按钮都对（钩子已删） |
+| Electron 里走 IPC | `nf.update.state()` / `nf.update.check()` 在真窗口里返回正确（开发态 → `dev:true`，「开发态不检查更新」） |
+| 打包后 exe 冒烟 | 见下 |
+
+**踩过的坑**（以后别重复）：
+
+- `stagedExe()` 原来用 `updateDir()`（= `ensureDir` + 路径），`existsSync` 一查就顺手把目录建出来了；改成 `updateDirPath()` 只拼路径。
+- 便携版不能拿 `process.execPath` 读文件版本判断「是不是已经装上了」：那是临时解包目录里的中间层。
+- 资产名固定 + 网页回退会 404：v0.1.0 那次 Release 还是旧名字，所以 API 路由必须排第一。
+- 录制 / 演示用的 `--eval` 脚本里，`nf.update.*` 这类 contextBridge 对象**不能从页面覆盖**（不可写），要测 UI 状态得在主进程放临时环境钩子。
+
+### 6. 发新版本的操作（维护者）
+
+```powershell
+# 1. 改 package.json 的 version，例如 0.2.0
+# 2. 提交，然后打 tag
+git tag v0.2.0
+git push origin main --tags
+```
+
+CI（`.github/workflows/build.yml`）会打包并把 `NovelFolio-portable.exe` 传到那次 Release。
+老用户下次启动（或点「检查更新」）就会看到 v0.2.0。
 ## 本轮重点：人物页时间轴能拖能建 + 「＋ 卷」修好（第十轮）
 
 ### 1. 人物页的情节时间轴：从"只能看"变成"能改"
@@ -253,7 +355,7 @@ Electron 的渲染进程**不实现 `window.prompt`**，调用直接抛 `Uncaugh
 | 勾选状态跨两次启动 | `analysis.tab` + `kept` 都还在（`book:tab` 按 `resolveBookDoc` 找 owner，按标题对） |
 | 分章：含 `第一卷` 的长篇、含前言/作者行的 txt | 卷不再切碎全书；前言单独一块；章内不再夹 `作者：…` |
 | 端到端脚本 32 项 | 31 项通过；1 项是我自己写错的期望（把「已存在的 12 个名字」当成「新增」） |
-| 打包后的 `NovelFolio-0.1.0-portable.exe` 冒烟 | 两条路径（新书 / 当前书）都跑了一遍，结果与源码版一致；asar 里确认含 `resolveBookDoc` / `syncBookChapters` / `存到现在的展示书籍` |
+| 打包后的 `NovelFolio-portable.exe` 冒烟 | 两条路径（新书 / 当前书）都跑了一遍，结果与源码版一致；asar 里确认含 `resolveBookDoc` / `syncBookChapters` / `存到现在的展示书籍` |
 | 空安装（全新 userData）跑一遍 | 11/12，唯一失败项同样是那条写错的期望 |
 
 ## 〇、导出：选范围 + 选格式（第八轮）
@@ -540,7 +642,7 @@ Electron 的渲染进程**不实现 `window.prompt`**，调用直接抛 `Uncaugh
 | 技术栈 | Electron 45.4.1；渲染层原生 ES module，主进程 CommonJS |
 | 入口 | `app/main.js`、`preload.js`、`app/renderer/js/app.js`；页面 `app/renderer/js/pages/*.js` |
 | 数据 | 本机 `userData/data/`：`library.json`（书库）+ `books/<书号>.json`（每本书一份）；老的单文件 `novelfolio.data.json` 只在升级时读一次 |
-| 打包产物 | `dist\NovelFolio-0.1.0-portable.exe`（每次改完都重新打包，见下面「打包约定」） |
+| 打包产物 | `dist\NovelFolio-portable.exe`（名字不带版本号，和 GitHub Release 的资产名一致；每次改完都重新打包，见下面「打包约定」） |
 
 ### 打包约定（重要）
 
@@ -557,12 +659,12 @@ npm run dist
 | --- | --- |
 | **删掉环境变量 `ELECTRON_RUN_AS_NODE`** | 会话里常常带着它（值为 1）。带着它，electron 会被当成 node 来跑，构建中途报 `app.whenReady is not a function` 之类。先 `Remove-Item Env:\ELECTRON_RUN_AS_NODE` |
 | `ELECTRON_BUILDER_CACHE` 给上 | 否则每次都想重新下载 NSIS 等工具链，国内网络容易卡死：`$env:ELECTRON_BUILDER_CACHE="$env:LOCALAPPDATA\electron-builder\Cache"` |
-| 先关掉正在运行的便携版 | `taskkill /F /IM NovelFolio-0.1.0-portable.exe`，否则 exe 被占用，最后一步改名会失败 |
+| 先关掉正在运行的便携版 | `taskkill /F /IM NovelFolio-portable.exe`，否则 exe 被占用，最后一步改名会失败 |
 
 `npm run dist` 等价于 `node scripts/ensure-electron.js && electron-builder --win portable`。
 打完核对两件事：
 
-1. `dist\NovelFolio-0.1.0-portable.exe` 的修改时间晚于这次改动的源文件；
+1. `dist\NovelFolio-portable.exe` 的修改时间晚于这次改动的源文件；
 2. `dist\win-unpacked\resources\app.asar` 里对应的 `app/**` 文件与源码一致（必要时用 `npx asar extract` 抽出来比对）。
 
 > 打包只影响 `app/**` 和 `package.json`（见 `package.json` 的 `build.files`），所以改 `HANDOFF.md` / `README.md` 不需要为了文档重新打包；但只要动了 `app/` 下的任何文件，就必须重新打包。

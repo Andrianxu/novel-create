@@ -554,10 +554,240 @@ export default {
           '关掉后启动直接进入主界面。启动慢的时候动画会把这段等待盖住；动画播放中点击或按任意键可以跳过。'))));
 
     right.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'set-h' }, h('h3', {}, '在线更新'), h('span', { class: 'pill', id: 'updPill' }, '未检查')),
+      h('div', { class: 'set-b', id: 'updBox' })));
+
+    right.appendChild(h('div', { class: 'card' },
       h('div', { class: 'set-h' }, h('h3', {}, '关于')),
       h('div', { class: 'set-b' },
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '版本'), h('span', { class: 'val' }, '卷帙 NovelFolio v' + (NF.info ? NF.info.version : '0.1.0'))),
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '运行时'), h('span', { class: 'val tiny' }, NF.info ? ('Electron ' + NF.info.electron + ' · Chromium ' + NF.info.chrome + ' · Node ' + NF.info.node) : '')),
         h('div', { class: 'set-note' }, h('b', {}, '离线承诺：'), '除了你自己配置的模型接口，软件不向外发送任何数据；没有账号、没有统计、没有崩溃上报。'))));
+
+    /* ---------- 在线更新 ----------
+     * 便携版是一个 exe，发出去就没法自己变。这里让它自己去 GitHub Releases 查最新版：
+     * 有新的就下载下来（校验 SHA256）、换掉自己再重启。全程只在用户点按钮时才联网。
+     * 状态机：idle（还没查）→ checking → latest / available（有新版）→ downloading → staged（下好了）→ applying */
+    function mountUpdateCard() {
+      const box = document.getElementById('updBox');
+      const pill = document.getElementById('updPill');
+      if (!box) return;
+      const W = window.nf.update;
+      let st = { phase: 'idle' };        /* 本卡的状态 */
+      let info = null;                    /* 最近一次 update:state / check 的结果 */
+      let prog = null;                    /* 下载进度 */
+      const setPill = (text, kind) => { pill.textContent = text; pill.className = 'pill' + (kind ? ' ' + kind : ''); };
+      const pctText = p => Number.isFinite(p) ? Math.floor(p * 100) + '%' : '';
+      const mb = n => (n / 1048576).toFixed(1) + ' MB';
+      const relDate = iso => { try { return fmtDate(iso); } catch (e) { return ''; } };
+      /* 下载完的校验结果：github = GitHub 公布的摘要，notes = 发布说明里的 SHA256 */
+      const verifyText = v => ({
+        'github': '已核对 GitHub 公布的 SHA256',
+        'notes': '已核对发布说明的 SHA256',
+        'github+notes': '已核对 SHA256（GitHub + 发布说明）',
+        'size-only': '按文件大小核对（这次发布没提供摘要）'
+      })[v] || '已校验';
+
+      async function refreshState() {
+        try { info = await W.state(); } catch (e) { info = null; }
+        if (st.phase !== 'idle') { draw(); return; }
+        /* 启动时主进程做过一次静默检查（app.js 里做的），结果在 lastCheck 里 —— 直接接着用，
+         * 用户一进设置页就能看到「有新版本」，不用再点一次 */
+        const lc = info && info.lastCheck;
+        if (info && info.staged) st = { phase: 'staged', version: info.staged.version, verified: info.staged.verified };
+        else if (lc && lc.dev) st = { phase: 'dev' };
+        else if (lc && lc.ok === false) st = { phase: 'error', message: lc.message || '检查失败' };
+        else if (lc && lc.hasUpdate) st = { phase: 'available', release: lc.release, latest: lc.latest };
+        else if (lc && lc.ok && lc.skipped) st = { phase: 'skipped', version: lc.latest };
+        else if (lc && lc.ok) st = { phase: 'latest', latest: lc.latest };
+        draw();
+      }
+
+      async function doCheck() {
+        st = { phase: 'checking' };
+        setPill('检查中…');
+        draw();
+        let r;
+        try { r = await W.check({}); } catch (e) { r = { ok: false, message: ipcErr(e) }; }
+        info = Object.assign(info || {}, { lastCheck: r });
+        if (!r || r.dev) { st = { phase: 'dev' }; }
+        else if (!r.ok) { st = { phase: 'error', message: (r && r.message) || '检查失败' }; }
+        else if (r.staged) { st = { phase: 'staged', version: r.staged.version, verified: r.staged.verified }; }
+        else if (r.hasUpdate) { st = { phase: 'available', release: r.release, latest: r.latest }; }
+        else { st = { phase: 'latest', latest: r.latest }; }
+        draw();
+      }
+
+      async function doDownload() {
+        const rel = st.release;
+        if (!rel) return;
+        st = { phase: 'downloading', release: rel, latest: rel.version };
+        prog = { pct: 0 };
+        draw();
+        let r;
+        try { r = await W.download(rel); } catch (e) { r = { ok: false, message: ipcErr(e) }; }
+        prog = null;
+        if (r && r.ok) { st = { phase: 'staged', version: r.version, verified: r.verified }; }
+        else { st = { phase: 'error', message: (r && r.message) || '下载失败', release: rel }; }
+        draw();
+      }
+
+      async function doInstall() {
+        const version = st.version || (st.release && st.release.version) || '';
+        st = { phase: 'applying', version };
+        draw();
+        let r;
+        try { r = await W.apply(); } catch (e) { r = { ok: false, message: ipcErr(e) }; }
+        if (!r || !r.ok) {
+          st = { phase: 'error', message: (r && r.message) || '安装失败', version };
+          draw();
+          return;
+        }
+        /* 安装器已经在等本进程退出：倒数几秒给用户一个交代，然后自己关 */
+        let n = 3;
+        st = { phase: 'closing', version, left: n };
+        draw();
+        const tick = setInterval(async () => {
+          n -= 1;
+          st.left = n;
+          draw();
+          if (n <= 0) {
+            clearInterval(tick);
+            try { await W.quit(); } catch (e) {}
+          }
+        }, 1000);
+      }
+
+      async function doSkip() {
+        const v = (st.release && st.release.version) || st.latest || '';
+        try { await W.skip(v); } catch (e) {}
+        st = { phase: 'skipped', version: v };
+        draw();
+      }
+
+      function openReleases() {
+        const url = (info && info.releasesUrl) || 'https://github.com/Andrianxu/novel-create/releases/latest';
+        try { window.nf.image.openExternal(url); } catch (e) {}
+      }
+
+      function draw() {
+        clear(box);
+        const dev = info && info.dev;
+        const cur = 'v' + ((info && info.current) || (NF.info ? NF.info.version : '0.1.0'));
+        const progLine = () => {
+          const p = prog && prog.phase === 'download' ? prog : null;
+          const v = p ? pctText(p.pct) : (prog && prog.phase === 'verify' ? '正在校验' : '');
+          const size = p && p.total ? (' ' + mb(p.received) + ' / ' + mb(p.total)) : '';
+          return h('div', { class: 'tiny muted', style: { marginTop: '2px' } },
+            '正在下载 v' + ((st.release && st.release.version) || '') + (size ? size : '') + (v ? ' · ' + v : ''));
+        };
+        const row = (...kids) => h('div', { class: 'set-row' }, ...kids);
+
+        if (dev || st.phase === 'dev') {
+          setPill('开发态', 'muted');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur + '（源码运行）')));
+          box.appendChild(h('div', { class: 'tiny muted' }, '开发态不检查更新；打包成 exe 之后，这里会自动去 GitHub 找最新版。'));
+          return;
+        }
+
+        if (st.phase === 'idle') {
+          setPill('未检查', 'muted');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(h('div', { class: 'presets' },
+            h('span', { onclick: doCheck }, '检查更新'),
+            h('span', { class: 'add', onclick: openReleases }, '打开发布页')));
+          box.appendChild(h('div', { class: 'tiny muted' }, '点「检查更新」才会连 GitHub；不点就不联外网。'));
+          return;
+        }
+        if (st.phase === 'checking') {
+          setPill('检查中…');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(h('div', { class: 'tiny muted' }, '正在问 GitHub 有没有新版本…'));
+          return;
+        }
+        if (st.phase === 'latest') {
+          setPill('已是最新', 'ok');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(row(h('span', { class: 'lab' }, '最新版本'), h('span', { class: 'val' }, 'v' + (st.latest || ''))));
+          box.appendChild(h('div', { class: 'presets' },
+            h('span', { onclick: doCheck }, '再查一次'),
+            h('span', { class: 'add', onclick: openReleases }, '打开发布页')));
+          return;
+        }
+        if (st.phase === 'available') {
+          const rel = st.release || {};
+          setPill('有新版 v' + (rel.version || ''), 'new');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(row(h('span', { class: 'lab' }, '最新版本'),
+            h('span', { class: 'val' }, 'v' + (rel.version || '')),
+            h('span', { class: 'tiny muted' },
+              [rel.size ? mb(rel.size) : '', rel.publishedAt ? relDate(rel.publishedAt) : ''].filter(Boolean).join(' · '))));
+          box.appendChild(h('div', { class: 'presets' },
+            h('span', { class: 'on', onclick: doDownload }, '下载并更新'),
+            h('span', { onclick: doSkip }, '这个版本先不更新'),
+            h('span', { class: 'add', onclick: openReleases }, '打开发布页')));
+          box.appendChild(h('div', { class: 'set-note' }, h('b', {}, '怎么装：'),
+            '下载的新版会先核对 SHA256，再替换掉这个 exe 并自动重启。书稿存在 %APPDATA%\\novelfolio，不受影响。'));
+          return;
+        }
+        if (st.phase === 'downloading') {
+          setPill('下载中…');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(progLine());
+          box.appendChild(h('div', { class: 'tiny muted' }, '下载过程中可以继续写作，进度会一直在右边这里显示。'));
+          return;
+        }
+        if (st.phase === 'skipped') {
+          setPill('已忽略该版本', 'muted');
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(h('div', { class: 'tiny muted' }, 'v' + (st.version || '') + ' 已经标记为「先不更新」，下次启动不会再提醒；想装的时候点「检查更新」就能重新看到它。'));
+          box.appendChild(h('div', { class: 'presets' },
+            h('span', { onclick: doCheck }, '检查更新'),
+            h('span', { class: 'add', onclick: openReleases }, '打开发布页')));
+          return;
+        }
+        if (st.phase === 'staged') {
+          setPill('可以安装', 'ok');
+          const v = st.version || '';
+          box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+          box.appendChild(row(h('span', { class: 'lab' }, '已下载'), h('span', { class: 'val' }, 'v' + v + '  '),
+            h('span', { class: 'tiny muted' }, '校验：' + verifyText(st.verified))));
+          box.appendChild(h('div', { class: 'presets' },
+            h('span', { class: 'on', onclick: doInstall }, '立即重启安装'),
+            h('span', { class: 'add', onclick: openReleases }, '打开发布页')));
+          box.appendChild(h('div', { class: 'tiny muted' }, '点「立即重启安装」会关掉卷帙，换上新版后自动重新打开。'));
+          return;
+        }
+        if (st.phase === 'applying' || st.phase === 'closing') {
+          setPill('安装中');
+          box.appendChild(row(h('span', { class: 'lab' }, '正在安装'), h('span', { class: 'val' }, 'v' + (st.version || ''))));
+          box.appendChild(h('div', { class: 'tiny muted' }, st.phase === 'closing'
+            ? ('卷帙会在 ' + Math.max(0, st.left || 0) + ' 秒后关闭，换好新版再自己打开。书稿都已经保存好了。')
+            : '正在准备退出…'));
+          return;
+        }
+        /* error */
+        setPill('出错了', 'err');
+        box.appendChild(row(h('span', { class: 'lab' }, '当前版本'), h('span', { class: 'val' }, cur)));
+        box.appendChild(h('div', { class: 'set-note' }, h('b', {}, '没能更新：'), st.message || '未知错误'));
+        box.appendChild(h('div', { class: 'presets' },
+          h('span', { onclick: doCheck }, '重新检查'),
+          h('span', { class: 'add', onclick: openReleases }, '打开发布页手动下载')));
+      }
+
+      /* 下载进度事件（主进程推过来的），不在下载态时忽略 */
+      try {
+        window.nf.on('update:progress', d => {
+          if (!d) return;
+          if (d.phase === 'applying') return;
+          if (st.phase !== 'downloading') return;
+          prog = d;
+          draw();
+        });
+      } catch (e) {}
+
+      refreshState();
+    }
+    mountUpdateCard();
   }
 };

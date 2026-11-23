@@ -65,6 +65,15 @@ contextBridge.exposeInMainWorld('nf', {
   clip: {
     write: (text) => call('clipboard:write', text)
   },
+  update: {
+    /* 在线更新：查 GitHub Releases、下载新版 exe、装上并重启 */
+    state: () => call('update:state'),
+    check: (opts) => call('update:check', opts || {}),
+    download: (rel) => call('update:download', rel),
+    apply: () => call('update:apply'),
+    quit: () => call('update:quit'),
+    skip: (version) => call('update:skip', version)
+  },
   image: {
     pickPortrait: (charId) => call('image:pickPortrait', charId),
     pastePortrait: (charId) => call('image:pastePortrait', charId),
@@ -76,7 +85,8 @@ contextBridge.exposeInMainWorld('nf', {
   on: (evt, fn) => {
     const m = {
       'book:progress': (e, d) => fn(d),
-      'sync:progress': (e, d) => fn(d)
+      'sync:progress': (e, d) => fn(d),
+      'update:progress': (e, d) => fn(d)
     }[evt];
     if (!m) return () => {};
     ipcRenderer.on(evt, m);

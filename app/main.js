@@ -13,6 +13,7 @@ const llm = require('./lib/llm');
 const parse = require('./lib/parse');
 const exportdoc = require('./lib/exportdoc');
 const syncer = require('./lib/syncer');
+const updater = require('./lib/updater');
 
 let win = null;
 let doc = null;
@@ -261,6 +262,10 @@ app.whenReady().then(() => {
   if (wantSplash) createSplash();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  /* 启动后过一会儿静默查一次更新（只在打包后的 exe 里做；开发态 updater 直接返回 dev）。
+   * 不弹窗、不打断写作：结果留在 updater.state().lastCheck 里，设置页 / 右上角看到再说。
+   * 放 8 秒之后：别和启动动画、首屏渲染抢带宽和 CPU。 */
+  if (app.isPackaged) setTimeout(() => { updater.checkForUpdate({ silent: true }).catch(() => {}); }, 8000);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
@@ -1058,6 +1063,33 @@ ipcMain.handle('image:absolute', (e, rel) => {
   const p = path.join(P.dataDir(), rel);
   return 'file:///' + p.replace(/\\/g, '/');
 });
+/* ---------------- 在线更新（GitHub Releases） ----------------
+ * 渲染层只负责问「有没有新版」和「下载 / 装」，真正干活的都在 lib/updater.js。
+ * 检查失败不抛给界面，原样把带人话的结果返回去，界面上直接显示。 */
+ipcMain.handle('update:state', () => updater.state());
+ipcMain.handle('update:check', (e, opts) => updater.checkForUpdate(opts || {}));
+ipcMain.handle('update:download', async (e, rel) => {
+  try { return await updater.downloadUpdate(rel || {}); }
+  catch (err) { return { ok: false, message: err.message || String(err) }; }
+});
+ipcMain.handle('update:apply', async () => {
+  try {
+    const r = await updater.applyUpdate();
+    if (r && r.ok) sendProgressSafe({ phase: 'applying', version: r.version });
+    return r || { ok: false };
+  } catch (err) {
+    return { ok: false, message: err.message || String(err) };
+  }
+});
+/* 安装流程接手后，界面会主动让主进程退出：安装器在等这个 pid 消失后才动手 */
+ipcMain.handle('update:quit', () => { updater.quitForUpdate(); return { ok: true }; });
+/* 「这个版本先不更新」：只动 config.update.skipVersion，其它设置一概不碰 */
+ipcMain.handle('update:skip', (e, version) => {
+  settings.setSkipVersion(String(version || ''));
+  return settings.publicSettings();
+});
+function sendProgressSafe(data) { try { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('update:progress', data); } catch (e) {} }
+
 ipcMain.handle('image:pickMapBase', async (e, planeId) => {
   const r = await dialog.showOpenDialog(win, { title: '导入地图底图', properties: ['openFile'], filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
   if (r.canceled || !r.filePaths[0]) return { canceled: true };

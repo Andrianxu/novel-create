@@ -55,7 +55,7 @@
 
 ## 快速开始
 
-**Windows 用户**：下载 [NovelFolio-0.1.0-portable.exe](https://github.com/Andrianxu/novel-create/releases/latest)，双击即用，无需安装 Node。
+**Windows 用户**：下载 [NovelFolio-portable.exe](https://github.com/Andrianxu/novel-create/releases/latest)，双击即用，无需安装 Node。装好以后程序自己会查新版 ——「设置 → 在线更新」一点就走完下载、校验、替换、重启。
 
 **开发者**：
 
@@ -69,7 +69,7 @@ npm start          # 需要 Node.js 22.12+
 打包：
 
 ```bash
-npm run dist       # dist/NovelFolio-0.1.0-portable.exe
+npm run dist       # dist/NovelFolio-portable.exe
 npm run dist:nsis  # 走安装向导的版本
 ```
 

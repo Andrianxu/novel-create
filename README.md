@@ -4,7 +4,9 @@
 
 界面是「纸间书桌」风格：暖纸底、墨色字、印章红点缀、楷体标题。
 
-> **下载 Windows 版**：[卷帙 NovelFolio v0.1.0 · 免安装 exe](https://github.com/Andrianxu/novel-create/releases/latest)（约 105 MB，双击即用，无需装 Node）
+> **下载 Windows 版**：[卷帙 NovelFolio · 免安装 exe](https://github.com/Andrianxu/novel-create/releases/latest)（约 105 MB，双击即用，无需装 Node）
+>
+> 装好以后不用再来这里：**程序自己会查新版**（设置 → 在线更新），下载、核对 SHA256、替换掉这个 exe 再自动重启，一个按钮的事。
 >
 > 设计稿在 `previews/`（界面预览 + 演示文稿），Logo 与图标在 `logo/`，实际运行截图在 `docs/screenshots/`。
 
@@ -175,7 +177,7 @@ npm install
 
 ```bash
 npm install
-npm run dist          # 出 dist/NovelFolio-0.1.0-portable.exe，双击就能开，不用装 Node
+npm run dist          # 出 dist/NovelFolio-portable.exe，双击就能开，不用装 Node
 npm run dist:nsis     # 走安装向导的版本（可选）
 ```
 
@@ -183,7 +185,7 @@ npm run dist:nsis     # 走安装向导的版本（可选）
 
 **每次改完 `app/` 下的代码都要重新跑一次 `npm run dist`**，别让"源码新、exe 旧"。跑之前注意：
 
-- 先关掉正在运行的便携版（`taskkill /F /IM NovelFolio-0.1.0-portable.exe`），否则 exe 被占用；
+- 先关掉正在运行的便携版（`taskkill /F /IM NovelFolio-portable.exe`），否则 exe 被占用；
 - **环境里不能带 `ELECTRON_RUN_AS_NODE`**（有些终端会设成 1）：带着它 electron 会被当 node 跑，构建中途报错。先 `Remove-Item Env:\\ELECTRON_RUN_AS_NODE`；
 - 第一次打包建议先设 `ELECTRON_BUILDER_CACHE`（见下），不然每次都想重新下 NSIS。
 
@@ -198,6 +200,30 @@ $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-
 npm run dist
 ```
 
+### 在线更新（exe 自己会查新版）
+
+便携版只有一个 exe，用户手里那份从发布那一刻起就不会自己变 —— 所以更新这件事得由程序自己来做。
+
+| 你在哪 | 会发生什么 |
+| --- | --- |
+| 启动 8 秒后 | 静默查一次 GitHub Releases（只在打包后的 exe 里做，开发态不查），不弹窗、不打断写作 |
+| 设置 → 在线更新 | 看到当前版本、最新版本和发布说明；手动「检查更新」随时可以点 |
+| 点「下载并更新」 | 下载到 `%APPDATA%\novelfolio\updates\NovelFolio-new.exe`，进度实时显示，先核对 SHA256 再落盘 |
+| 点「立即重启安装」 | 程序退出 → 安装器把新 exe 换到你在桌面/文件夹里的那个位置 → 自动重新打开新版 |
+
+几个设计上的取舍：
+
+- **下载走 `api.github.com` 的资产接口，网页链接只是回退**。国内网络里 `github.com:443` 经常连不上，但 `api.github.com` 能连 —— API 那条会 302 到 `release-assets.githubusercontent.com`，正好绕开被墙的主站（实测同一条 105 MB 的 exe，网页链接 20 秒都连不上，API 那条 4~16 秒下完）。
+- **版本号只认 tag**：`v0.2.0` → `0.2.0`，tag 高于当前才提示更新，同版本 / 更旧的 tag 一律忽略（不回滚）。GitHub 的 releases 列表按发布时间排、不按版本号，所以是在所有非预发布里挑 tag 最高的那个。
+- **校验优先用 GitHub 自己的摘要**（API 的 `digest` 字段，或 Release 资源摘要页），发布说明里作者写的 `SHA256 xxx` 也一起核；两条都拿不到才只按大小核，并在界面上如实写「这次发布没提供摘要」。
+- **替换用「独立的安装器进程」**：Windows 上程序改不了自己正开着的 exe。安装器是个几十行的 node 脚本（用 Electron 自己的 `ELECTRON_RUN_AS_NODE` 模式跑，不需要另装 Node），等老进程退出后把新 exe 复制到位，被占用就每 750ms 重试一次、最多 30 秒。
+- **失败不丢原文件**：新 exe 先复制到目标目录旁边（带时间戳的临时名），再覆盖；万一新版起不来，安装器会用挪开的旧文件兜底重开，书稿（在 `%APPDATA%\novelfolio`）从头到尾没被碰过。
+- **可以「这个版本先不更新」**：记在 `config.json` 的 `update.skipVersion` 里，下次启动就不再提示；点「检查更新」照样能看到它。
+- 只有你点按钮时才会联网，而且只连 GitHub；不传任何书稿数据。
+
+**发布新版本的步骤**（维护者）：改 `package.json` 的 `version` → 提交 → `git tag v0.2.0 && git push origin v0.2.0`。CI 会打包并把 `NovelFolio-portable.exe` 传到那次 Release，旧版程序下次检查时就看到了。
+
+资产名故意**不带版本号**（`NovelFolio-portable.exe`），这样 `releases/latest/download/NovelFolio-portable.exe` 永远指向最新一次发布，任何人都能拿来做固定链接。
 ## 已知限制
 
 - 拆书必须自己配一个 OpenAI 兼容接口；没配 Key 时页面只显示引导卡，不会发任何请求。
@@ -229,7 +255,11 @@ novelfolio/
 │  ├─ portraits/<书号>/    立绘图片（按书分开）
 │  ├─ maps/<书号>/         地图底图（按书分开）
 │  └─ novelfolio.data.json 老版本的单文件数据，只在升级时读一次，不会改动
+├─ updates/                在线更新：下载好的新版 exe + 安装器脚本 + update.log（装完自动清掉）
+└─ sync-state.json         上次同步的时间和结果
 ```
+
+> 书稿和「软件本体」是分开的：换新 exe 只动 exe 本身，`%APPDATA%\novelfolio` 一个字都不碰。
 
 ### 多本书
 

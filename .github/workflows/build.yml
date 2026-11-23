@@ -39,6 +39,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "${{ github.ref_name }}"
+          # 资产名故意不带版本号：releases/latest/download/NovelFolio-portable.exe 永远指向最新一次发布，
+          # 打包在应用里的更新器就是靠这个固定名字找新版的（见 app/lib/updater.js 的 ASSET_NAME）。
           $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
           if (-not $exe) { throw '没找到打包产物' }
           $mb = [math]::Round($exe.Length/1MB,1)

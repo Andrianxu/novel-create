@@ -4,6 +4,8 @@ dist/
 out/
 build/
 *.log
+# 在线更新下载的新 exe / 安装器日志
+*.novelfolio-stale
 
 # ---- 绝不能提交：本地数据、密钥、备份 ----
 data/
