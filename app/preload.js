@@ -13,7 +13,14 @@ contextBridge.exposeInMainWorld('nf', {
     backupNow: () => call('data:backupNow'),
     exportJson: () => call('data:exportJson'),
     exportDoc: (opts) => call('data:exportDoc', opts),
-    importJson: () => call('data:importJson')
+    importJson: () => call('data:importJson'),
+    /* 存储位置：现在的数据目录在哪、挑一个新目录、换过去（复制 + 对账 + 记指针，当场生效） */
+    store: {
+      info: () => call('data:dirInfo'),
+      pick: () => call('data:pickFolder'),
+      isDataDir: (abs) => call('data:dirRelative', abs),
+      set: (opts) => call('data:dirSet', opts || {})
+    }
   },
   books: {
     list: () => call('books:list'),

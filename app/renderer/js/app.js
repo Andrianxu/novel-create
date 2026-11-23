@@ -428,7 +428,10 @@ async function boot() {
     if (bootEl) bootEl.remove();
   } else {
     /* info.bootSlow：只有自动化测试带 --slow=N 时才不是 1 */
-    await runBootAnimation({ ready: loading, enabled: animOn, speed: (info && info.bootSlow) || 1 });
+    await runBootAnimation({
+      ready: loading, enabled: animOn, speed: (info && info.bootSlow) || 1,
+      text: (cfg && cfg.ui && cfg.ui.splashText) || ''
+    });
   }
 
   if (loadErr) {
@@ -450,8 +453,9 @@ async function boot() {
     bookChip.addEventListener('click', () => openLibrary(NF));
     bookChip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLibrary(NF); } });
   }
+  /* 状态栏报的是书稿真正在哪儿（作者可能把数据目录指到别的盘），密钥那行跟着说一句 */
   document.getElementById('statRight').textContent =
-    'v' + NF.info.version + ' · 数据在 ' + NF.info.userData + (NF.info.encrypt ? ' · 密钥已系统加密' : ' · 系统不支持加密');
+    'v' + NF.info.version + ' · 数据在 ' + (NF.info.dataDir || NF.info.userData) + (NF.info.encrypt ? ' · 密钥已系统加密' : ' · 系统不支持加密');
   const bootEl = document.getElementById('boot');
   if (bootEl) { bootEl.hidden = true; bootEl.remove(); }
   document.getElementById('app').hidden = false;

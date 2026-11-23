@@ -79,6 +79,10 @@ function newId(prefix) {
 
 function emptyLibrary() { return { version: DEFAULTS.version, activeId: null, books: [] }; }
 
+/* 数据目录换了位置（设置 → 本地数据 → 存储位置，见 datadir.js）之后要重读登记表：
+ * loadLibrary 每次都读磁盘，本来就不缓存；这里留个明确的入口，让主进程那边知道「换了地方」。 */
+function forgetLibraryCache() { return true; }
+
 function loadLibrary() {
   const lib = readJson(libraryFile(), null);
   if (!lib || typeof lib !== 'object' || !Array.isArray(lib.books)) return null;
@@ -396,7 +400,7 @@ module.exports = {
   booksDir, bookFile, bookTextPath, libraryFile, legacyFile,
   portraitsDirFor, mapsDirFor,
   normalizeDoc, newBookDoc, newId,
-  ensureLibrary, loadLibrary, saveLibrary, listBooks,
+  ensureLibrary, loadLibrary, saveLibrary, listBooks, forgetLibraryCache,
   activeId, loadBook, saveBook, switchBook,
   createBook, renameBook, deleteBook,
   readJson, writeAtomic

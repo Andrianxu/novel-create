@@ -20,7 +20,8 @@ const DEFAULTS = {
   },
   /* 界面偏好 */
   ui: {
-    launchAnim: true         /* 启动动画：关掉就直接进主界面 */
+    launchAnim: true,        /* 启动动画：关掉就直接进主界面 */
+    splashText: ''           /* 启动动画最后逐字打出来的那句；留空 = 默认的「欢迎来到您创造的世界」 */
   },
   /* 在线更新：只记「用户选择先不要这个版本」，确认更新不用改配置（配置只在主界面 / 设置页可改） */
   update: {
@@ -55,8 +56,20 @@ function getConfig() {
   return deepMerge(DEFAULTS, readConfig());
 }
 
+/* 启动文字的长度上限：splash.js 会按可用宽度自动缩字号，太长就小到看不清了。
+ * 按「字」算（ajv 的 String.length 是 UTF-16 码元，emoji 算两个，够用了）。 */
+const SPLASH_TEXT_MAX = 40;
+function normSplashText(v) {
+  return String(v == null ? '' : v).replace(/\r\n?/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function setConfig(patch) {
   const next = deepMerge(getConfig(), patch);
+  if (next.ui) {
+    const t = normSplashText(next.ui.splashText);
+    if (t.length > SPLASH_TEXT_MAX) throw new Error('启动文字最多 ' + SPLASH_TEXT_MAX + ' 个字');
+    next.ui.splashText = t;
+  }
   fs.writeFileSync(P.configFile(), JSON.stringify(next, null, 1), 'utf8');
   return next;
 }
@@ -165,7 +178,7 @@ async function publicSettings() {
   return {
     llm: cfg.llm,
     privacy: cfg.privacy,
-    ui: cfg.ui || { launchAnim: true },
+    ui: { launchAnim: !(cfg.ui && cfg.ui.launchAnim === false), splashText: normSplashText(cfg.ui && cfg.ui.splashText) },
     update: { skipVersion: (cfg.update && cfg.update.skipVersion) || '' },
     sync: {
       enabled: !!sync.enabled, kind: sync.kind || 'folder', folder: sync.folder || '',
@@ -182,5 +195,6 @@ async function publicSettings() {
 
 module.exports = {
   getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable,
-  setSyncCredential, getSyncCredential, skipVersion, setSkipVersion
+  setSyncCredential, getSyncCredential, skipVersion, setSkipVersion,
+  SPLASH_TEXT_MAX, normSplashText
 };

@@ -13,10 +13,16 @@
  * 点击 / 按任意键可跳过。开关关掉时不演，遮罩直接收掉。
  */
 
-const TEXT = '欢迎来到您创造的世界';
+/* 逐字打出来的那句。默认「欢迎来到您创造的世界」，设置 → 启动动画 里可以改成自己的话。
+ * 只有「没有 splash 窗口、在主界面里补演一遍」这条兜底路径会用到它；正常启动是 splash.js 演的。 */
+const DEFAULT_TEXT = '欢迎来到您创造的世界';
+let TEXT = DEFAULT_TEXT;
 
 /* 图标坐标（viewBox 240）里的中心 */
 const ICON_C = 120;
+/* 文字最多占多宽：超了就缩字号（舞台宽 700，箭头与余量之后再让出一点） */
+const TEXT_MAX_W = 470;
+const TEXT_MIN_FS = 13;
 
 export const TWEAK = {
   fs: 20,            /* 字号 px */
@@ -56,6 +62,9 @@ export function runBootAnimation(opts) {
     root.remove();
     return ready;
   }
+
+  /* 设置里自定义过的那句话（默认就用 DEFAULT_TEXT） */
+  TEXT = String((o && o.text) || '').replace(/\s+/g, ' ').trim() || DEFAULT_TEXT;
 
   let done = false;
   let skipped = false;
@@ -147,6 +156,27 @@ export function runBootAnimation(opts) {
     const textTop = Math.round(cy - TWEAK.line / 2 + 8);
     typeEl.style.left = textLeft + 'px';
     typeEl.style.top = textTop + 'px';
+
+    /* 自定义的句子长短不一：从设定字号往回收，直到不超出舞台右侧（最小 13px）。
+     * 默认那句本来就不超，测下来还是原字号。位置先摆好再量，量出来的宽度才对。 */
+    const fs0 = parseFloat(getComputedStyle(root).getPropertyValue('--bt-fs')) || TWEAK.fs;
+    let fs = fs0;
+    const textW = () => {
+      if (!chars.length) return 0;
+      const box = typeEl.getBoundingClientRect();
+      let w = 0;
+      for (let i = 0; i < chars.length; i++) {
+        const r = chars[i].getBoundingClientRect();
+        w = r.right - box.left;
+        if (i > 0) w += Math.max(0, r.left - chars[i - 1].getBoundingClientRect().right);
+      }
+      return (w > 0 && isFinite(w)) ? w : 0;   /* 还没排版时别拿来算字号 */
+    };
+    /* 注意：每降一档都要真的把字号写上去再量 —— 只改 fs 不写样式的话，
+     * textW() 量的一直是原来的宽度，循环会一路缩到最小值（踩过一次）。 */
+    const fits = () => { typeEl.style.fontSize = fs + 'px'; return textW() <= TEXT_MAX_W; };
+    while (fs > TEXT_MIN_FS && !fits()) fs -= 1;
+    typeEl.style.fontSize = fs + 'px';
 
     /* 箭头落点：文字左边同一水平线。
      * 注意箭头「图形」中心在 240 坐标的 (120,110)，比图标中心 (120,120) 高 10 个单位，

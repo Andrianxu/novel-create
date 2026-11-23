@@ -33,6 +33,21 @@ injectStyle('settings', `
 .bkrow{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:5px 0;border-bottom:1px dashed #EAE1CF}
 .bkrow:last-child{border-bottom:none}
 .bkrow .grow{min-width:0}
+/* 存储位置：一行「标签 + 路径 + 按钮」，路径要能换行（自定义目录可能很长） */
+.dir-row{display:flex;align-items:flex-start;gap:8px;font-size:11.5px}
+.dir-row .lab{width:88px;flex:none;color:#8C8272;font-size:11px;padding-top:2px}
+.dir-row .val{flex:1;min-width:0;word-break:break-all;font-size:11.5px;color:#332C25;line-height:1.7}
+.dir-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.dir-warn{margin-top:6px}
+.dirlive{margin-top:6px;border:1px solid var(--line);border-radius:9px;background:#FFFCF5;padding:2px 10px 6px}
+/* 启动文字的预览：跟启动动画一个字体，字一个个亮起来 */
+.splash-preview{flex:1;min-width:0;height:30px;display:flex;align-items:center;gap:0;border:1px dashed #E0C79B;border-radius:8px;background:#FBF3E6;padding:0 10px;cursor:pointer;overflow:hidden}
+.splash-preview .pv{font-family:'Songti SC','STSong','SimSun','Noto Serif CJK SC',serif;font-size:15px;letter-spacing:.08em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block}
+.splash-preview .pv .ch{opacity:0;transition:opacity .12s linear}
+.splash-preview .pv .ch.on{opacity:1}
+.splash-preview .caret-blk{width:2px;height:16px;background:var(--seal);margin-right:3px;flex:none;
+  animation:setCaret 1s steps(1,end) infinite}
+@keyframes setCaret{0%,49%{opacity:1}50%,100%{opacity:0}}
 `);
 
 const PRESETS = [
@@ -479,6 +494,200 @@ export default {
 
     paintKind();
 
+    /* ---------- 存储位置（自定义数据目录） ----------
+     * 书稿（书库 + 每本书 + 立绘 + 地图 + 备份）默认放在 %APPDATA%\novelfolio\data。
+     * 这里可以让它搬到别的盘 / 同盘别的文件夹 / 已经放进网盘的文件夹：
+     *   主进程把整个 data/ 复制过去、核对数量与字节数，再记下「以后用那个目录」，重启生效。
+     * 原来那块**不删**（删稿不该由一次「换个位置」顺手做了），页面上会告诉你去哪儿删。 */
+    function storeBlock() {
+      const store = (window.nf.data && window.nf.data.store) || null;
+      const wrap = h('div', { class: 'col', style: { gap: '4px', padding: '9px 0 3px', borderBottom: '1px dashed #EAE1CF' } });
+      if (!store) { wrap.appendChild(h('div', { class: 'tiny muted' }, '当前版本不支持自定义存储位置')); return wrap; }
+      const val = h('div', { class: 'val mono' }, ((NF.info && (NF.info.dataDir || NF.info.userData)) || '…'));
+      const acts = h('div', { class: 'dir-acts' });
+      const note = h('div', { class: 'tiny muted' }, '');
+      const warnBox = h('div', { class: 'col', style: { gap: '6px' } });
+      wrap.appendChild(h('div', { class: 'dir-row' },
+        h('span', { class: 'lab' }, '存储位置'), val,
+        h('span', { class: 'pill' + ((NF.info && NF.info.dataCustom) ? ' jade' : ' grey'), style: { flex: 'none' } },
+          (NF.info && NF.info.dataCustom) ? '自定义' : '默认')));
+      wrap.appendChild(acts);
+      wrap.appendChild(note);
+      wrap.appendChild(warnBox);
+
+      function paint(st) {
+        if (!st) return;
+        const now = st.current || '';
+        const isDefault = storeSame(now, st.defaultDir);
+        val.textContent = now || '—';
+        const pill = wrap.querySelector('.pill');
+        if (pill) {
+          pill.textContent = isDefault ? '默认' : '自定义';
+          pill.className = 'pill' + (isDefault ? ' grey' : ' jade');
+        }
+        const mb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+        note.textContent = (st.files != null ? '约 ' + st.files + ' 个文件 · ' + mb(st.size || 0) + ' · ' : '')
+          + (st.writable === false ? '写不进去，请尽快换一个位置' : '可以正常读写');
+        if (st.writable === false) note.style.color = '#A8322A'; else note.style.color = '';
+        clear(warnBox);
+        if (st.missing) {
+          warnBox.appendChild(h('div', { class: 'set-note' },
+            h('b', {}, '上次设置的数据目录找不到了：'), '现在临时用默认位置。可能是移动硬盘没插或者文件夹被挪走了——插回来重启就好；也可以点「更改…」重新指定。'));
+        }
+        if (st.pending) {
+          warnBox.appendChild(h('div', { class: 'set-note safe' },
+            h('b', {}, '新位置已登记：'), '重启后会用 ',
+            h('code', { class: 'mono tiny' }, st.pointer),
+            ' 里的数据。'));
+        }
+        clear(acts);
+        acts.appendChild(h('button', { class: 'btn xs', onclick: () => openDirPicker(st) },
+          isDefault ? '更改…' : '换回默认位置'));
+        acts.appendChild(h('button', { class: 'btn xs', onclick: async () => {
+          try { await window.nf.files.openPath(now); } catch (e) { toast(e.message, 'err'); }
+        } }, '打开文件夹'));
+      }
+
+      async function refresh() {
+        try {
+          const st = await store.info();
+          NF.storeInfo = st;
+          paint(st);
+          return st;
+        } catch (e) { note.textContent = '读取失败：' + ipcErr(e); note.style.color = '#A8322A'; return null; }
+      }
+
+      function storeSame(a, b) {
+        const n = p => String(p || '').replace(/[\\/]+$/, '').toLowerCase();
+        return n(a) === n(b);
+      }
+
+      function openDirPicker(st) {
+        const isDefault = storeSame(st.current, st.defaultDir);
+        const dirIn = h('input', { class: 'input', placeholder: '例如 D:\\卷帙数据（不存在会自动新建）', value: isDefault ? '' : st.current });
+        const status = h('div', { class: 'tiny muted', style: { minHeight: '16px' } }, '');
+        const live = h('div', { class: 'dirlive' });
+        const moving = h('div', { class: 'set-note safe' }, '');
+        const backChk = h('input', { type: 'checkbox' });
+        const backRow = h('label', { class: 'ai-opt tiny', style: { display: 'inline-flex', gap: '6px', alignItems: 'center', marginTop: '2px' } },
+          backChk, h('span', {}, '搬回这个软件默认的数据位置（' + st.defaultDir + '）'));
+        backRow.hidden = isDefault;
+        backChk.addEventListener('change', () => {
+          if (backChk.checked) { dirIn.value = ''; dirIn.disabled = true; inspect(''); }
+          else { dirIn.disabled = false; inspect(dirIn.value); }
+        });
+
+        async function inspect(dirPath) {
+          clear(live);
+          status.textContent = '';
+          status.style.color = '';
+          const p = String(dirPath || '').trim();
+          if (!p) return;
+          try {
+            const r = await store.isDataDir(p);
+            if (r && r.isData) {
+              live.appendChild(h('div', { class: 'tiny', style: { color: '#8A6421', padding: '6px 0' } },
+                h('b', {}, '这个文件夹里已经有一份卷帙数据。'),
+                '换过去之后会接着用那里面的书（不会复制、也不会覆盖）。'));
+            }
+          } catch (e) { /* 只是提示，出错就什么都不显示 */ }
+        }
+
+        const pickBtn = h('button', { class: 'btn xs', onclick: async () => {
+          try {
+            const r = await store.pick();
+            if (r && r.folder) {
+              dirIn.disabled = false; backChk.checked = false; backRow.hidden = false;
+              dirIn.value = r.folder;
+              inspect(r.folder);
+            }
+          } catch (e) { toast(e.message, 'err'); }
+        } }, '选择文件夹…');
+
+        function paintBack() {
+          /* 现在不在默认位置时，「换回默认位置」是有内容的（那边还留着老数据） */
+          clear(moving);
+          const isDef = storeSame(st.current, st.defaultDir);
+          if (isDef) {
+            moving.appendChild(document.createTextNode('书稿会被复制到新位置，原来那块原样留着；重启后生效。'));
+            return;
+          }
+          moving.appendChild(h('b', {}, '说明：'));
+          moving.appendChild(document.createTextNode('在默认位置 '));
+          moving.appendChild(h('code', { class: 'mono tiny' }, st.defaultDir));
+          moving.appendChild(document.createTextNode(' 还留着一份原来的数据，换回去就是接着用它（不会复制）。'));
+        }
+        paintBack();
+
+        const body = h('div', { class: 'col', style: { gap: '10px' } },
+          h('div', { class: 'set-note' },
+            h('b', {}, '数据存在哪儿：'),
+            '书库、每本书的正文、人物立绘、地图底图和备份都在这个文件夹里。想换到别的盘、或者放进 OneDrive 这类会同步的文件夹，从这里改；换电脑时整块拷走就行。'),
+          h('div', { class: 'field' }, h('label', {}, '新的存储位置'), h('div', { class: 'krow' }, dirIn, pickBtn)),
+          live, status, backRow, moving,
+          h('div', { class: 'tiny muted' }, '换位置时会把整个文件夹复制过去并逐个核对；原位置的东西不会删，确认新位置没问题后可以自己去删掉。'));
+
+        dirIn.addEventListener('change', () => inspect(dirIn.value));
+
+        const m = modal({
+          title: '更改数据存储位置', body, okText: '复制并切换', width: '660px',
+          onOk: async () => {
+            const target = backChk.checked ? '' : dirIn.value.trim();
+            let reuse = false;
+            if (!backChk.checked && target) {
+              try { reuse = !!(await store.isDataDir(target)).isData; } catch (e) { reuse = false; }
+            }
+            status.textContent = '正在复制，请不要关掉软件…';
+            status.style.color = '';
+            let r;
+            try { r = await store.set({ dir: target, reuse }); }
+            catch (e) { r = { ok: false, message: ipcErr(e) }; }
+            if (!r || !r.ok) {
+              status.textContent = '没能换过去：' + ((r && r.message) || '未知错误');
+              status.style.color = '#A8322A';
+              return false;                 /* 不关弹窗：让作者改个位置再试 */
+            }
+            if (!r.changed) {
+              status.textContent = r.message || '数据本来就在这个位置';
+              await refresh();
+              return false;
+            }
+            await refresh();
+            /* 主进程已经当场切过去了：这里把界面上的数据也换成新位置的，立刻就能接着写。
+             * NF.info 也重取一次 —— 状态栏、设置页里的路径都按它显示。 */
+            try {
+              const fresh = await window.nf.info();
+              if (fresh) NF.info = fresh;
+              NF.library = await window.nf.books.list();
+              const d = await window.nf.data.load();
+              if (d) { NF.adoptBook({ doc: d, library: NF.library }); }
+              const sr = document.getElementById('statRight');
+              if (sr && NF.info) sr.textContent = 'v' + NF.info.version + ' · 数据在 ' + NF.info.dataDir
+                + (NF.info.encrypt ? ' · 密钥已系统加密' : ' · 系统不支持加密');
+            } catch (e) { console.error('[settings] reload after dir move failed', e); }
+            await refresh();
+            modal({
+              title: '已切换存储位置', width: '560px', cancelText: false, okText: '知道了',
+              body: h('div', {},
+                h('p', { class: 'small' }, r.reused
+                  ? '已切换到这个文件夹里原有的数据。'
+                  : '已复制 ' + r.copied + ' 个文件到新位置，并逐个核对过。'),
+                h('p', { class: 'tiny muted', style: { wordBreak: 'break-all' } }, '新位置：' + r.to),
+                h('p', { class: 'small' }, '现在就可以接着写，改动会直接存到新位置。'),
+                h('p', { class: 'tiny muted' }, '原来那个文件夹里的东西没有删，确认新位置没问题后可以自己去删掉；想搬回来点「换回默认位置」。'))
+            });
+            return true;
+          }
+        });
+        inspect(dirIn.value);
+        setTimeout(() => dirIn.focus(), 40);
+        return m;
+      }
+
+      refresh();
+      return wrap;
+    }
+
     /* ---------- 数据与备份 ---------- */
     const bkBox = h('div', { class: 'col', style: { gap: '0' } });
     async function loadBackups() {
@@ -510,7 +719,8 @@ export default {
     right.appendChild(h('div', { class: 'card' },
       h('div', { class: 'set-h' }, h('h3', {}, '本地数据'), h('span', { class: 'pill jade' }, '仅本机')),
       h('div', { class: 'set-b' },
-        h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '数据文件'), h('span', { class: 'val mono tiny' }, NF.info ? NF.info.userData : '')),
+        storeBlock(),
+        h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '设置与密钥'), h('span', { class: 'val mono tiny' }, NF.info ? NF.info.userData : '')),
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '最近保存'), h('span', { class: 'val' }, (doc.meta && doc.meta.updatedAt) ? fmtDate(doc.meta.updatedAt) : '—')),
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '当前书籍'), h('span', { class: 'val' }, '《' + ((doc.meta && doc.meta.title) || '未命名') + '》 · 书库共 ' + (((NF.library || {}).books || []).length) + ' 本')),
         h('div', { class: 'set-row' }, h('span', { class: 'lab' }, '规模'), h('span', { class: 'val' }, doc.characters.length + ' 个人物 · ' + doc.plots.length + ' 条情节 · ' + (doc.scraps || []).length + ' 条废案')),
@@ -530,7 +740,7 @@ export default {
         h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, '备份列表（最多 30 份，自动轮换）'),
         bkBox)));
 
-    /* ---------- 启动动画开关 ---------- */
+    /* ---------- 启动动画：开关 + 自定义文字 ---------- */
     const animChk = h('input', { type: 'checkbox', checked: !(S.ui && S.ui.launchAnim === false) });
     animChk.addEventListener('change', async () => {
       try {
@@ -538,6 +748,59 @@ export default {
         toast(animChk.checked ? '下次启动会播放启动动画' : '下次启动直接进入主界面', 'ok');
       } catch (e) { animChk.checked = !animChk.checked; toast(e.message, 'err'); }
     });
+
+    /* 启动文字：动画最后逐字打出来的那句。存在 config.json 的 ui.splashText 里，
+     * 留空 = 默认的「欢迎来到您创造的世界」。字数上限和主进程保持一致（最多 40 个字）。 */
+    const SPLASH_DEFAULT = '欢迎来到您创造的世界';
+    const SPLASH_MAX = 40;
+    let savedText = (S.ui && S.ui.splashText) || '';
+    const textIn = h('input', { class: 'input', value: savedText, maxlength: String(SPLASH_MAX), placeholder: SPLASH_DEFAULT });
+    const counter = h('span', { class: 'tiny muted' }, '');
+    const preview = h('div', { class: 'splash-preview' }, h('i', { class: 'caret-blk' }), h('span', { class: 'pv' }, ''));
+    const saveTextBtn = h('button', { class: 'btn xs pri' }, '保存文字');
+    const resetTextBtn = h('button', { class: 'btn xs' }, '恢复默认');
+
+    function flashPreview() {
+      const t = textIn.value.trim() || SPLASH_DEFAULT;
+      const pv = preview.querySelector('.pv');
+      /* 空文字预览默认那句；否则把字逐个点亮一次，所见即所得 */
+      pv.textContent = '';
+      const chars = Array.from(t);
+      const nodes = chars.map(ch => { const s = h('span', { class: 'ch' }, ch); pv.appendChild(s); return s; });
+      /* 每次预览都是新建的节点（上面先清空了），所以直接排定时器点亮就行 */
+      nodes.forEach((el, i) => { setTimeout(() => el.classList.add('on'), 40 + i * 90); });
+    }
+    function paintTextState() {
+      const cur = textIn.value;
+      const left = SPLASH_MAX - cur.length;
+      counter.textContent = (cur.trim() ? '' : '留空 = 默认那句「' + SPLASH_DEFAULT + '」 · ') + '还可以写 ' + left + ' 个字';
+      counter.style.color = left < 0 ? '#A8322A' : '';
+      const dirty = cur.trim() !== (savedText || '');
+      saveTextBtn.disabled = !dirty || cur.trim().length > SPLASH_MAX;
+      saveTextBtn.classList.toggle('pri', dirty);
+      resetTextBtn.disabled = !dirty && !savedText;
+    }
+    async function saveText() {
+      const t = textIn.value.replace(/\s+/g, ' ').trim();
+      if (t.length > SPLASH_MAX) { toast('启动文字最多 ' + SPLASH_MAX + ' 个字', 'err'); return false; }
+      try {
+        NF.settings = await window.nf.settings.set({ ui: { splashText: t } });
+        savedText = (NF.settings.ui && NF.settings.ui.splashText) || '';
+        textIn.value = savedText;
+        paintTextState();
+        toast(t ? '启动文字已保存，下次启动生效' : '已恢复默认的那句，下次启动生效', 'ok');
+        return true;
+      } catch (e) { toast(ipcErr(e), 'err'); return false; }
+    }
+    textIn.addEventListener('input', paintTextState);
+    textIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (!saveTextBtn.disabled) saveText(); } });
+    saveTextBtn.onclick = () => saveText();
+    resetTextBtn.onclick = () => { textIn.value = ''; paintTextState(); saveText(); };
+    preview.onclick = flashPreview;
+    preview.title = '点一下看一遍打字效果';
+    setTimeout(flashPreview, 200);
+    paintTextState();
+
     right.appendChild(h('div', { class: 'card' },
       h('div', { class: 'set-h' }, h('h3', {}, '启动动画')),
       h('div', { class: 'set-b' },
@@ -551,7 +814,13 @@ export default {
             animChk,
             h('span', {}, '启动时播放')))),
         h('div', { class: 'tiny muted' },
-          '关掉后启动直接进入主界面。启动慢的时候动画会把这段等待盖住；动画播放中点击或按任意键可以跳过。'))));
+          '关掉后启动直接进入主界面。启动慢的时候动画会把这段等待盖住；动画播放中点击或按任意键可以跳过。'),
+        h('div', { class: 'sep' }),
+        h('div', { class: 'field' },
+          h('div', { class: 'field-h' }, h('label', {}, '启动文字（动画里逐字打出来的那句）'), counter),
+          textIn,
+          h('div', { class: 'row' }, preview, h('div', { class: 'grow' }), resetTextBtn, saveTextBtn)),
+        h('div', { class: 'tiny muted' }, '点上面的预览可以再看一遍打字效果。字多的时候会按宽度自动缩小，最多 ' + SPLASH_MAX + ' 个字符。'))));
 
     right.appendChild(h('div', { class: 'card' },
       h('div', { class: 'set-h' }, h('h3', {}, '在线更新'), h('span', { class: 'pill', id: 'updPill' }, '未检查')),

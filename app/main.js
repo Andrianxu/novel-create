@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, clipboard } = r
 const fs = require('fs');
 const path = require('path');
 const P = require('./lib/paths');
+const datadir = require('./lib/datadir');
 const bookcase = require('./lib/bookcase');
 const store = require('./lib/store');
 const settings = require('./lib/settings');
@@ -52,6 +53,8 @@ const udArg = process.argv.find(a => a.startsWith('--ud='));
 /* 脚本化验证专用：给了这个目录，导出就不弹保存框，直接写进该目录。
  * 和 --shot / --probe / --ud 一样，只为在真窗口里跑自动化测试时用；正常启动不会带它。 */
 const exportDirArg = process.argv.find(a => a.startsWith('--export-dir='));
+/* 同上：--splash-shot=<png> 在启动动画定格时给 splash 窗口截个图（验证自定义启动文字用）。 */
+const splashShotArg = process.argv.find(a => a.startsWith('--splash-shot='));
 /* 同上：--slow=10 把启动动画放慢 10 倍，方便自动化逐帧抓图。正常启动不带这个参数。 */
 const slowArg = process.argv.find(a => a.startsWith('--slow='));
 const bootSlowMs = (() => {
@@ -98,7 +101,10 @@ async function runEval() {
 let splashWin = null;
 /* splash 真的显示过没有 —— 页面里据此决定还要不要再演一遍动画 */
 let splashRan = false;
-function createSplash() {
+/* createSplash 的入参：设置里自定义的启动文字（splash.js 靠它替换默认那句） */
+let splashOpts = {};
+function createSplash(opts) {
+  splashOpts = opts || {};
   splashWin = new BrowserWindow({
     width: 640, height: 400,
     frame: false,
@@ -125,6 +131,8 @@ function createSplash() {
   T('splash_shown');
   splashWin.webContents.once('did-finish-load', () => {
     T('splash_loaded');
+    sendSplashConfig();
+    if (splashShotArg) captureSplashShot();
   });
 
   /* 内联成 data URL 加载：省掉一次文件系统往返，实测比 loadFile 快 0.5~0.9 秒 ——
@@ -133,14 +141,58 @@ function createSplash() {
     const fsx = require('fs');
     const dir = path.join(__dirname, 'renderer');
     const inlined = fsx.readFileSync(path.join(dir, 'splash.html'), 'utf8')
+      /* 占位注释换成「主进程塞进来的配置」；splash.js 里那段注释原样保留着，方便对照 */
       .replace('<script src="splash.js"></script>',
-        () => '<script>' + fsx.readFileSync(path.join(dir, 'splash.js'), 'utf8') + '</script>');
-    splashWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(inlined));
+        () => '<script>/*__NF_SPLASH_CFG__*/</script><script>' + fsx.readFileSync(path.join(dir, 'splash.js'), 'utf8') + '</script>');
+    /* 启动文字用 JSON 塞进来（不拼字符串）：作者可以填任何字，包括引号、反斜杠。
+     * splash.js 会用它替掉默认的那句「欢迎来到您创造的世界」。 */
+    splashWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(
+      inlined.replace('/*__NF_SPLASH_CFG__*/', () => 'window.__nfSplash = ' + JSON.stringify({ text: splashOpts.text || '' }) + ';')
+    ));
   } catch (e) {
     splashWin.loadFile(path.join(__dirname, 'renderer', 'splash.html'));
   }
   splashWin.on('closed', () => { splashWin = null; });
   return splashWin;
+}
+
+/* 自动化验证用：等动画演完（文字全部打出来的那一帧）再截 splash 窗口。
+ * 只认 --splash-shot=<png> 这个参数，正常启动不会走到这里。 */
+function captureSplashShot() {
+  const out = splashShotArg.split('=').slice(1).join('=');
+  const grab = (label) => {
+    try {
+      if (!splashWin || splashWin.isDestroyed()) return;
+      splashWin.webContents.capturePage().then(img => {
+        fs.writeFileSync(out, img.toPNG());
+        /* 顺手把画面里的字报出来，脚本里一对就知道自定义文字有没有生效 */
+        return splashWin.webContents.executeJavaScript(
+          '(function(){var t=document.getElementById("type");return {text:t?t.textContent:"",fs:t?getComputedStyle(t).fontSize:"",done:!!window.__nfSplashDone};})()'
+        ).catch(() => null).then(snap => {
+          console.log('splash shot saved ' + label + ' ' + out + ' ' + JSON.stringify(snap));
+          app.quit();
+        });
+      }).catch(err => { console.error(err); app.quit(); });
+    } catch (e) { app.quit(); }
+  };
+  /* 动画定格后再等一拍（文字最后一个字的透明度过渡 120ms），这样截到的是打完的那一帧 */
+  splashWin.webContents.executeJavaScript(
+    'new Promise(function(res){ var t0 = Date.now(); (function poll(){ if (window.__nfSplashDone || Date.now() - t0 > 9000) res(true); else setTimeout(poll, 100); })(); })'
+  ).then(() => setTimeout(() => grab('final'), 260)).catch(() => grab('early'));
+  /* 窗口不放前台的机器上 capturePage 会拿到一片空白：顺手把 splash 和主窗口都提到前台。
+   * 同样只在带 --splash-shot 时做。 */
+  try { splashWin.setAlwaysOnTop(true); splashWin.focus(); if (win && !win.isDestroyed()) win.hide(); } catch (e) {}
+}
+
+/* 启动文字交给 splash 窗口。
+ * 正常情况下它已经随 data URL 一起塞进去了（见上）；这里再补一次，是为了
+ * 走了 loadFile 兜底、或者 preload 那边把 IP 先暴露出来的情况也能拿到同一份文字。 */
+function sendSplashConfig() {
+  try {
+    if (splashWin && !splashWin.isDestroyed()) {
+      splashWin.webContents.send('splash:config', { text: (splashOpts && splashOpts.text) || '' });
+    }
+  } catch (e) {}
 }
 
 /* 换场：主窗口顶上来，splash 关掉。
@@ -249,17 +301,22 @@ function createWindow() {
 app.whenReady().then(() => {
   app.setAppUserModelId('com.novelfolio.app');
   T('whenReady');
+  /* 数据目录：先认作者在设置里指定的位置（见 paths.js / datadir.js）。
+   * 必须赶在任何页面读写书稿之前 —— 下面 splash 要用的启动文字也在 config.json 里。 */
+  P.openDir();
+  T('openDir');
+  let uiCfg = {};
+  try { uiCfg = settings.getConfig().ui || {}; } catch (e) {}
   /* 设置里关掉启动动画就不开 splash（读配置是同步的，不用等 IPC） */
   let animOn = true;
   try {
-    const ui = settings.getConfig().ui;
-    animOn = !(ui && ui.launchAnim === false);
+    animOn = !(uiCfg && uiCfg.launchAnim === false);
   } catch (e) {}
   const wantSplash = animOn &&
     (!(shotArg || probeArg || evalArg) || process.argv.some(a => a === '--withsplash'));
   /* 两个窗口同时建：渲染进程并行创建。splash 立刻 show（只靠 backgroundColor 先撑住），
    * 主窗口藏在后面加载 —— 先等 splash ready 再建主窗口会让主界面更晚出来。 */
-  if (wantSplash) createSplash();
+  if (wantSplash) createSplash({ text: (uiCfg && uiCfg.splashText) || '' });
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   /* 启动后过一会儿静默查一次更新（只在打包后的 exe 里做；开发态 updater 直接返回 dev）。
@@ -275,7 +332,11 @@ ipcMain.on('splash:anim-done', () => { onSplashDone(); });
 
 ipcMain.handle('app:info', async () => ({
   version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
-  node: process.versions.node, userData: P.root(), encrypt: await settings.encAvailable(),
+  node: process.versions.node,
+  userData: P.root(),                       /* 默认位置：secrets.bin / 日志 / config.json 在这里 */
+  dataDir: P.dataDir(),                     /* 书稿真正在哪儿（可能是自定义目录） */
+  dataCustom: P.isCustom(),
+  encrypt: await settings.encAvailable(),
   /* 只有自动化测试带 --slow=N；正常启动恒为 1 */
   bootSlow: bootSlowMs,
   /* 启动动画是否已经由 splash 窗口播过了（播过了页面里的就别再演一遍） */
@@ -289,6 +350,45 @@ ipcMain.handle('data:save', (e, incoming) => {
 ipcMain.handle('data:backups', () => store.listBackups());
 ipcMain.handle('data:restore', (e, name) => { doc = null; return store.restore(name); });
 ipcMain.handle('data:backupNow', () => { const f = store.backup(getDoc()); return { file: f }; });
+/* ---- 数据目录（设置 → 本地数据 → 存储位置）----
+ * 换位置 = 把整个 data/ 复制过去、对账、在默认位置留下指针，**当场**改用新目录（见 paths.js / datadir.js）。
+ * 复制之前先把内存里这一本落盘：复制的是磁盘上的 data/，别把刚敲还没保存的那段落在新位置之外。 */
+function flushForDirMove() {
+  try { if (doc) store.save(doc); } catch (e) { console.error('[data:dir] save before move failed', e); }
+}
+ipcMain.handle('data:dirInfo', () => Object.assign({}, datadir.info(), {
+  userData: P.root(),
+  appDir: path.dirname(app.getAppPath())
+}));
+ipcMain.handle('data:pickFolder', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: '选择数据存储位置（新建一个文件夹，例如 D:\\卷帙数据）',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (r.canceled || !r.filePaths[0]) return { canceled: true };
+  return { folder: r.filePaths[0] };
+});
+ipcMain.handle('data:dirSet', (e, opts) => {
+  flushForDirMove();
+  try {
+    const r = datadir.migrate((opts && opts.dir) || '', opts || {});
+    if (r.ok && r.changed) {
+      /* 当场就切过去，不等重启：主进程里所有路径都是现拼的，没有缓存。
+       * 不这样做的话，搬完之后到重启之前写的东西仍然落在老位置 —— 一重启就白写了。 */
+      try { P.setDataDir(r.to); } catch (err) { console.error('[data:dir] switch failed', err); }
+      /* 内存里那份是按老路径读出来的，作废重读（新位置是刚复制好的同一份，内容一样） */
+      doc = null;
+      try { bookcase.forgetLibraryCache(); } catch (err) {}
+    }
+    return Object.assign({ ok: true }, r, { info: datadir.info() });
+  } catch (err) {
+    return { ok: false, message: String((err && err.message) || err), info: datadir.info() };
+  }
+});
+ipcMain.handle('data:dirRelative', (e, abs) => {
+  /* 设置页要确认「挑的目录里有没有现成的卷帙数据」：页面上没法直接 stat，借这里看一眼 */
+  try { return { isData: datadir.isDataDir(String(abs || '')) }; } catch (err) { return { isData: false }; }
+});
 ipcMain.handle('data:exportJson', async () => {
   const r = await dialog.showSaveDialog(win, {
     title: '导出数据', defaultPath: (getDoc().meta && getDoc().meta.title ? getDoc().meta.title : 'novelfolio') + '.nfdata.json',

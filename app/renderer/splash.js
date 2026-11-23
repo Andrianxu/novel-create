@@ -17,10 +17,25 @@
 (function () {
   'use strict';
 
-  var TEXT = '欢迎来到您创造的世界';
+  /* 逐字打出来的那句。默认是「欢迎来到您创造的世界」；
+   * 设置 → 启动动画 里改过的话，主进程会把那句随页面一起塞进来
+   * （内联的 window.__nfSplash），或者事后通过 IPC 推过来（__splashBridge.text）。 */
+  var DEFAULT_TEXT = '欢迎来到您创造的世界';
+  var TEXT = DEFAULT_TEXT;
+  /* 内区里留给文字的最大宽度（箭头之外的部分）：超了就缩字号，两行以内不换行 */
+  var MAX_TEXT_W = 390;
+  var MIN_FS = 13;
   var ICON_C = 120;          /* 图标坐标中心 */
   var ARROW_CY = 110;        /* 箭头图形中心（240 坐标） */
   var STEP = 1;              /* 时间倍率，--slow 调试用 */
+
+  function pickText(v) {
+    var s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+    return s || DEFAULT_TEXT;
+  }
+  try {
+    if (window.__nfSplash && window.__nfSplash.text) TEXT = pickText(window.__nfSplash.text);
+  } catch (e) {}
 
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms * STEP); }); };
 
@@ -97,47 +112,111 @@
     var innerBottom = blTopY;
 
     /* ---- 先把字建好（透明占位），后面量宽 / 逐字点亮都要用 ---- */
-    var fs = 26;                       /* 字号（比之前大） */
-    typeEl.style.fontSize = fs + 'px';
-    typeEl.style.lineHeight = fs + 'px';
-    typeEl.textContent = '';
+    var fs = 26;                       /* 字号（比之前大；文字长的话下面会缩） */
     var chars = [];
-    for (var i = 0; i < TEXT.length; i++) {
-      var s = document.createElement('span');
-      s.className = 'ch';
-      s.textContent = TEXT.charAt(i);
-      typeEl.appendChild(s);
-      chars.push(s);
+
+    function buildChars() {
+      typeEl.textContent = '';
+      chars = [];
+      var list = Array.from(TEXT);     /* 按字符切：emoji / 生僻字是一个整字，不能按 UTF-16 切两半 */
+      for (var i = 0; i < list.length; i++) {
+        var s = document.createElement('span');
+        s.className = 'ch';
+        s.textContent = list[i];
+        typeEl.appendChild(s);
+        chars.push(s);
+      }
+      typeEl.appendChild(caret);
     }
-    typeEl.appendChild(caret);
+
+    /* 量一下这句话在给定字号下有多宽（letter-spacing 也算进去） */
+    function measure(fsPx) {
+      typeEl.style.fontSize = fsPx + 'px';
+      typeEl.style.lineHeight = fsPx + 'px';
+      if (!chars.length) return 0;
+      var box = typeEl.getBoundingClientRect();
+      var w = 0;
+      for (var ci = 0; ci < chars.length; ci++) {
+        var r = chars[ci].getBoundingClientRect();
+        w = r.right - box.left;
+        if (ci > 0) w += Math.max(0, r.left - chars[ci - 1].getBoundingClientRect().right);
+      }
+      /* 页面还没真正排版出来（宽高都是 0）时别拿它算字号，否则会算出 NaN / 0 */
+      return (w > 0 && isFinite(w)) ? w : 0;
+    }
+
+    /* 内区有多宽到这里才定得下来（见上面的几何），所以量宽放在这儿。
+     * 26px 下一个汉字约 28px 宽，所以「箭头 + 12 个字左右」还能原样放着（默认那句 10 个字不会缩）；
+     * 再长就从 26 往回收，收到塞得下为止（最小 13px）。 */
+    var budget = Math.max(120, Math.min(MAX_TEXT_W, wrapW - 2 * 40 - 30 - 14));
+    buildChars();
+    var fitFs = fs;
+    var w0 = measure(fitFs);
+    if (w0 > budget) {
+      fitFs = Math.max(MIN_FS, Math.floor(fs * budget / w0));
+      /* 字号取整会有误差，再细调一轮 */
+      while (fitFs > MIN_FS && measure(fitFs) > budget) fitFs -= 1;
+    }
+    fs = fitFs;
+    measure(fs);
 
     /* ---- 箭头 + 文字整体居中放进内区 ----
-     * 先量文字总宽，再把「箭头 + 间距 + 文字」当一整个块来居中。 */
+     * 先量文字总宽，再把「箭头 + 间距 + 文字」当一整个块来居中。
+     * 量宽与摆位写成 layout()：换了文字（默认那句之外的自定义句）要能重摆一次。 */
     var arrowW = 30;                   /* 箭头图形缩到多宽 */
     var gap = 14;                      /* 箭头和文字之间 */
-    var textW = 0;
-    for (var ci = 0; ci < chars.length; ci++) {
-      textW += chars[ci].getBoundingClientRect().width;
-      /* 字距（letter-spacing）在相邻两个字之间多出来的那段也算上 */
-      if (ci > 0) {
-        textW += Math.max(0, chars[ci].getBoundingClientRect().left - chars[ci - 1].getBoundingClientRect().right);
+    var groupLeft = 0, groupMidY = 0;
+    var arrowDx = 0, arrowDy = 0, arrowScale = 1;
+
+    function layout() {
+      var textW = 0;
+      for (var ci = 0; ci < chars.length; ci++) {
+        textW += chars[ci].getBoundingClientRect().width;
+        /* 字距（letter-spacing）在相邻两个字之间多出来的那段也算上 */
+        if (ci > 0) {
+          textW += Math.max(0, chars[ci].getBoundingClientRect().left - chars[ci - 1].getBoundingClientRect().right);
+        }
       }
+      var groupW = arrowW + gap + textW;
+      groupLeft = innerLeft + (innerW - groupW) / 2;
+      groupMidY = (innerTop + innerBottom) / 2;
+
+      /* 文字：方块左边 = 箭头右边 + gap；垂直居中 */
+      typeEl.style.left = Math.round(groupLeft + arrowW + gap) + 'px';
+      typeEl.style.top = Math.round(groupMidY - fs / 2) + 'px';
+
+      /* 箭头：图形中心停在方块的最左边（半个箭头宽处） */
+      var arrowEndX = groupLeft + arrowW / 2;
+      var arrowEndY = groupMidY;
+      var arrowStartY = cy + (ARROW_CY - ICON_C) * unit;
+      arrowDx = arrowEndX - cx;
+      arrowDy = arrowEndY - arrowStartY;
+      arrowScale = arrowW / (48 * unit);   /* 箭头图形原始宽 48 单位（240 坐标）→ arrowW */
     }
-    var groupW = arrowW + gap + textW;
-    var groupLeft = innerLeft + (innerW - groupW) / 2;
-    var groupMidY = (innerTop + innerBottom) / 2;
+    layout();
 
-    /* 文字：方块左边 = 箭头右边 + gap；垂直居中 */
-    typeEl.style.left = Math.round(groupLeft + arrowW + gap) + 'px';
-    typeEl.style.top = Math.round(groupMidY - fs / 2) + 'px';
-
-    /* 箭头：图形中心停在方块的最左边（半个箭头宽处） */
-    var arrowEndX = groupLeft + arrowW / 2;
-    var arrowEndY = groupMidY;
-    var arrowStartY = cy + (ARROW_CY - ICON_C) * unit;
-    var arrowDx = arrowEndX - cx;
-    var arrowDy = arrowEndY - arrowStartY;
-    var arrowScale = arrowW / (48 * unit);   /* 箭头图形原始宽 48 单位（240 坐标）→ arrowW */
+    /* 主进程事后推过来的启动文字（兜底路径：页面是 loadFile 加载的时候没有内联配置）。
+     * 来的总是同一句话的话这里什么都不做；真不一样才重排一次。 */
+    try {
+      window.__nfSplashApplyText = function (v) {
+        var t = pickText(v);
+        if (t === TEXT) return;
+        TEXT = t;
+        buildChars();
+        fs = 26;
+        var w1 = measure(fs);
+        if (w1 > budget) {
+          fs = Math.max(MIN_FS, Math.floor(26 * budget / w1));
+          while (fs > MIN_FS && measure(fs) > budget) fs -= 1;
+        }
+        measure(fs);
+        layout();
+        for (var j = 0; j < chars.length; j++) chars[j].classList.remove('on');
+      };
+      if (window.__splashBridge && window.__splashBridge.text) {
+        window.__splashBridge.text(function (v) { window.__nfSplashApplyText(v); });
+      }
+    } catch (e) {}
 
     /* ---- ① 图标静置 ---- */
     function step1() {
@@ -183,6 +262,7 @@
     return step1().then(function () {
       /* ---- ⑥ 演完了：告诉主进程，然后停在这个画面等它叫换场 ---- */
       caret.classList.remove('on');
+      window.__nfSplashDone = true;      /* 自动化截图用：文字打完了 */
       notifyDone();
       /* 停在最后一帧不动；主进程会调 __splashFadeOut 收场 */
     });
