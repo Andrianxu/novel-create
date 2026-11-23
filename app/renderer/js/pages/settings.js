@@ -530,6 +530,29 @@ export default {
         h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, '备份列表（最多 30 份，自动轮换）'),
         bkBox)));
 
+    /* ---------- 启动动画开关 ---------- */
+    const animChk = h('input', { type: 'checkbox', checked: !(S.ui && S.ui.launchAnim === false) });
+    animChk.addEventListener('change', async () => {
+      try {
+        NF.settings = await window.nf.settings.set({ ui: { launchAnim: animChk.checked } });
+        toast(animChk.checked ? '下次启动会播放启动动画' : '下次启动直接进入主界面', 'ok');
+      } catch (e) { animChk.checked = !animChk.checked; toast(e.message, 'err'); }
+    });
+    right.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'set-h' }, h('h3', {}, '启动动画')),
+      h('div', { class: 'set-b' },
+        h('div', { class: 'set-row' },
+          h('span', { class: 'lab' }, '启动动画'),
+          h('span', { class: 'val' },
+            h('label', {
+              class: 'ai-opt',
+              style: { display: 'inline-flex', gap: '7px', alignItems: 'center', cursor: 'pointer' }
+            },
+            animChk,
+            h('span', {}, '启动时播放')))),
+        h('div', { class: 'tiny muted' },
+          '关掉后启动直接进入主界面。启动慢的时候动画会把这段等待盖住；动画播放中点击或按任意键可以跳过。'))));
+
     right.appendChild(h('div', { class: 'card' },
       h('div', { class: 'set-h' }, h('h3', {}, '关于')),
       h('div', { class: 'set-b' },

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 启动动画专用页：极简、全程内联、不加载任何外部文件。
+     它要在主界面（约 500KB JS）加载的那几秒里先把画面撑起来，所以越轻越好。 -->
+<title>卷帙</title>
+<style>
+:root{--paper:#F6F1E6;--ink:#201C18;--seal:#A8322A}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--paper);
+  -webkit-user-select:none;user-select:none;cursor:default}
+#stage{position:fixed;inset:0;display:grid;place-items:center;background:var(--paper)}
+.wrap{position:relative;width:600px;height:300px}
+
+/* ---------- 图标：圆角底 + 两条折线 + 红箭头，全部叠在 .icon 里，坐标用 240 系统 ---------- */
+.icon{position:absolute;left:50%;top:50%;width:120px;height:120px;
+  margin-left:-60px;margin-top:-60px}
+/* 可拖拉的把手：整个窗口无边框，用户靠这里拖动 */
+.icon,.wrap{-webkit-app-region:drag}
+
+.tile{position:absolute;inset:0;border-radius:27px;background:var(--paper);will-change:opacity}
+
+.line,.arrow{position:absolute;inset:0;width:100%;height:100%;display:block;
+  overflow:visible;will-change:transform}
+.line{transform-origin:50% 50%;transform:translate(0,0)}
+.arrow{transform-origin:50% 45.8333%;transform:translate(0,0)}
+
+/* ---------- 打字字幕 ---------- */
+.type{position:absolute;left:0;top:0;
+  font-family:'Songti SC','STSong','SimSun','Noto Serif CJK SC',serif;
+  font-size:26px;line-height:26px;color:var(--ink);letter-spacing:.06em;white-space:nowrap}
+.ch{opacity:0;transition:opacity .12s linear}
+.ch.on{opacity:1}
+.caret{display:inline-block;width:2px;height:1.05em;background:var(--seal);vertical-align:-.18em;
+  margin-left:2px;opacity:0}
+.caret.on{animation:blink 1s steps(1,end) infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+/* 收场：整块淡出 */
+#stage.out{transition:opacity .3s ease;opacity:0}
+@media (prefers-reduced-motion:reduce){
+  .tile,.line,.arrow,.ch,.caret{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="wrap" aria-label="卷帙 正在启动">
+    <!-- 图标本身：圆角底 -->
+    <div class="icon">
+      <div class="tile" id="tile"></div>
+      <!-- 右上角那条折线：往右上方飞 -->
+      <svg class="line" id="lineTR" viewBox="0 0 240 240" aria-hidden="true">
+        <path d="M66 62 h74 q22 0 22 22 v34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
+      </svg>
+      <!-- 左下角那条折线：往左下方飞 -->
+      <svg class="line" id="lineBL" viewBox="0 0 240 240" aria-hidden="true">
+        <path d="M174 178 h-74 q-22 0 -22 -22 v-34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
+      </svg>
+      <!-- 红色箭头：顺时针转 90° 并左移 -->
+      <svg class="arrow" id="arrow" viewBox="0 0 240 240" aria-hidden="true">
+        <path d="M120 88 l24 44 l-24 -13 l-24 13 Z" fill="#A8322A"/>
+      </svg>
+    </div>
+
+    <!-- 打字字幕 -->
+    <div class="type" id="type"><i class="caret" id="caret"></i></div>
+  </div>
+</div>
+<script src="splash.js"></script>
+</body>
+</html>

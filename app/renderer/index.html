@@ -8,7 +8,37 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div id="boot" class="boot">正在打开书桌…</div>
+<!-- 启动动画：盖住冷启动的等待。结构全部内联，脚本一跑就能画，不等任何网络 / IPC。
+     图标里的两条黑色折线是拆开写的（.bt-line），这样它们才能各自飞向左下 / 右上；
+     飞走之后图标本体淡出，红色箭头脱出来单独转 + 左移。 -->
+<div id="boot" class="boot">
+  <div class="bt-stage">
+    <!-- 图标本体：只剩下「卷」字回形纹的圆角底 + 两条折线的原位。
+         两条折线是独立元素，飞行时不跟着这个容器走。 -->
+    <div class="bt-stack" id="btStack">
+      <!-- 图标里那块浅色圆角底 -->
+      <div class="bt-tile" id="btTile"></div>
+
+      <!-- 右上角那条折线：M66,62 → 140,62 → 弧 → 162,84 → 162,118 -->
+      <svg class="bt-line bt-line-tr" id="btLineTR" viewBox="0 0 240 240" aria-hidden="true">
+        <path d="M66 62 h74 q22 0 22 22 v34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
+      </svg>
+
+      <!-- 左下角那条折线：M174,178 → 100,178 → 弧 → 78,156 → 78,122 -->
+      <svg class="bt-line bt-line-bl" id="btLineBL" viewBox="0 0 240 240" aria-hidden="true">
+        <path d="M174 178 h-74 q-22 0 -22 -22 v-34" fill="none" stroke="#201C18" stroke-width="17" stroke-linecap="round"/>
+      </svg>
+
+      <!-- 红色箭头：从图标中心脱出，做顺时针 90° + 左移 -->
+      <svg class="bt-arrow" id="btArrow" viewBox="0 0 240 240" aria-hidden="true">
+        <path d="M120 88 l24 44 l-24 -13 l-24 13 Z" fill="#A8322A"/>
+      </svg>
+    </div>
+
+    <!-- 打字字幕：每个字一个 span，逐个点亮（不做宽度变化，避免文字跟着抖） -->
+    <div class="bt-type" id="btType" aria-label="欢迎来到您创造的世界"><i class="bt-caret" id="btCaret"></i></div>
+  </div>
+</div>
 <div id="app" hidden>
   <header class="topbar">
     <div class="brand">

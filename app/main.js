@@ -1,4 +1,7 @@
 'use strict';
+const __PROC_T0 = Date.now();
+/* 只在自动化测试时打启动耗时，正常启动安静 */
+const T = (label) => { if (process.argv.some(a => /^--(eval|probe|shot)=/.test(a))) console.log('TIMING ' + label + '=' + (Date.now() - __PROC_T0)); };
 const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, clipboard } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -48,6 +51,12 @@ const udArg = process.argv.find(a => a.startsWith('--ud='));
 /* 脚本化验证专用：给了这个目录，导出就不弹保存框，直接写进该目录。
  * 和 --shot / --probe / --ud 一样，只为在真窗口里跑自动化测试时用；正常启动不会带它。 */
 const exportDirArg = process.argv.find(a => a.startsWith('--export-dir='));
+/* 同上：--slow=10 把启动动画放慢 10 倍，方便自动化逐帧抓图。正常启动不带这个参数。 */
+const slowArg = process.argv.find(a => a.startsWith('--slow='));
+const bootSlowMs = (() => {
+  const n = slowArg ? parseFloat(slowArg.split('=')[1]) : 1;
+  return Number.isFinite(n) && n > 0 && n <= 50 ? n : 1;
+})();
 if (udArg) {
   const dir = udArg.split('=').slice(1).join('=');
   try { fs.mkdirSync(dir, { recursive: true }); app.setPath('userData', dir); } catch (e) { console.error(e); }
@@ -80,10 +89,107 @@ async function runEval() {
   }
 }
 
+/* ---------------- 启动动画窗口 ----------------
+ * 点 exe 到主界面出第一帧要三四秒（Electron 起渲染进程 + 解析约 500KB 的页面脚本），
+ * 这段时间如果什么都不显示，用户看到的就是白屏 —— 那才是「启动慢」的真正体感。
+ * 所以先开一个极简的 splash 窗口（splash.html/js，几十 KB，几百毫秒就能画出来），
+ * 主窗口在它后面偷偷加载，加载完再切换。 */
+let splashWin = null;
+/* splash 真的显示过没有 —— 页面里据此决定还要不要再演一遍动画 */
+let splashRan = false;
+function createSplash() {
+  splashWin = new BrowserWindow({
+    width: 640, height: 400,
+    frame: false,
+    resizable: false,
+    movable: true,
+    show: false,
+    backgroundColor: '#F6F1E6',
+    skipTaskbar: false,
+    title: '卷帙 NovelFolio',
+    webPreferences: {
+      /* 专门的 preload：动画播完时通过 IPC 告诉主进程。
+       * 比轮询 / 读 console 都可靠。 */
+      preload: path.join(__dirname, 'splash-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      spellcheck: false
+    }
+  });
+  /* 立刻显示窗口（不等 ready-to-show）：backgroundColor 先把整块纸色撑起来，
+   * 页面画好了自然就顶上来。等 ready-to-show 会白白晚好几百毫秒。 */
+  try { splashWin.center(); } catch (e) {}
+  splashWin.show();
+  splashRan = true;
+  T('splash_shown');
+  splashWin.webContents.once('did-finish-load', () => {
+    T('splash_loaded');
+  });
+
+  /* 内联成 data URL 加载：省掉一次文件系统往返，实测比 loadFile 快 0.5~0.9 秒 ——
+   * splash 要抢的就是这几百毫秒，它必须比主界面早得多地出现在屏幕上。 */
+  try {
+    const fsx = require('fs');
+    const dir = path.join(__dirname, 'renderer');
+    const inlined = fsx.readFileSync(path.join(dir, 'splash.html'), 'utf8')
+      .replace('<script src="splash.js"></script>',
+        () => '<script>' + fsx.readFileSync(path.join(dir, 'splash.js'), 'utf8') + '</script>');
+    splashWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(inlined));
+  } catch (e) {
+    splashWin.loadFile(path.join(__dirname, 'renderer', 'splash.html'));
+  }
+  splashWin.on('closed', () => { splashWin = null; });
+  return splashWin;
+}
+
+/* 换场：主窗口顶上来，splash 关掉。
+ * 只有「主界面就绪」和「splash 动画播完」两个条件都满足才切 —— 谁慢等谁。 */
+let mainReady = false;      /* 主界面首帧画好了 */
+let splashDone = false;     /* splash 的动画完整播完了 */
+let swapped = false;
+
+function trySwap() {
+  if (swapped || !mainReady || !splashDone) return;
+  swapped = true;
+  T('swap');
+  const s = splashWin;
+  /* splash 自己是淡出收场的，这里先把它淡掉；300ms 后关掉它、露出主窗口 */
+  try {
+    if (s && !s.isDestroyed()) s.webContents.executeJavaScript('window.__splashFadeOut && window.__splashFadeOut();').catch(() => {});
+  } catch (e) {}
+  setTimeout(() => {
+    if (win && !win.isDestroyed()) {
+      try { win.show(); win.focus(); } catch (e) {}
+    }
+    if (s && !s.isDestroyed()) { try { s.destroy(); } catch (e) {} }
+    splashWin = null;
+  }, 320);
+}
+
+/* splash 那边的动画播完了，通知主进程 */
+function onSplashDone() {
+  if (splashDone) return;
+  splashDone = true;
+  T('splash_done');
+  trySwap();
+}
+
+/* 主界面就绪了：只记标志，等 splash 把动画演完再换场 */
+function onMainReady() {
+  if (mainReady) return;
+  mainReady = true;
+  T('main_ready');
+  trySwap();
+  /* 兜底：万一 splash 那边没报「播完」（比如它崩了），6 秒后强制换场，不让用户卡住 */
+  setTimeout(() => { if (!swapped) { splashDone = true; trySwap(); } }, 6000);
+}
+
 function createWindow() {
+  /* 主窗口先不显示：等主界面真的画好了（ready-to-show）再顶上来，那时 splash 已经淡出 */
   win = new BrowserWindow({
     width: 1600, height: 1000, minWidth: 1180, minHeight: 720,
     backgroundColor: '#F6F1E6',
+    show: false,
     autoHideMenuBar: true,
     title: '卷帙 NovelFolio',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false }
@@ -97,7 +203,17 @@ function createWindow() {
     });
   }
   const hash = pageArg ? '#' + pageArg.split('=')[1] : '';
+  /* 主界面首帧画好 → 记下，等 splash 动画播完再一起换场（见 trySwap） */
+  win.once('ready-to-show', onMainReady);
+  /* 主界面迟迟画不出来也别让 splash 永远停着：8 秒后按「就绪」处理 */
+  setTimeout(onMainReady, 8000);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { hash });
+
+  /* 自动化测试（--shot / --probe / --eval）不要 splash 挡着，直接关掉它让测试跑在主窗口上。
+   * --withsplash 可以强行保留它，用来测 splash 本身。 */
+  if ((shotArg || probeArg || evalArg) && !process.argv.some(a => a === '--withsplash')) {
+    if (splashWin && !splashWin.isDestroyed()) { try { splashWin.destroy(); } catch (e) {} splashWin = null; }
+  }
   if (shotArg || probeArg || evalArg) {
     win.webContents.once('did-finish-load', () => {
       setTimeout(async () => {
@@ -131,15 +247,34 @@ function createWindow() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.novelfolio.app');
+  T('whenReady');
+  /* 设置里关掉启动动画就不开 splash（读配置是同步的，不用等 IPC） */
+  let animOn = true;
+  try {
+    const ui = settings.getConfig().ui;
+    animOn = !(ui && ui.launchAnim === false);
+  } catch (e) {}
+  const wantSplash = animOn &&
+    (!(shotArg || probeArg || evalArg) || process.argv.some(a => a === '--withsplash'));
+  /* 两个窗口同时建：渲染进程并行创建。splash 立刻 show（只靠 backgroundColor 先撑住），
+   * 主窗口藏在后面加载 —— 先等 splash ready 再建主窗口会让主界面更晚出来。 */
+  if (wantSplash) createSplash();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 /* ---------------- app / data ---------------- */
+/* splash 窗口：动画播完了 */
+ipcMain.on('splash:anim-done', () => { onSplashDone(); });
+
 ipcMain.handle('app:info', async () => ({
   version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
-  node: process.versions.node, userData: P.root(), encrypt: await settings.encAvailable()
+  node: process.versions.node, userData: P.root(), encrypt: await settings.encAvailable(),
+  /* 只有自动化测试带 --slow=N；正常启动恒为 1 */
+  bootSlow: bootSlowMs,
+  /* 启动动画是否已经由 splash 窗口播过了（播过了页面里的就别再演一遍） */
+  splashPlayed: splashRan
 }));
 ipcMain.handle('data:load', () => getDoc());
 ipcMain.handle('data:save', (e, incoming) => {

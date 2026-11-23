@@ -18,6 +18,10 @@ const DEFAULTS = {
     redactNames: false,
     logRequests: false
   },
+  /* 界面偏好 */
+  ui: {
+    launchAnim: true         /* 启动动画：关掉就直接进主界面 */
+  },
   /* 同步：书稿放在用户自己的网盘 / 本地同步盘里，卷帙不经过任何服务器 */
   sync: {
     enabled: false,
@@ -148,6 +152,7 @@ async function publicSettings() {
   return {
     llm: cfg.llm,
     privacy: cfg.privacy,
+    ui: cfg.ui || { launchAnim: true },
     sync: {
       enabled: !!sync.enabled, kind: sync.kind || 'folder', folder: sync.folder || '',
       url: sync.url || '', user: sync.user || '', encrypt: !!sync.encrypt, autoMinutes: sync.autoMinutes || 0,

@@ -8,6 +8,7 @@ import book from './pages/book.js';
 import importer from './pages/importer.js';
 import settings from './pages/settings.js';
 import { paintBookChip, openLibrary, switchTo } from './library.js';
+import { runBootAnimation } from './bootanim.js';
 
 const PAGES = [characters, world, plot, chapter, book, importer, settings];
 const NAV = ['characters', 'world', 'plot', 'chapter', 'book', 'importer'];
@@ -364,15 +365,47 @@ function quickSearch() {
   setTimeout(() => input.focus(), 30);
 }
 
+/* 数据加载：启动动画和它并行跑，谁慢等谁。
+ * info / settings 由 boot() 先取（它要拿开关状态），这里只取书库和正文。 */
+async function loadAll() {
+  /* 书库：先拿登记表（哪几本、现在开哪本），再按"当前书"读数据 */
+  NF.library = await window.nf.books.list();
+  NF.doc = await window.nf.data.load();
+}
+
 async function boot() {
-  try {
-    NF.info = await window.nf.info();
-    NF.settings = await window.nf.settings.get();
-    /* 书库：先拿登记表（哪几本、现在开哪本），再按"当前书"读数据 */
-    NF.library = await window.nf.books.list();
-    NF.doc = await window.nf.data.load();
-  } catch (e) {
-    document.getElementById('boot').textContent = '启动失败：' + e.message + '（这个界面需要在卷帙桌面程序里打开）';
+  /* 动画只是「盖住等待」：它和加载同时开始，不占额外时间。
+   * 这里的 catch 只负责把失败显示出来，动画照常收场，不让用户卡在启动页。 */
+  let loadErr = null;
+  const loading = loadAll().catch(e => { loadErr = e; });
+
+  /* 开关要先知道（关了的话根本不该起动画）。
+   * info / settings 是加载链最前面两步、各只要 1~2ms，等它们不会让启动变慢。 */
+  const info = await window.nf.info().catch(() => null);
+  const cfg = await window.nf.settings.get().catch(() => null);
+  if (info) NF.info = info;
+  if (cfg) NF.settings = cfg;
+  const animOn = !(cfg && cfg.ui && cfg.ui.launchAnim === false);
+  /* 启动动画已经由独立的 splash 窗口播过了（它比这个页面早好几秒出现），
+   * 这里只等数据加载完、把遮罩收掉，不再重复演一遍 —— 否则用户会先看 splash 演完，
+   * 再来看主界面又演一遍，等于开两次机。
+   * 只有「没有 splash 撑场」的情况（自动化测试 / 开关关闭）才走原来的完整动画。 */
+  if (info && info.splashPlayed) {
+    await loading;
+    const bootEl = document.getElementById('boot');
+    if (bootEl) bootEl.remove();
+  } else {
+    /* info.bootSlow：只有自动化测试带 --slow=N 时才不是 1 */
+    await runBootAnimation({ ready: loading, enabled: animOn, speed: (info && info.bootSlow) || 1 });
+  }
+
+  if (loadErr) {
+    const root = document.getElementById('app');
+    root.hidden = false;
+    root.innerHTML = '';
+    root.appendChild(Object.assign(document.createElement('div'),
+      { className: 'boot', style: 'position:static;color:var(--muted);padding:40px;line-height:1.9' ,
+        textContent: '启动失败：' + loadErr.message + '（这个界面需要在卷帙桌面程序里打开）' }));
     return;
   }
   paintChrome();
