@@ -237,6 +237,35 @@ function starButton() {
   }, '★ Star');
 }
 
+/* 原地重画前把「滚到哪儿了」抄一份：clear(root) 之后这些容器都会归零，
+ * 重挂后按原样放回去，撤销时页面视角才不跳。
+ * 用「从 .page 往下的子元素序号」定位，不依赖深色选择器 / id——页面每次都是同一套结构重画。 */
+function captureScroll(root) {
+  const out = [];
+  if (root) {
+    (function walk(el, path) {
+      if (el.scrollTop || el.scrollLeft) out.push({ path, top: el.scrollTop, left: el.scrollLeft, tag: el.tagName });
+      const kids = el.children;
+      for (let i = 0; i < kids.length; i++) walk(kids[i], path.concat(i));
+    })(root, []);
+  }
+  const view = document.getElementById('view');
+  return { items: out, view: view ? { top: view.scrollTop, left: view.scrollLeft } : null };
+}
+function restoreScroll(root, saved) {
+  if (!saved) return;
+  for (const item of saved.items) {
+    if (!root) break;
+    let el = root;
+    for (const i of item.path) { el = el && el.children[i]; }
+    if (!el || el.tagName !== item.tag) continue;
+    if (item.left) el.scrollLeft = item.left;
+    if (item.top) el.scrollTop = item.top;
+  }
+  const view = document.getElementById('view');
+  if (view && saved.view) { view.scrollLeft = saved.view.left; view.scrollTop = saved.view.top; }
+}
+
 function route() {
   /* 撤销 / 重做换了一份新数据：页面不必重建，直接原地重画，免得输入焦点和滚动位置跳掉 */
   if (NF.view && NF.view.sameId && NF.view.sameId.doc === NF.doc && NF.view.sameId.id === NF.current) {
@@ -246,10 +275,13 @@ function route() {
     if (root) {
       /* 复用同一个 .page 容器：滚到哪里还停在哪里。
        * 监听要按规矩先解再挂，容器也要先清空——mount() 只管往里加，不清就会叠出两份页面。 */
+      const saved = captureScroll(root);
       if (typeof view.unmount === 'function') { try { view.unmount(); } catch (e) {} }
       clear(root);
-      try { view.mount(root, { doc: NF.doc, params: NF.viewParams || {}, NF }); }
+      try { view.mount(root, { doc: NF.doc, params: NF.viewParams || {}, NF, refresh: true }); }
       catch (e) { console.error(e); }
+      /* refresh: true 让页面知道这是「原地重画」：章节页据此接回作者刚才那一章，而不是回到第一章。 */
+      restoreScroll(root, saved);
       return;
     }
   }

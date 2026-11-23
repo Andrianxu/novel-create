@@ -147,6 +147,9 @@ const page = {
   id: 'chapter', label: '章节写作',
   statusText(doc) { return '稿件 ' + ((doc.manuscripts || []).length) + ' 篇 · 共 ' + ((doc.manuscripts || []).reduce((a, m) => a + words(m.content), 0)) + ' 字'; },
   unmount() {
+    /* 页面要拆掉了：先把作者此刻的视角（选中哪章、光标和正文滚到哪儿、侧栏滚到哪儿）抄下来。
+     * 撤销会让这一页原地重挂，闭包里的局部状态跟着丢，只能记在页面对象上再放回去。 */
+    if (this._capture) { try { this._capture(); } catch (e) {} this._capture = null; }
     if (this._cleanup) { this._cleanup(); this._cleanup = null; }
     /* 右下角 AI 助手的 Ctrl+J 原来绑在 document 上，换页也不解绑，会越堆越多 */
     if (this._keyOff) { this._keyOff(); this._keyOff = null; }
@@ -155,13 +158,33 @@ const page = {
     const { doc, NF } = ctx;
     doc.manuscripts = doc.manuscripts || [];
     doc.chapters = doc.chapters || [];
-    const st = { vol: (doc.chapters[0] || {}).id || null, id: ctx.params.id || null, focus: false };
+    /* 这一页的视角记在页面对象上，重挂时接回来（撤销 / 同步都会让页面原地重画）。 */
+    const ui = page._ui || (page._ui = {
+      vol: null, id: null, focus: false, folds: Object.create(null), sideTop: 0
+    });
+    const params = ctx.params || {};
+    const st = { vol: (doc.chapters[0] || {}).id || null, id: null, focus: !!ui.focus };
+    /* 从情节页「在章节里定位」之类带着参数过来时按参数走；
+     * 撤销后的原地重画则沿用重画前作者正看着的那一卷 / 那一章。 */
+    if (!ctx.refresh && params.id && doc.manuscripts.some(m => m.id === params.id)) {
+      st.id = params.id;
+      const pm = doc.manuscripts.find(m => m.id === params.id);
+      if (pm && pm.volumeId && doc.chapters.some(v => v.id === pm.volumeId)) st.vol = pm.volumeId;
+    } else if (ui.id && doc.manuscripts.some(m => m.id === ui.id)) {
+      st.id = ui.id;
+      const um = doc.manuscripts.find(m => m.id === ui.id);
+      if (um && um.volumeId && doc.chapters.some(v => v.id === um.volumeId)) st.vol = um.volumeId;
+      else if (ui.vol && doc.chapters.some(v => v.id === ui.vol)) st.vol = ui.vol;
+    } else if (ui.vol && doc.chapters.some(v => v.id === ui.vol)) {
+      st.vol = ui.vol;
+    }
     if (!st.id) {
       const first = doc.manuscripts.find(m => m.volumeId === st.vol) || doc.manuscripts[0];
       st.id = first ? first.id : null;
+      if (first && first.volumeId) st.vol = first.volumeId;
     }
 
-    const wrap = h('div', { class: 'ch-wrap' });
+    const wrap = h('div', { class: 'ch-wrap' + (st.focus ? ' ch-focus' : '') });
     const side = h('aside', { class: 'ch-side', 'data-probe': 'chapter-side' });
     /* 侧栏只滚列表本身，头顶那排按钮（新的章节 / 卷 / 情节）不跟着滚走 */
     const sideHead = h('div', { class: 'ch-sidehead' });
@@ -172,9 +195,9 @@ const page = {
 
     const cur = () => doc.manuscripts.find(m => m.id === st.id);
     const saveDebounced = debounce(() => NF.save(), 700);
-    /* 哪几章的情节被收起了：{ [稿件id]: true }。只活在本次页面里，不写进数据——
-     * 打开软件还是全部展开的干净样子。 */
-    const foldSet = Object.create(null);
+    /* 哪几章的情节被收起了：{ [稿件id]: true }。不写进数据，但跟着页面视角一起留着：
+     * 撤销重挂后，作者收起的那几组不会突然全弹开。 */
+    const foldSet = ui.folds || (ui.folds = Object.create(null));
 
     /* AI 助手用到的几个可变引用：编辑器、面板、聊天记录和请求状态 */
     let edRef = null;      /* 当前正文 textarea，AI 改完要回写它 */
@@ -557,9 +580,11 @@ const page = {
         h('span', {}, '自动保存'),
         h('span', { class: 'grow' }),
         h('span', { class: 'tiny' }, 'Ctrl+S 立即保存 · Ctrl+Z 撤销')));
-      setTimeout(() => ed.focus(), 30);
-      /* 撤销等操作让页面原地重画：把光标记住，画完放回去，撤过一次还能接着撤 */
+      /* 先摆一次：重挂后的第一帧就在原来的位置，不会闪一下文首 / 文末。
+       * focus() 会把正文滚到光标处（新挂的 textarea 光标默认在末尾），所以聚焦之后再摆一次，
+       * 撤销时视角才真的停在作者刚才看到的那一段。 */
       restoreCaret(ed);
+      setTimeout(() => { ed.focus(); restoreCaret(ed); }, 30);
       if (aiReady && dock.classList.contains('open')) renderLog();
     }
 
@@ -581,6 +606,15 @@ const page = {
       e2.scrollTop = caretMem.top || 0;
       if (hlLayer) hlLayer.scrollTop = e2.scrollTop;
     }
+    /* 拆页面之前抄一遍视角：选中项、专注模式、正文光标 / 滚动、侧栏滚动。
+     * 撤销 / 重做走的是「解绑 → 清空 → 重挂」，不抄就走回第一章末尾。 */
+    page._capture = function () {
+      rememberCaret();
+      ui.vol = st.vol;
+      ui.id = st.id;
+      ui.focus = st.focus;
+      if (sideList) ui.sideTop = sideList.scrollTop || 0;
+    };
 
     let sideTimer = null;
     const renderSideSoon = () => { clearTimeout(sideTimer); sideTimer = setTimeout(renderSide, 400); };
@@ -1011,7 +1045,7 @@ const page = {
 
     /* 从情节页点「在章节里定位」之类跳过来时，直接选中对应章节：
      * params.id 就是稿件 id；只有 params.plot 时按情节的章节号找稿件 */
-    if (ctx.params && ctx.params.plot && !ctx.params.id) {
+    if (!ctx.refresh && ctx.params && ctx.params.plot && !ctx.params.id) {
       const p = (doc.plots || []).find(x => x.id === ctx.params.plot);
       if (p) {
         const no = (String(p.chapter || '').match(/(\d+)/) || [])[0];
@@ -1020,7 +1054,9 @@ const page = {
       }
     }
 
-    renderSide(); renderMain();
+    renderSide();
+    if (ui.sideTop) sideList.scrollTop = ui.sideTop;   /* 侧栏视角也接回原处 */
+    renderMain();
     buildDock();
     /* Ctrl/⌘+S 由外壳统一处理（app.js），这里不再重复绑定，避免双份 toast */
   }
