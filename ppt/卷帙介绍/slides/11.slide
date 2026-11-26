@@ -1,0 +1,23 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60, justifyContent: 'center', alignItems: 'center' }}>
+    {/* 顶部细金线 */}
+    <Animation animType="fadeIn" duration={600} startType="afterPrevious">
+        <Box style={{ width: 80, height: 2, background: '#C9A961', marginBottom: 40 }} />
+    </Animation>
+    {/* 金句 */}
+    <Animation animType="flyIn" direction="bottom" duration={800} startType="afterPrevious">
+        <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 60, fontWeight: 'bold', color: '#1A1A1A', letterSpacing: 4, textAlign: 'center', lineHeight: 1.4 }}>把故事，写进你自己的世界</Text>
+    </Animation>
+    {/* 落款 */}
+    <Animation animType="fadeIn" duration={600} startType="afterPrevious">
+        <Box style={{ alignItems: 'center', marginTop: 28 }}>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 24, color: '#9B2C2C', letterSpacing: 2 }}>卷帙 NovelFolio · 免费开源</Text>
+            <Text style={{ fontFamily: 'Arial, sans-serif', fontSize: 15, color: '#8A8175', marginTop: 10 }}>github.com/Andrianxu/novel-create</Text>
+        </Box>
+    </Animation>
+    {/* 朱印压轴 */}
+    <Animation animType="zoom" duration={700} startType="afterPrevious">
+        <Box style={{ width: 56, height: 56, borderRadius: 8, background: '#9B2C2C', justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 22, color: '#FFFFFF' }}>卷帙</Text>
+        </Box>
+    </Animation>
+</Slide>

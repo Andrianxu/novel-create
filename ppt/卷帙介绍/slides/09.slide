@@ -1,0 +1,52 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    {/* 标题区 */}
+    <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+        <Box>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 36, fontWeight: 'bold', color: '#1A1A1A' }}>设置：AI 由你掌控，数据留在本地</Text>
+            <Box style={{ width: '100%', height: 1, background: '#C9A961', marginTop: 12, marginBottom: 8 }} />
+        </Box>
+    </Animation>
+    {/* 两图非等宽 6:4 */}
+    <Box style={{ flexDirection: 'row', height: 320, marginTop: 16, gap: 20 }}>
+        <Animation animType="fadeIn" duration={700}>
+            <Box style={{ width: 660, padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10 }}>
+                <Image src="assets/settings1.png" style={{ width: 644, height: 300, objectFit: 'cover', borderRadius: 6 }} />
+            </Box>
+        </Animation>
+        <Animation animType="fadeIn" duration={700} startType="withPrevious">
+            <Box style={{ flex: 1, padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10 }}>
+                <Image src="assets/settings2.png" style={{ width: 428, height: 300, objectFit: 'cover', borderRadius: 6 }} />
+            </Box>
+        </Animation>
+    </Box>
+    {/* 要点带 */}
+    <Box style={{ flexDirection: 'row', gap: 16, marginTop: 22 }}>
+        <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+            <Box style={{ flex: 1, borderTop: '2px solid #9B2C2C', paddingTop: 10 }}>
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#2D2D2D' }}>自带模型 API Key</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>用自己的账号，想换就换</Text>
+            </Box>
+        </Animation>
+        <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+            <Box style={{ flex: 1, borderTop: '2px solid #9B2C2C', paddingTop: 10 }}>
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#2D2D2D' }}>Key 不回传、不写日志</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>本机加密保存，界面只显掩码</Text>
+            </Box>
+        </Animation>
+        <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+            <Box style={{ flex: 1, borderTop: '2px solid #9B2C2C', paddingTop: 10 }}>
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#2D2D2D' }}>审阅阈值可调</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>默认 50%，也能一键关闭</Text>
+            </Box>
+        </Animation>
+        <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+            <Box style={{ flex: 1, borderTop: '2px solid #9B2C2C', paddingTop: 10 }}>
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#2D2D2D' }}>WebDAV 多设备同步</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>书稿放自己的网盘</Text>
+            </Box>
+        </Animation>
+    </Box>
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 09</Text>
+    </Box>
+</Slide>

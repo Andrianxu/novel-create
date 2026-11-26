@@ -1,0 +1,42 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    {/* 标题区 */}
+    <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+        <Box>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 36, fontWeight: 'bold', color: '#1A1A1A' }}>导入导出：你的稿子，随时能带走</Text>
+            <Box style={{ width: '100%', height: 1, background: '#C9A961', marginTop: 12, marginBottom: 8 }} />
+        </Box>
+    </Animation>
+    <Box style={{ flexDirection: 'row', height: 470, marginTop: 18, gap: 30 }}>
+        <Animation animType="fadeIn" duration={700}>
+            <Box style={{ width: 600, padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10 }}>
+                <Image src="assets/importer.png" style={{ width: 584, height: 328, objectFit: 'cover', borderRadius: 6 }} />
+            </Box>
+        </Animation>
+        <Box style={{ flex: 1, justifyContent: 'center', gap: 16 }}>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box style={{ background: '#F4EEE2', borderRadius: 8, padding: 16 }}>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 21, color: '#9B2C2C' }}>三步导入向导</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 15, color: '#4A443C', lineHeight: 1.6, marginTop: 6 }}>CSV / Excel / docx，列映射逐行校验，只导入勾选行</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box style={{ background: '#F4EEE2', borderRadius: 8, padding: 16 }}>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 21, color: '#9B2C2C' }}>多格式导出</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 15, color: '#4A443C', lineHeight: 1.6, marginTop: 6 }}>正文 / 人物 / 情节任选，TXT · MD · Word · JSON</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box style={{ background: '#9B2C2C', borderRadius: 8, padding: 16 }}>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 21, color: '#FFFFFF' }}>JSON 整库备份</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 15, color: '#F7E4D8', lineHeight: 1.6, marginTop: 6 }}>一键导出完整书稿，换机也能原样恢复</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#6B6258', marginTop: 4 }}>格式不锁死，数据始终在你手里。</Text>
+            </Animation>
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 08</Text>
+    </Box>
+</Slide>

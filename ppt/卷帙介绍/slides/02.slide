@@ -1,0 +1,71 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    {/* 标题区 */}
+    <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+        <Box>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 36, fontWeight: 'bold', color: '#1A1A1A' }}>六个模块，把一本长篇小说安顿好</Text>
+            <Box style={{ width: '100%', height: 1, background: '#C9A961', marginTop: 12, marginBottom: 8 }} />
+        </Box>
+    </Animation>
+    {/* 主体：左结构图 + 右竖列 */}
+    <Box style={{ flexDirection: 'row', height: 470, marginTop: 18, gap: 30 }}>
+        {/* 中心辐射结构图 */}
+        <Box style={{ width: 700, position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
+            <svg width={680} height={450} viewBox='0 0 680 450'>
+                {/* 连接线 */}
+                <line x1='340' y1='225' x2='340' y2='70' stroke='#C9A961' strokeWidth='1.5' />
+                <line x1='340' y1='225' x2='555' y2='150' stroke='#C9A961' strokeWidth='1.5' />
+                <line x1='340' y1='225' x2='555' y2='320' stroke='#C9A961' strokeWidth='1.5' />
+                <line x1='340' y1='225' x2='340' y2='400' stroke='#C9A961' strokeWidth='1.5' />
+                <line x1='340' y1='225' x2='125' y2='320' stroke='#C9A961' strokeWidth='1.5' />
+                <line x1='340' y1='225' x2='125' y2='150' stroke='#C9A961' strokeWidth='1.5' />
+                {/* 中心圆 */}
+                <circle cx='340' cy='225' r='66' fill='#9B2C2C' />
+                <text x='340' y='216' textAnchor='middle' fontFamily='KaiTi, STKaiti, serif' fontSize='30' fill='#FFFFFF'>卷帙</text>
+                <text x='340' y='245' textAnchor='middle' fontFamily='Arial, sans-serif' fontSize='10' fill='#F0D9B5' letterSpacing='1'>NOVELFOLIO</text>
+                {/* 六节点 */}
+                <circle cx='340' cy='54' r='8' fill='#9B2C2C' />
+                <text x='340' y='38' textAnchor='middle' fontFamily='KaiTi, STKaiti, serif' fontSize='20' fill='#1A1A1A'>人物</text>
+                <circle cx='572' cy='145' r='8' fill='#9B2C2C' />
+                <text x='584' y='150' textAnchor='start' fontFamily='KaiTi, STKaiti, serif' fontSize='20' fill='#1A1A1A'>世界观</text>
+                <circle cx='572' cy='325' r='8' fill='#9B2C2C' />
+                <text x='584' y='330' textAnchor='start' fontFamily='KaiTi, STKaiti, serif' fontSize='20' fill='#1A1A1A'>情节</text>
+                <circle cx='340' cy='412' r='8' fill='#9B2C2C' />
+                <text x='340' y='440' textAnchor='middle' fontFamily='KaiTi, STKaiti, serif' fontSize='20' fill='#1A1A1A'>章节写作</text>
+                <circle cx='108' cy='325' r='8' fill='#9B2C2C' />
+                <text x='96' y='330' textAnchor='end' fontFamily='KaiTi, STKaiti, serif' fontSize='20' fill='#1A1A1A'>拆书</text>
+                <circle cx='108' cy='145' r='8' fill='#9B2C2C' />
+                <text x='96' y='150' textAnchor='end' fontFamily='KaiTi, STKaiti, serif' fontSize='20' fill='#1A1A1A'>导入导出</text>
+            </svg>
+        </Box>
+        {/* 右侧竖列 */}
+        <Box style={{ flex: 1, justifyContent: 'center', gap: 22 }}>
+            <Animation animType="flyIn" direction="right" duration={600} startType="afterPrevious">
+                <Box>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 22, fontWeight: 'bold', color: '#9B2C2C' }}>为长篇而生</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box style={{ borderLeft: '2px solid #C9A961', paddingLeft: 16 }}>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 18, color: '#2D2D2D', lineHeight: 1.5 }}>记得住人设</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>角色信息不再散落</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box style={{ borderLeft: '2px solid #C9A961', paddingLeft: 16 }}>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 18, color: '#2D2D2D', lineHeight: 1.5 }}>理得清线索</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>主线暗线同轴呈现</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box style={{ borderLeft: '2px solid #C9A961', paddingLeft: 16 }}>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 18, color: '#2D2D2D', lineHeight: 1.5 }}>写得完篇章</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#8A8175', lineHeight: 1.5, marginTop: 4 }}>AI 续写与审阅随行</Text>
+                </Box>
+            </Animation>
+        </Box>
+    </Box>
+    {/* 页脚 */}
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 02</Text>
+    </Box>
+</Slide>

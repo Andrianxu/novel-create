@@ -1,0 +1,44 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    <Box style={{ flexDirection: 'row', height: 600, gap: 32 }}>
+        {/* 左窄栏：朱红浅底色块 */}
+        <Animation animType="flyIn" direction="left" duration={600} startType="afterPrevious">
+            <Box style={{ width: 250, background: '#F4EEE2', borderRadius: 10, padding: 26, justifyContent: 'center', height: 600 }}>
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 58, fontWeight: 'bold', color: '#9B2C2C', lineHeight: 1.2 }}>拆书</Text>
+                <Box style={{ width: 60, height: 2, background: '#9B2C2C', marginTop: 14, marginBottom: 18 }} />
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 22, color: '#2D2D2D', lineHeight: 1.6 }}>把整本书，变成你的素材库</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 15, color: '#8A8175', lineHeight: 1.6, marginTop: 12 }}>调自己的模型接口，人物情节自动抽出来</Text>
+            </Box>
+        </Animation>
+        {/* 右宽栏：图 + 三步 */}
+        <Box style={{ flex: 1, justifyContent: 'center' }}>
+            <Animation animType="fadeIn" duration={700} startType="afterPrevious">
+                <Box style={{ padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10 }}>
+                    <Image src="assets/book.png" style={{ width: 826, height: 300, objectFit: 'cover', borderRadius: 6 }} />
+                </Box>
+            </Animation>
+            <Box style={{ flexDirection: 'row', gap: 14, marginTop: 18 }}>
+                <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                    <Box style={{ flex: 1, background: '#FDFBF7', border: '1px solid #C9A961', borderRadius: 8, padding: 14, height: 96, justifyContent: 'center' }}>
+                        <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#9B2C2C' }}>① 导入整本书</Text>
+                        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#6B6258', lineHeight: 1.5, marginTop: 6 }}>多种格式，自动分章</Text>
+                    </Box>
+                </Animation>
+                <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                    <Box style={{ flex: 1, background: '#FDFBF7', border: '1px solid #C9A961', borderRadius: 8, padding: 14, height: 96, justifyContent: 'center' }}>
+                        <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#9B2C2C' }}>② 抽取人物情节</Text>
+                        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#6B6258', lineHeight: 1.5, marginTop: 6 }}>进度实时，随时可取消</Text>
+                    </Box>
+                </Animation>
+                <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                    <Box style={{ flex: 1, background: '#9B2C2C', borderRadius: 8, padding: 14, height: 96, justifyContent: 'center' }}>
+                        <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 19, color: '#FFFFFF' }}>③ 勾选入库</Text>
+                        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#F7E4D8', lineHeight: 1.5, marginTop: 6 }}>一键并入当前书稿</Text>
+                    </Box>
+                </Animation>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 07</Text>
+    </Box>
+</Slide>

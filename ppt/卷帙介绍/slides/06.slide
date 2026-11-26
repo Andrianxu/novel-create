@@ -1,0 +1,40 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    {/* 标题区 */}
+    <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+        <Box>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 36, fontWeight: 'bold', color: '#1A1A1A' }}>章节写作：写完这章，下一章自动帮你校对</Text>
+            <Box style={{ width: '100%', height: 1, background: '#C9A961', marginTop: 12, marginBottom: 8 }} />
+        </Box>
+    </Animation>
+    {/* 主体 */}
+    <Box style={{ flexDirection: 'row', height: 470, marginTop: 18, gap: 34 }}>
+        <Animation animType="fadeIn" duration={700}>
+            <Box style={{ width: 660, padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10 }}>
+                <Image src="assets/chapter.png" style={{ width: 644, height: 362, objectFit: 'cover', borderRadius: 6 }} />
+            </Box>
+        </Animation>
+        <Box style={{ flex: 1, justifyContent: 'center', gap: 18 }}>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 23, color: '#9B2C2C', marginBottom: 4 }}>卷·篇目录</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 16, color: '#4A443C', lineHeight: 1.5 }}>章号固定，插入新章自动顺延</Text>
+                </Box>
+            </Animation>
+            <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+                <Box>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 23, color: '#9B2C2C', marginBottom: 4 }}>楷体编辑器 · 自动保存</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 16, color: '#4A443C', lineHeight: 1.5 }}>专注模式，字数统计，写得顺手</Text>
+                </Box>
+            </Animation>
+            <Animation animType="zoom" duration={600} startType="afterPrevious">
+                <Box style={{ background: '#9B2C2C', borderRadius: 8, padding: 16 }}>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 21, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.5 }}>AI 人设审阅</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 15, color: '#F7E4D8', lineHeight: 1.6, marginTop: 6 }}>新建下一章后自动校对刚写的人设，变化超过阈值才弹窗征求你同意，绝不擅自改动</Text>
+                </Box>
+            </Animation>
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 06</Text>
+    </Box>
+</Slide>

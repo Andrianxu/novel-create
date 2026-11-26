@@ -1,0 +1,30 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    {/* 标题区 */}
+    <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+        <Box>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 36, fontWeight: 'bold', color: '#1A1A1A' }}>情节：主线与暗线，都在一条轴上</Text>
+            <Box style={{ width: '100%', height: 1, background: '#C9A961', marginTop: 12, marginBottom: 8 }} />
+        </Box>
+    </Animation>
+    {/* 大图 */}
+    <Animation animType="zoom" duration={700} startType="afterPrevious">
+        <Box style={{ width: '100%', padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10, marginTop: 14 }}>
+            <Image src="assets/plot.png" style={{ width: 1128, height: 300, objectFit: 'cover', borderRadius: 6 }} />
+        </Box>
+    </Animation>
+    {/* 大字 + 说明 */}
+    <Box style={{ flexDirection: 'row', alignItems: 'center', height: 130, gap: 32, marginTop: 6 }}>
+        <Animation animType="flyIn" direction="left" duration={700} startType="afterPrevious">
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 54, fontWeight: 'bold', color: '#1A1A1A', whiteSpace: 'nowrap' }}>时间轴 · 树状暗线</Text>
+        </Animation>
+        <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+            <Box style={{ borderLeft: '3px solid #9B2C2C', paddingLeft: 20 }}>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 18, color: '#4A443C', lineHeight: 1.7 }}>滚轮缩放、拖动端点定格时间、悬停看摘要</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 18, color: '#4A443C', lineHeight: 1.7 }}>主线之外，多层暗线分叉又收敛</Text>
+            </Box>
+        </Animation>
+    </Box>
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 05</Text>
+    </Box>
+</Slide>

@@ -1,0 +1,45 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60 }}>
+    {/* 标题区 */}
+    <Animation animType="fadeIn" duration={500} startType="afterPrevious">
+        <Box>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 36, fontWeight: 'bold', color: '#1A1A1A' }}>为什么是卷帙</Text>
+            <Box style={{ width: '100%', height: 1, background: '#C9A961', marginTop: 12, marginBottom: 8 }} />
+        </Box>
+    </Animation>
+    {/* 非等宽三栏 5:3:3 */}
+    <Box style={{ flexDirection: 'row', gap: 22, height: 470, marginTop: 24 }}>
+        {/* 第一栏（最宽，朱红强调） */}
+        <Animation animType="flyIn" direction="left" duration={700}>
+            <Box style={{ width: 490, background: '#9B2C2C', borderRadius: 12, padding: 30, justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: 'Arial, sans-serif', fontSize: 72, fontWeight: 'bold', color: '#F0D9B5' }}>01</Text>
+                <Box>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 32, fontWeight: 'bold', color: '#FFFFFF' }}>本地优先</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 18, color: '#F7E4D8', lineHeight: 1.7, marginTop: 12 }}>书稿和密钥都在你自己的机器上。不上传、不锁定，断网也能写。</Text>
+                </Box>
+            </Box>
+        </Animation>
+        {/* 第二栏 */}
+        <Animation animType="flyIn" direction="left" duration={700} startType="afterPrevious">
+            <Box style={{ flex: 1, background: '#F4EEE2', borderRadius: 12, padding: 26, justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: 'Arial, sans-serif', fontSize: 72, fontWeight: 'bold', color: '#C9A961' }}>02</Text>
+                <Box>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 28, fontWeight: 'bold', color: '#1A1A1A' }}>AI 加持</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 17, color: '#4A443C', lineHeight: 1.7, marginTop: 12 }}>续写、拆书、人设审阅——用你自己的模型，听你的规则。</Text>
+                </Box>
+            </Box>
+        </Animation>
+        {/* 第三栏 */}
+        <Animation animType="flyIn" direction="left" duration={700} startType="afterPrevious">
+            <Box style={{ flex: 1, background: '#F4EEE2', borderRadius: 12, padding: 26, justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: 'Arial, sans-serif', fontSize: 72, fontWeight: 'bold', color: '#C9A961' }}>03</Text>
+                <Box>
+                    <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 28, fontWeight: 'bold', color: '#1A1A1A' }}>为长篇设计</Text>
+                    <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 17, color: '#4A443C', lineHeight: 1.7, marginTop: 12 }}>人物、线索、章节各归其位，写百万字也不乱。</Text>
+                </Box>
+            </Box>
+        </Animation>
+    </Box>
+    <Box style={{ position: 'absolute', left: 60, bottom: 22 }}>
+        <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 14, color: '#A79E92' }}>卷帙 NovelFolio · 10</Text>
+    </Box>
+</Slide>

@@ -1,0 +1,32 @@
+<Slide style={{ width: 1280, height: 720, background: '#FDFBF7', padding: 60, flexDirection: 'row' }}>
+    {/* 左侧文字区 55% */}
+    <Box style={{ width: 590, justifyContent: 'center' }}>
+        <Animation animType="fadeIn" duration={700} startType="afterPrevious">
+            <Box style={{ width: 96, height: 3, background: '#C9A961', marginBottom: 30 }} />
+        </Animation>
+        <Animation animType="flyIn" direction="left" duration={700} startType="afterPrevious">
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 84, fontWeight: 'bold', color: '#1A1A1A', lineHeight: 1.1, letterSpacing: 6 }}>卷帙</Text>
+        </Animation>
+        <Animation animType="fadeIn" duration={600} startType="afterPrevious">
+            <Text style={{ fontFamily: 'Arial, sans-serif', fontSize: 18, color: '#9B2C2C', letterSpacing: 5, marginTop: 6, marginBottom: 28 }}>NOVELFOLIO</Text>
+        </Animation>
+        <Animation animType="fadeIn" duration={600} startType="afterPrevious">
+            <Box>
+                <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 27, color: '#2D2D2D', lineHeight: 1.5 }}>为长篇写作准备的一张书桌</Text>
+                <Text style={{ fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 16, color: '#6B6258', lineHeight: 1.6, marginTop: 12 }}>人物 · 世界观 · 情节 · 章节，都收在一处</Text>
+            </Box>
+        </Animation>
+        {/* 朱印角标 */}
+        <Box style={{ width: 44, height: 44, borderRadius: 6, background: '#9B2C2C', justifyContent: 'center', alignItems: 'center', marginTop: 30 }}>
+            <Text style={{ fontFamily: 'KaiTi, STKaiti, serif', fontSize: 18, color: '#FFFFFF' }}>卷</Text>
+        </Box>
+    </Box>
+    {/* 右侧主视觉 */}
+    <Box style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-end' }}>
+        <Animation animType="zoom" duration={800} startType="afterPrevious">
+            <Box style={{ width: 560, padding: 8, background: '#FFFFFF', border: '1px solid #C9A961', borderRadius: 10 }}>
+                <Image src="assets/cover.png" style={{ width: 544, height: 306, objectFit: 'cover', borderRadius: 6 }} />
+            </Box>
+        </Animation>
+    </Box>
+</Slide>
