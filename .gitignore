@@ -26,6 +26,9 @@ previews/novelfolio-ui-preview.pptx
 previews/novelfolio-ui-preview.pdf
 previews/logo-*.png
 
+# ---- WorkBuddy 工作区数据（本地记忆与缓存，不进仓库）----
+.workbuddy/
+
 # ---- 可选的本地截图/草稿 ----
 /screenshots/
 _scratch/
