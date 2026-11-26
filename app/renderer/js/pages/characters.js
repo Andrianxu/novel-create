@@ -12,6 +12,8 @@ injectStyle('characters', `
 .gsel .gchip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:#F5EEDF;border:1px solid #EAE1CF;color:#5B5348;cursor:pointer;user-select:none;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
 .gsel .gchip:hover{background:#FFFDF8;border-color:#CBB894}
 .gsel .gchip.on{background:#E2EEEA;border-color:#BFDACF;color:#23604F}
+/* 视图切换胶囊：选中那个像盖了个墨印 */
+.gsel .btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink);font-weight:700}
 /* 列表行右侧的小删除：平时不显眼，鼠标移上去或选中时才亮出来 */
 .crow{position:relative}
 .crow .crow-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:19px;height:19px;border-radius:5px;display:grid;place-items:center;
@@ -87,6 +89,104 @@ injectStyle('characters', `
 .chip i{width:17px;height:17px;border-radius:50%;color:#fff;font-style:normal;display:grid;place-items:center;font-size:9px;font-family:var(--kai)}
 .chip small{color:#8C8272;font-size:9.5px}
 .genbox{background:#FBF3E6;border:1px dashed #E0C79B;border-radius:9px;padding:10px 12px;font-size:11.5px;line-height:1.7;color:#5B5348}
+/* ---------------- 展示视图：卡片滑转 / 3D 翻转 ----------------
+ * 一套「舞台 + 双面卡片」：卡片有两个面（A/B），两面各自背对背。
+ * 换人时把内容写进当前背着的那一面，再把整张卡转 180°，背的那面就转到正面来；
+ * 上一张 / 下一张分别是 −180° / +180°，于是左右方向都对。旋转过程中两面都不重画，
+ * 所以看着是一张卡真的在翻，而不是两张卡换图。 */
+.showwrap{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 0 0}
+.showtop{display:flex;align-items:center;gap:10px;width:100%;max-width:820px}
+.showtop h2{font-family:var(--kai);font-size:20px;margin:0;letter-spacing:.18em;color:#7C291F}
+.showtop .st-sub{font-size:10px;letter-spacing:.24em;color:var(--muted)}
+.showtop .st-ctr{margin-left:auto;font-size:11px;color:#8C8272;font-variant-numeric:tabular-nums}
+/* 舞台：perspective 只给舞台，卡片才有近大远小的透视感 */
+.showstage{width:100%;max-width:820px;flex:1;min-height:300px;display:grid;place-items:center;perspective:1500px;position:relative}
+.showstage::before,.showstage::after{content:'';position:absolute;top:8px;bottom:8px;width:1px;background:linear-gradient(180deg,transparent,#DFD4BF 18%,#DFD4BF 82%,transparent);pointer-events:none}
+.showstage::before{left:6px}.showstage::after{right:6px}
+.showcard{position:relative;width:min(560px,88%);height:min(330px,100%);min-height:250px;transform-style:preserve-3d;
+  transition:transform .78s cubic-bezier(.2,.72,.18,1);will-change:transform}
+.showcard.driving{transition:none}          /* 首帧摆位不要动画 */
+.showface{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:14px;overflow:hidden;
+  border:1px solid #C9B491;background:linear-gradient(150deg,#FFFCF5 0%,#F6EEDC 55%,#E8D8B8 100%);
+  box-shadow:0 16px 40px rgba(60,44,20,.14),inset 0 0 0 5px rgba(255,253,248,.55);display:flex}
+.showface.b{transform:rotateY(180deg)}
+.sf-pic{width:41%;flex:none;position:relative;overflow:hidden;background:linear-gradient(160deg,#EFE3C9,#D9C39B)}
+.sf-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.sf-pic .sf-glyph{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--kai);font-size:96px;color:#7C291F;opacity:.85}
+.sf-pic .sf-nopic{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:9px;letter-spacing:.3em;color:#7C5A32}
+.sf-body{flex:1;min-width:0;padding:20px 20px 16px;display:flex;flex-direction:column;position:relative}
+.sf-body .sf-kicker{font-size:9.5px;letter-spacing:.3em;color:#9A8B72}
+.sf-body h3{font-family:var(--kai);font-size:40px;line-height:1.1;letter-spacing:.08em;margin:6px 0 0;color:#7C291F}
+.sf-rule{height:1px;background:linear-gradient(90deg,#B98A3C,rgba(185,138,60,0));margin:11px 0 12px}
+.sf-tags{display:flex;flex-wrap:wrap;gap:6px}
+.sf-tags span{font-size:10.5px;padding:3px 9px;border:1px solid #DFD4BF;border-radius:999px;background:rgba(255,255,255,.6);color:#5B5348}
+.sf-role{font-size:12px;color:#5B5348;margin-top:9px;line-height:1.6;max-height:3.2em;overflow:hidden}
+.sf-persona{font-size:12.5px;line-height:1.85;color:#332C25;margin-top:10px;overflow:auto;flex:1}
+.sf-foot{font-size:10px;color:#8C8272;border-top:1px dashed #DFD4BF;padding-top:8px;margin-top:8px}
+.sf-seal{position:absolute;right:14px;top:14px;width:30px;height:30px;border:2px solid #A8322A;border-radius:5px;
+  color:#A8322A;font-family:var(--kai);font-size:12px;display:grid;place-items:center;transform:rotate(-9deg);opacity:.82}
+.showbar{display:flex;align-items:center;gap:10px;width:100%;max-width:820px;justify-content:center;padding-bottom:4px}
+.showbar .btn.min{padding:3px 12px;font-size:11px}
+.showdots{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:560px}
+.showdots i{width:8px;height:8px;border-radius:50%;background:#D9CDB8;cursor:pointer;transition:background .18s,transform .18s}
+.showdots i:hover{background:#B98A3C}
+.showdots i.on{background:#A8322A;transform:scale(1.35)}
+.showhint{font-size:10px;color:#9A8B72;letter-spacing:.06em;text-align:center}
+/* ---------------- 详情视图：左侧立绘 + 右侧立体关系网 ---------------- */
+.dwrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding:4px 0 0}
+.dhead{display:flex;align-items:baseline;gap:10px}
+.dhead h2{font-family:var(--kai);font-size:20px;margin:0;letter-spacing:.18em;color:#7C291F}
+.dhead .sub{font-size:10px;letter-spacing:.22em;color:var(--muted)}
+.dhead .grow{flex:1}
+.dbody{flex:1;min-height:0;display:flex;gap:12px}
+/* 左：立绘大图 */
+.dport{width:228px;flex:none;border-radius:12px;border:1px solid #C9B491;overflow:hidden;position:relative;
+  background:linear-gradient(150deg,#FFFDF8 0%,#F4E9D4 45%,#E2CEA9 100%);display:flex;flex-direction:column}
+.dport .dp-pic{flex:1;min-height:0;position:relative;overflow:hidden}
+.dport .dp-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.dport .dp-glyph{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--kai);font-size:118px;color:#7C291F;opacity:.85}
+.dport .dp-none{position:absolute;left:0;right:0;bottom:12px;text-align:center;font-size:9px;letter-spacing:.3em;color:#7C5A32}
+.dport .dp-foot{padding:10px 12px 12px;border-top:1px solid #DFD4BF;background:rgba(255,253,248,.7)}
+.dport .dp-foot h3{font-family:var(--kai);font-size:24px;margin:0 0 3px;letter-spacing:.08em;color:#7C291F}
+.dport .dp-foot p{margin:0;font-size:11px;line-height:1.6;color:#5B5348}
+.dport .dp-foot .dp-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.dport .dp-foot .dp-tags span{font-size:10px;padding:2px 7px;border:1px solid #DFD4BF;border-radius:999px;background:rgba(255,255,255,.6);color:#5B5348}
+/* 右：立体关系网 */
+.dgraph{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.gscene{flex:1;min-height:300px;position:relative;overflow:hidden;border-radius:12px;border:1px solid #DFD4BF;
+  background:radial-gradient(circle at 50% 46%,#FFFDF8 0%,#F6EEDC 58%,#EADFC8 100%);cursor:grab;touch-action:none}
+.gscene.dragging{cursor:grabbing}
+.gscene::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(#C9B491 0.6px,transparent 0.6px);background-size:20px 20px;opacity:.35}
+.ggalaxy{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d;will-change:transform}
+.gline{position:absolute;left:0;top:0;height:2px;transform-origin:0 50%;border-radius:2px;
+  background:linear-gradient(90deg,rgba(47,111,99,.85),rgba(185,138,60,.45));pointer-events:none}
+.gline.l2{height:1px;background:linear-gradient(90deg,rgba(168,50,42,.3),rgba(185,138,60,.12))}
+/* 星系轨道：SVG 椭圆环，随镜头俯仰压扁；中心恒星带光晕 */
+.gorbit{fill:none;stroke:rgba(185,138,60,.42);stroke-width:1.2;stroke-dasharray:3 5;pointer-events:none}
+.gorbit.inner{stroke:rgba(47,111,99,.4)}
+.gstar-glow{fill:rgba(168,50,42,.1)}
+.gnode.center .gn-dot{background:radial-gradient(circle at 36% 32%,#D4695C 0%,#A8322A 55%,#7C2019 100%);
+  box-shadow:0 0 0 6px rgba(168,50,42,.13),0 0 22px 6px rgba(210,140,90,.35),0 6px 18px rgba(60,44,20,.25)}
+.gnode.center .gn-in::before{content:'';position:absolute;left:50%;top:22px;width:92px;height:92px;transform:translate(-50%,-50%);
+  border-radius:50%;background:radial-gradient(circle,rgba(210,140,90,.28),rgba(210,140,90,0) 70%);pointer-events:none;z-index:-1}
+.glabel{position:absolute;left:0;top:0;font-size:10px;padding:1px 6px;border-radius:999px;white-space:nowrap;
+  background:rgba(255,253,248,.92);border:1px solid #DFD4BF;color:#6A4A16;pointer-events:none}
+.glabel.l2{color:#9A8B72;font-size:9px;background:rgba(255,253,248,.75)}
+.gnode{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;cursor:pointer}
+.gnode .gn-in{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px}
+.gnode .gn-dot{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;font-family:var(--kai);font-size:19px;
+  border:2px solid rgba(255,255,255,.9);box-shadow:0 4px 14px rgba(60,44,20,.22);transition:box-shadow .18s,filter .18s}
+.gnode.center .gn-dot{width:62px;height:62px;font-size:26px;border-color:#A8322A;box-shadow:0 0 0 5px rgba(168,50,42,.12),0 6px 18px rgba(60,44,20,.25)}
+.gnode.l2 .gn-dot{width:34px;height:34px;font-size:14px;opacity:.78}
+.gnode:hover .gn-dot{box-shadow:0 0 0 5px rgba(185,138,60,.28),0 6px 18px rgba(60,44,20,.25);filter:brightness(1.08)}
+.gnode .gn-name{font-size:10.5px;color:#332C25;white-space:nowrap;padding:1px 5px;border-radius:4px;background:rgba(255,253,248,.8)}
+.gnode.center .gn-name{font-family:var(--kai);font-size:13px;color:#7C291F;background:rgba(255,253,248,.92)}
+.gnode.l2 .gn-name{font-size:9px;color:#8C8272}
+.gfoot{display:flex;align-items:center;gap:12px;font-size:10px;color:#8C8272;flex-wrap:wrap}
+.gfoot b{font-weight:400;color:#5B5348}
+.gfoot .lg{display:inline-flex;align-items:center;gap:5px}
+.gfoot .lg i{width:8px;height:8px;border-radius:50%;display:inline-block}
 `);
 
 export default {
@@ -95,7 +195,13 @@ export default {
   unmount() { if (this._cleanup) { this._cleanup(); this._cleanup = null; } },
   mount(root, ctx) {
     const { doc, params, NF } = ctx;
-    const st = { id: params.id || (doc.characters[0] && doc.characters[0].id) || null, q: '', selPlot: null };
+    const st = { id: params.id || (doc.characters[0] && doc.characters[0].id) || null, q: '', selPlot: null,
+      /* 视图：edit=编辑档案 / show=卡片翻转展示 / detail=立绘+关系网详情。
+       * turn 是卡片累计转过的 180° 次数（正=下一位，负=上一位），决定哪一面朝前。 */
+      mode: 'edit', turn: 0, showing: null, flipping: false,
+      /* 关系网镜头：rx/ry 是旋转角（度），z 是缩放；auto 是自动旋转开关，raf 是动画句柄 */
+      grot: { rx: -34, ry: 24, z: 1 }, gauto: true, graf: null };
+    let netCleanupRef = null;
     const wrap = h('div', { class: 'cwrap' });
     const aside = h('aside', { class: 'clist', 'data-probe': 'charlist' });
     const main = h('main', { class: 'cmain', 'data-probe': 'charmain' });
@@ -252,6 +358,39 @@ export default {
       h('div', { class: 'grow' }),
       h('button', { class: 'btn xs', onclick: addChar }, '＋ 新建')));
     aside.appendChild(search);
+    /* 编辑 / 展示 / 关系 三个胶囊互斥：
+     * 展示视图点卡片可进关系详情，关系详情里左栏照常能点人换中心。 */
+    const editTab = h('button', { class: 'btn xs on', 'data-probe': 'mode-edit', title: '回到可编辑的人物档案', onclick: () => setMode('edit') }, '✎ 编辑');
+    const showTab = h('button', { class: 'btn xs', 'data-probe': 'mode-show', title: '卡片翻转式人物展示', onclick: () => setMode('show') }, '▤ 展示');
+    const netTab = h('button', { class: 'btn xs', 'data-probe': 'mode-net', title: '立绘 + 立体关系网', onclick: () => setMode('detail') }, '✧ 关系');
+    const modeRow = h('div', { class: 'gsel', style: { padding: '5px 2px 2px' } },
+      h('div', { class: 'row', style: { gap: '4px' } },
+        h('span', { class: 'tiny muted', style: { letterSpacing: '.1em' } }, '视图'),
+        h('div', { class: 'grow' }), editTab, showTab, netTab));
+    aside.appendChild(modeRow);
+    function setMode(m) {
+      if (st.mode === m) return;
+      if (st.mode === 'detail' && st.graf) { cancelAnimationFrame(st.graf); st.graf = null; }
+      st.mode = m;
+      editTab.classList.toggle('on', m === 'edit');
+      showTab.classList.toggle('on', m === 'show');
+      netTab.classList.toggle('on', m === 'detail');
+      if (m === 'show') { st.turn = 0; st.showing = st.id; }
+      renderMain();
+    }
+    /* 左栏点人：展示视图里只高亮 + 翻卡（卡片的 flipTo 会同步 st.id 与圆点），
+     * 关系详情里整块重画关系网（换中心人物），编辑视图照旧。 */
+    function pickChar(id) {
+      if (st.mode === 'show' && !st.flipping) {
+        const card = main.querySelector('[data-probe="show-card"]');
+        if (card && id !== st.id) {
+          card.__flipTo ? card.__flipTo(id) : (st.id = id, renderList(), renderMain());
+          return;
+        }
+      }
+      if (st.mode === 'detail') { st.id = id; renderList(); renderMain(); return; }
+      st.id = id; st.selPlot = null; renderList(); renderMain();
+    }
     const listHost = h('div', { class: 'cllist' });
     aside.appendChild(listHost);
 
@@ -273,7 +412,7 @@ export default {
         list.appendChild(h('div', { class: 'cgroup' }, h('span', {}, g.toUpperCase()), h('span', { class: 'cg-n' }, '· ' + groups[g].length)));
         groups[g].forEach(c => {
           const hasP = !!c.portrait;
-          list.appendChild(h('div', { class: 'crow' + (c.id === st.id ? ' on' : ''), 'data-char-row': c.id, onclick: () => { st.id = c.id; st.selPlot = null; renderList(); renderMain(); } },
+          list.appendChild(h('div', { class: 'crow' + (c.id === st.id ? ' on' : ''), 'data-char-row': c.id, onclick: () => pickChar(c.id) },
             h('div', { class: 'avatar', style: { width: '28px', height: '28px', background: c.color || '#2F6F63', fontSize: '13px' } }, c.name.slice(0, 1)),
             h('div', { style: { minWidth: 0 } },
               h('b', {}, c.name),
@@ -364,10 +503,368 @@ export default {
       return box;
     }
 
+    /* ---------------- 展示视图：卡片滑转 / 翻转 ----------------
+     * 舞台上一张双面卡：A 面、B 面背对背。当前朝前的是哪面由 st.turn 的奇偶决定
+     * （偶数=A、奇数=B，负数取绝对值也一样）。换人时：
+     *   ① 算出新落点的 turn（下一位 +1 / 上一位 −1 / 直接点某人取最短方向）；
+     *   ② 把新人物写进「转完之后会朝前」的那一面；
+     *   ③ 给卡片设置 rotateY(turn*180deg)，CSS 过渡把这张卡真的翻过去。
+     * 首帧（driving）先关掉过渡摆好位置，下一拍再打开，避免初始化时闪一下动画。 */
+    function faceHtml(c, i, total) {
+      const plane = doc.planes[0] || { realms: [] };
+      const pic = h('div', { class: 'sf-pic' });
+      if (c.portrait) {
+        const img = h('img', { alt: c.name });
+        window.nf.image.absolute(c.portrait).then(url => { img.src = url; });
+        pic.appendChild(img);
+      } else {
+        pic.appendChild(h('div', { class: 'sf-glyph' }, c.name.slice(0, 1)));
+        pic.appendChild(h('div', { class: 'sf-nopic' }, '尚 未 立 绘'));
+      }
+      const tags = [
+        c.age ? '年 · ' + c.age : null,
+        c.realm ? '修为 · ' + c.realm : null,
+        c.group ? groupOf(c) : null
+      ].filter(Boolean);
+      const body = h('div', { class: 'sf-body' },
+        h('div', { class: 'sf-kicker' }, groupOf(c).toUpperCase()),
+        h('h3', {}, c.name),
+        h('div', { class: 'sf-rule' }),
+        h('div', { class: 'sf-tags' }, ...tags.map(t => h('span', {}, t))),
+        h('div', { class: 'sf-role' }, c.identity || '（未填身份）'),
+        h('div', { class: 'sf-persona' }, c.persona || '（还没有写人设）'),
+        h('div', { class: 'sf-foot' }, (c.ending ? '结局 · ' + c.ending : '结局未定') + '  ·  ' + (i + 1) + ' / ' + total),
+        h('div', { class: 'sf-seal' }, '卷'));
+      return [pic, body];
+    }
+    function fillFace(face, c) {
+      clear(face);
+      const list = doc.characters;
+      /* appendChild 只收一个节点：这里要用 append 把「图片 + 文字」两块一起放进去 */
+      face.append(...faceHtml(c, Math.max(0, list.indexOf(c)), list.length));
+    }
+    function renderShowcase() {
+      const list = doc.characters;
+      const showwrap = h('div', { class: 'showwrap', 'data-probe': 'showcase' });
+      showwrap.appendChild(h('div', { class: 'showtop' },
+        h('h2', {}, '人 物 志'),
+        h('span', { class: 'st-sub' }, 'CHARACTERS'),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'st-ctr', 'data-probe': 'show-count' })));
+      const stage = h('div', { class: 'showstage' });
+      const card = h('div', { class: 'showcard driving', 'data-probe': 'show-card', title: '点卡片查看人物关系网',
+        onclick: () => { if (!st.flipping) setMode('detail'); } });
+      const fa = h('div', { class: 'showface a', 'data-face': 'a' });
+      const fb = h('div', { class: 'showface b', 'data-face': 'b' });
+      card.appendChild(fa); card.appendChild(fb);
+      stage.appendChild(card);
+      showwrap.appendChild(stage);
+
+      const dots = h('div', { class: 'showdots' });
+      const bar = h('div', { class: 'showbar' },
+        h('button', { class: 'btn xs min', title: '上一位（←）', onclick: () => flipBy(-1) }, '‹ 上一位'),
+        dots,
+        h('button', { class: 'btn xs min', title: '下一位（→）', onclick: () => flipBy(1) }, '下一位 ›'));
+      showwrap.appendChild(bar);
+      showwrap.appendChild(h('div', { class: 'showhint' }, '点卡片看关系网 · 点左栏人物 / 圆点翻卡 · ← → 换人'));
+      main.appendChild(showwrap);
+
+      st.showing = st.id;
+      st.turn = 0;
+      /* 首帧摆正：A 面朝前、卡片 0°，关掉过渡后再恢复，避免一进展示视图就翻一下 */
+      fillFace(fa, getChar());
+      card.style.transform = 'rotateY(0deg)';
+      requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove('driving')));
+      paintShowChrome();
+
+      function paintShowChrome() {
+        const ctr = showwrap.querySelector('[data-probe="show-count"]');
+        if (ctr) ctr.textContent = (Math.max(0, list.indexOf(getChar())) + 1) + ' / ' + list.length;
+        clear(dots);
+        list.forEach(x => dots.appendChild(h('i', {
+          class: x.id === st.id ? 'on' : '', title: x.name, 'data-dot': x.id,
+          onclick: () => flipTo(x.id)
+        })));
+      }
+      function flipBy(step) {
+        if (!list.length) return;
+        const i = Math.max(0, list.findIndex(x => x.id === st.id));
+        const n = (i + step + list.length) % list.length;
+        flipTo(list[n].id, step);
+      }
+      function flipTo(id, prefer) {
+        if (st.flipping || id === st.id) return;
+        const next = list.find(x => x.id === id);
+        if (!next) return;
+        const i = list.indexOf(next), cur = Math.max(0, list.indexOf(getChar()));
+        /* 点左栏 / 圆点取最短方向（往后近就 +1，往前近就 −1）；上/下一位按钮指定方向 */
+        let step = prefer || (i > cur ? 1 : -1);
+        st.turn += step;
+        /* 转完之后：turn 偶数 → A 朝前，奇数 → B 朝前（负奇数同样朝 B） */
+        const front = Math.abs(st.turn) % 2 === 0 ? fa : fb;
+        fillFace(front, next);
+        st.flipping = true;
+        st.id = id;
+        st.showing = id;
+        card.style.transform = 'rotateY(' + (st.turn * 180) + 'deg)';
+        paintShowChrome();
+        const done = () => { st.flipping = false; card.removeEventListener('transitionend', done); };
+        card.addEventListener('transitionend', done);
+        setTimeout(done, 950);   /* 兜底：过渡事件没来也别把卡片锁住 */
+      }
+      /* 暴露给左栏点击 / ← → 键用：卡片每次重绘都是新节点，引用跟着节点走，不会留旧闭包 */
+      card.__flipTo = flipTo;
+      card.__flipBy = flipBy;
+    }
+
+    /* ---------------- 详情视图：立绘 + 立体关系网 ----------------
+     * 关系数据来自 c.relations（出边）和别人 relations 里指向 c 的（入边），合成无向网。
+     * 节点用「球面螺旋」摆位（斐波那契球），中心人物在球心、一度关系在球面上；
+     * 一度人物再往外扩一圈二度节点（淡色），让网有纵深。
+     * 整个 galaxy 容器做 rotateX/rotateY/scale：鼠标拖 = 转镜头、滚轮 = 远近、
+     * 点节点 = 换中心人物重画。节点字幕用反向旋转抵消镜头，始终正对读者。 */
+    function netEdges(c) {
+      const byId = new Map();
+      const add = (other, label, from) => {
+        if (!other || other.id === c.id) return;
+        const e = byId.get(other.id) || { c: other, labels: [], from: from };
+        if (label && e.labels.indexOf(label) < 0) e.labels.push(label);
+        if (from === 1) e.from = 1;
+        byId.set(other.id, e);
+      };
+      (c.relations || []).forEach(r => add(doc.characters.find(x => x.id === r.targetId), r.label || '', 1));
+      doc.characters.forEach(o => {
+        if (o.id === c.id) return;
+        (o.relations || []).forEach(r => { if (r.targetId === c.id) add(o, r.label || '', 1); });
+      });
+      const first = Array.from(byId.values());
+      /* 二度：一度人物各自的关系里，不是中心也不是一度的那些 */
+      const ids = new Set([c.id].concat(first.map(e => e.c.id)));
+      const second = new Map();
+      first.forEach(e => (e.c.relations || []).forEach(r => {
+        const t = doc.characters.find(x => x.id === r.targetId);
+        if (!t || ids.has(t.id)) return;
+        const s = second.get(t.id) || { c: t, labels: [], via: e.c.name };
+        if (r.label && s.labels.indexOf(r.label) < 0) s.labels.push(r.label);
+        second.set(t.id, s);
+      }));
+      return { first, second: Array.from(second.values()) };
+    }
+    function renderDetail() {
+      if (st.graf) { cancelAnimationFrame(st.graf); st.graf = null; }
+      const c = getChar();
+      const edges = netEdges(c);
+      const nodes = [{ c, depth: 0, label: '' }]
+        .concat(edges.first.map(e => ({ c: e.c, depth: 1, label: e.labels.join(' / ') })))
+        .concat(edges.second.map(e => ({ c: e.c, depth: 2, label: e.labels.join(' / ') + '（经 ' + e.via + '）' })));
+      const wrap = h('div', { class: 'dwrap', 'data-probe': 'net-detail' });
+      wrap.appendChild(h('div', { class: 'dhead' },
+        h('h2', {}, '人 物 关 系'),
+        h('span', { class: 'sub' }, 'RELATION NETWORK'),
+        h('span', { class: 'grow' }),
+        h('button', { class: 'btn xs', 'data-probe': 'net-back', onclick: () => setMode('show') }, '‹ 返回卡片')));
+
+      const body = h('div', { class: 'dbody' });
+      /* ---- 左：立绘 ---- */
+      const port = h('div', { class: 'dport', 'data-probe': 'net-portrait' });
+      const pic = h('div', { class: 'dp-pic' });
+      if (c.portrait) {
+        const img = h('img', { alt: c.name });
+        window.nf.image.absolute(c.portrait).then(url => { img.src = url; });
+        pic.appendChild(img);
+      } else {
+        pic.appendChild(h('div', { class: 'dp-glyph' }, c.name.slice(0, 1)));
+        pic.appendChild(h('div', { class: 'dp-none' }, '尚 未 立 绘'));
+      }
+      const plane = doc.planes[0] || { realms: [] };
+      const tags = [c.age ? '年 · ' + c.age : null, c.realm ? '修为 · ' + c.realm : null, groupOf(c)].filter(Boolean);
+      port.appendChild(pic);
+      port.appendChild(h('div', { class: 'dp-foot' },
+        h('h3', {}, c.name),
+        h('p', {}, c.identity || '（未填身份）'),
+        h('div', { class: 'dp-tags' }, ...tags.map(t => h('span', {}, t))),
+        h('p', { style: { marginTop: '7px', fontSize: '11px', lineHeight: '1.75' } }, c.persona || '（还没有写人设）')));
+      body.appendChild(port);
+
+      /* ---- 右：星系关系网 ---- */
+      const R1 = 152, R2 = 258;   /* 内轨 / 外轨半径，建轨道环与摆位都要用，先定义 */
+      const graph = h('div', { class: 'dgraph' });
+      const scene = h('div', { class: 'gscene', 'data-probe': 'net-scene' });
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('style', 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible');
+      scene.appendChild(svg);
+      /* 轨道环：水平圆（y=0）经投影后是椭圆，随镜头俯仰实时变形 */
+      const orbitPaths = [R1, R2].map((radius, k) => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'gorbit' + (k === 0 ? ' inner' : ''));
+        svg.appendChild(path);
+        return { path, radius };
+      });
+      const galaxy = h('div', { class: 'ggalaxy', 'data-probe': 'net-galaxy' });
+      scene.appendChild(galaxy);
+
+      /* 星系结构：所有行星躺在同一个水平轨道盘（y=0），x/z 构成同心圆轨道。
+       * 镜头俯仰（rx）把圆盘压成椭圆，于是看着像行星绕恒星公转的星系。
+       * 一度在内轨、二度在外轨；每个行星带一点公转角差，避免内外圈正好对齐。 */
+      const place = (arr, radius, offset) => {
+        const N = Math.max(1, arr.length), base = offset || 0;
+        arr.forEach((nd, i) => {
+          const th = base + (i / N) * Math.PI * 2;
+          nd.x = Math.cos(th) * radius;
+          nd.y = 0;
+          nd.z = Math.sin(th) * radius;
+        });
+      };
+      const firstNodes = nodes.filter(n => n.depth === 1), secondNodes = nodes.filter(n => n.depth === 2);
+      place(firstNodes, R1, -Math.PI / 2);
+      place(secondNodes, R2, -Math.PI / 2 + .4);
+      nodes[0].x = nodes[0].y = nodes[0].z = 0;
+
+      /* 建节点 DOM：位置留给 paint() 算（要投影到 2D），这里只建壳 */
+      const views = nodes.map(nd => {
+        const el = h('div', { class: 'gnode' + (nd.depth === 0 ? ' center' : nd.depth === 2 ? ' l2' : ''),
+          'data-node': nd.c.id, title: nd.label || nd.c.name });
+        const inn = h('div', { class: 'gn-in' },
+          h('div', { class: 'gn-dot', style: { background: nd.c.color || '#2F6F63' } }, nd.c.name.slice(0, 1)),
+          h('div', { class: 'gn-name' }, nd.c.name));
+        el.appendChild(inn);
+        galaxy.appendChild(el);
+        nd.el = el; nd.inn = inn;
+        el.addEventListener('click', () => {
+          if (nd.c.id === st.id) return;
+          /* 点谁就把谁设成新的网心：左栏跟着高亮，整块重画 */
+          st.id = nd.c.id; renderList(); renderMain();
+        });
+        return nd;
+      });
+      /* 连线：中心→一度、一度→二度（后者淡），标签挂在中点 */
+      const lines = [];
+      const addLine = (a, b, cls, label) => {
+        const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        ln.setAttribute('class', 'gline' + (cls ? ' ' + cls : ''));
+        ln.setAttribute('stroke', cls === 'l2' ? 'rgba(168,50,42,.34)' : 'rgba(47,111,99,.72)');
+        ln.setAttribute('stroke-width', cls === 'l2' ? '1' : '2');
+        svg.appendChild(ln);
+        const lab = label ? h('div', { class: 'glabel' + (cls ? ' ' + cls : '') }, label) : null;
+        if (lab) galaxy.appendChild(lab);
+        lines.push({ a, b, ln, lab });
+      };
+      const first = views.filter(n => n.depth === 1), second = views.filter(n => n.depth === 2);
+      first.forEach(n => addLine(views[0], n, '', n.label));
+      second.forEach(n => {
+        /* 二度挂到它可能的一度父节点上（按 via 名字找） */
+        const via = n.label.match(/经 (.+?)）/);
+        const p = via && first.find(f => f.c.name === via[1]);
+        addLine(p || views[0], n, 'l2', '');
+      });
+
+      const autoBtn = h('button', { class: 'btn xs', 'data-probe': 'net-auto', title: '暂停 / 继续自动旋转' }, st.gauto ? '⏸ 暂停' : '▶ 旋转');
+      const resetBtn = h('button', { class: 'btn xs', onclick: () => { st.grot = { rx: -34, ry: 24, z: 1 }; paint(); } }, '⌂ 复位');
+      graph.appendChild(scene);
+      graph.appendChild(h('div', { class: 'gfoot' },
+        h('span', {}, '拖拽旋转 · 滚轮缩放 · 点节点换位'),
+        h('span', { class: 'lg' }, h('i', { style: { background: '#2F6F63' } }), h('b', {}, '一度关系 ' + first.length)),
+        h('span', { class: 'lg' }, h('i', { style: { background: '#A8322A', opacity: '.55' } }), h('b', {}, '二度 ' + second.length)),
+        h('span', { class: 'grow' }), autoBtn, resetBtn));
+      body.appendChild(graph);
+      wrap.appendChild(body);
+      main.appendChild(wrap);
+
+      autoBtn.addEventListener('click', () => {
+        st.gauto = !st.gauto;
+        autoBtn.textContent = st.gauto ? '⏸ 暂停' : '▶ 旋转';
+      });
+
+      /* 3D → 2D 投影：先绕 Y 转 ry、再绕 X 转 rx，按 z 做透视缩放 */
+      const P = 640;
+      function project(nd, W, H) {
+        const { rx, ry, z } = st.grot;
+        const cy = Math.cos(ry * Math.PI / 180), sy = Math.sin(ry * Math.PI / 180);
+        const cxr = Math.cos(rx * Math.PI / 180), sxr = Math.sin(rx * Math.PI / 180);
+        const x1 = nd.x * cy + nd.z * sy, z1 = -nd.x * sy + nd.z * cy;
+        const y2 = nd.y * cxr - z1 * sxr, z2 = nd.y * sxr + z1 * cxr;
+        const k = z * P / (P - z2);
+        /* galaxy 容器已 left/top:50% 居中，节点/标签用相对它的偏移；
+         * SVG 连线铺在 scene 上（left:0），要另外加半宽半高才是 scene 内坐标。 */
+        return { x: x1 * k, y: y2 * k, ax: W / 2 + x1 * k, ay: H / 2 + y2 * k, k, z2 };
+      }
+      let painted = false;
+      function paint() {
+        const W = scene.clientWidth || 600, H = scene.clientHeight || 360;
+        const pos = views.map(nd => ({ nd, p: project(nd, W, H) })).sort((a, b) => a.p.z2 - b.p.z2);
+        pos.forEach(({ nd, p }) => {
+          nd.el.style.transform = 'translate3d(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px,0)';
+          nd.el.style.zIndex = String(100 + Math.round(p.k * 10));
+          /* 字幕反向抵消镜头旋转，始终正对读者；透视缩放用 scale 走 2D，避免 3D 层叠错位 */
+          nd.inn.style.transform = 'translate(-50%,-50%) scale(' + Math.min(1.3, Math.max(.75, p.k)).toFixed(3) + ')';
+        });
+        /* 轨道环：水平圆上采 72 点投影成闭合 path，俯仰时自然压成椭圆 */
+        orbitPaths.forEach(({ path, radius }) => {
+          let d = '';
+          for (let i = 0; i <= 72; i++) {
+            const th = (i / 72) * Math.PI * 2;
+            const p = project({ x: Math.cos(th) * radius, y: 0, z: Math.sin(th) * radius }, W, H);
+            d += (i ? 'L' : 'M') + p.ax.toFixed(1) + ' ' + p.ay.toFixed(1);
+          }
+          path.setAttribute('d', d + 'Z');
+        });
+        lines.forEach(L => {
+          const a = project(L.a, W, H), b = project(L.b, W, H);
+          L.ln.setAttribute('x1', a.ax.toFixed(1)); L.ln.setAttribute('y1', a.ay.toFixed(1));
+          L.ln.setAttribute('x2', b.ax.toFixed(1)); L.ln.setAttribute('y2', b.ay.toFixed(1));
+          if (L.lab) {
+            L.lab.style.transform = 'translate3d(' + ((a.x + b.x) / 2).toFixed(1) + 'px,' + ((a.y + b.y) / 2).toFixed(1) + 'px,0) translate(-50%,-50%)';
+          }
+        });
+        painted = true;
+      }
+
+      /* 拖镜头：按下记起点，移动改 rx/ry（限制俯仰别翻过头），松手解绑 */
+      let drag = null;
+      scene.addEventListener('mousedown', ev => {
+        if (ev.button !== 0) return;
+        drag = { x: ev.clientX, y: ev.clientY, rx: st.grot.rx, ry: st.grot.ry };
+        scene.classList.add('dragging');
+      });
+      window.addEventListener('mousemove', onDragMove);
+      window.addEventListener('mouseup', onDragUp);
+      function onDragMove(ev) {
+        if (!drag) return;
+        st.grot.ry = drag.ry + (ev.clientX - drag.x) * .55;
+        st.grot.rx = Math.max(-70, Math.min(70, drag.rx - (ev.clientY - drag.y) * .45));
+        paint();
+      }
+      function onDragUp() { if (drag) { drag = null; scene.classList.remove('dragging'); } }
+      scene.addEventListener('wheel', ev => {
+        ev.preventDefault();
+        st.grot.z = Math.max(.5, Math.min(1.9, st.grot.z * (ev.deltaY > 0 ? .9 : 1.1)));
+        paint();
+      }, { passive: false });
+      window.addEventListener('resize', paint);
+      netCleanupRef = () => {
+        window.removeEventListener('mousemove', onDragMove);
+        window.removeEventListener('mouseup', onDragUp);
+        window.removeEventListener('resize', paint);
+        if (st.graf) { cancelAnimationFrame(st.graf); st.graf = null; }
+      };
+
+      paint();
+      const tick = () => {
+        if (!galaxy.isConnected) { st.graf = null; return; }
+        if (st.gauto && !drag) { st.grot.ry += .12; paint(); }
+        st.graf = requestAnimationFrame(tick);
+      };
+      st.graf = requestAnimationFrame(tick);
+    }
+
     function renderMain() {
+      /* 关系网的拖拽/自动旋转监听是挂在 window 上的，整块重画前先解掉，免得越积越多 */
+      if (netCleanupRef) { netCleanupRef(); netCleanupRef = null; }
       clear(main);
       const c = getChar();
       if (!c) { main.appendChild(h('div', { class: 'empty' }, '左边还没有人物')); return; }
+      if (st.mode === 'show') { renderShowcase(); return; }
+      if (st.mode === 'detail') { renderDetail(); return; }
       const plane = doc.planes[0] || { realms: [] };
 
       /* ---- hero ---- */
@@ -730,8 +1227,20 @@ export default {
     }
 
     renderList(); renderMain();
-    const onKey = e => { if (e.key === 'Escape') st.selPlot = null; };
+    const onKey = e => {
+      if (e.key === 'Escape') { st.selPlot = null; return; }
+      if (st.mode !== 'show') return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      /* 输入框里打字时别抢方向键 */
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      const card = main.querySelector('[data-probe="show-card"]');
+      if (card && card.__flipBy) { e.preventDefault(); card.__flipBy(e.key === 'ArrowRight' ? 1 : -1); }
+    };
     window.addEventListener('keydown', onKey);
-    this._cleanup = () => window.removeEventListener('keydown', onKey);
+    this._cleanup = () => {
+      window.removeEventListener('keydown', onKey);
+      if (netCleanupRef) { netCleanupRef(); netCleanupRef = null; }
+    };
   }
 };
