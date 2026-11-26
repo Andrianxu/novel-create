@@ -1,7 +1,7 @@
 {
   "name": "novelfolio",
   "productName": "卷帙 NovelFolio",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "description": "离线优先的中文长篇小说创作工作台：人物 · 世界观 · 情节 · 章节 · 拆书 · 导入",
   "main": "app/main.js",
