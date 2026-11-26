@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('nf', {
   settings: {
     get: () => call('settings:get'),
     set: (patch) => call('settings:set', patch),
+    /* AI 助手图标：上传本地图片 / 恢复默认（kind = chapter | plot） */
+    setAiIcon: (kind, source) => call('settings:setAiIcon', kind, source),
+    clearAiIcon: (kind) => call('settings:clearAiIcon', kind),
     setSyncSecret: (name, value) => call('settings:setSyncSecret', name, value),
     setApiKey: (k) => call('settings:setApiKey', k),
     clearApiKey: () => call('settings:setApiKey', '')
@@ -70,7 +73,7 @@ contextBridge.exposeInMainWorld('nf', {
     test: (conf) => call('sync:test', conf),
     now: () => call('sync:now'),
     status: () => call('sync:status'),
-    pickFolder: () => call('sync:pickFolder')
+    pickFolder: (opts) => call('sync:pickFolder', opts)
   },
   clip: {
     write: (text) => call('clipboard:write', text)

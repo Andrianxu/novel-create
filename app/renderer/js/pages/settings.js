@@ -12,6 +12,11 @@ injectStyle('settings', `
 .set-note b{color:#8A6421}
 .set-note.safe{background:#EEF5F2;border-color:#BFDACF}
 .set-note.safe b{color:#23604F}
+.set-provider{border:1px solid #E0C79B;border-radius:9px;background:#FFFCF5;padding:9px 11px;font-size:11.5px;line-height:1.75;color:#5B5348}
+.set-provider b{color:#8A6421}
+.set-provider ol{margin:6px 0 0;padding-left:18px}
+.set-provider li{margin:2px 0}
+.set-provider .hint{margin-top:6px;color:#8C8272}
 .krow{display:flex;gap:8px;align-items:flex-end}
 .krow>.field{flex:1}
 .presets{display:flex;gap:5px;flex-wrap:wrap}
@@ -48,6 +53,16 @@ injectStyle('settings', `
 .splash-preview .caret-blk{width:2px;height:16px;background:var(--seal);margin-right:3px;flex:none;
   animation:setCaret 1s steps(1,end) infinite}
 @keyframes setCaret{0%,49%{opacity:1}50%,100%{opacity:0}}
+/* AI 助手图标：预览就是按钮本体的缩小版，上传后立刻能看到贴上去的效果 */
+.ai-icon-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed #EAE1CF}
+.ai-icon-row:last-of-type{border-bottom:none}
+.ai-icon-prev{width:46px;height:46px;flex:none;border-radius:50%;border:1px solid #CBB894;background:var(--ink);
+  color:var(--paper);font-family:var(--kai);font-size:14px;letter-spacing:.06em;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ai-icon-prev img{width:100%;height:100%;object-fit:cover;display:block}
+.ai-icon-info{flex:1;min-width:0}
+.ai-icon-name{font-size:12px;color:#332C25}
+.ai-icon-state{font-size:10px;color:var(--muted);margin-top:2px}
+.ai-icon-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 `);
 
 const PRESETS = [
@@ -60,6 +75,44 @@ const PRESETS = [
 
 /* IPC 报错会带一串「Error invoking remote method 'xxx': Error:」前缀，界面上只留人话部分 */
 const ipcErr = e => String((e && e.message) || e || '').replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, '');
+
+/* 百度 / 夸克 / 迅雷没有公开 WebDAV，也不能在没授权的情况下直连它们的私有接口。
+ * 这三种「连接方式」= 用各自电脑客户端的同步文件夹，卷帙只负责把 novelfolio.sync
+ * 写进那个文件夹，上传交给客户端。下面只放引导文案，传输层仍按 folder 处理。 */
+const CLOUD_DRIVES = {
+  baidu: {
+    label: '百度网盘',
+    hint: '常见文件夹名：BaiduNetdisk、百度网盘、同步空间。找不到就回到客户端的同步设置里看它显示的本地路径。',
+    steps: [
+      '电脑上安装并登录百度网盘客户端，开启它的同步 / 备份文件夹功能；',
+      '在同步文件夹里新建一个专门放书稿的目录（例如「卷帙」），记下电脑上的路径；',
+      '在这里点「选择…」选中该目录，再点「测试连接」确认可读写；',
+      '另一台设备登录同一账号、同步同一个云端目录，选中它对应的本地路径。'
+    ]
+  },
+  quark: {
+    label: '夸克网盘',
+    hint: '常见文件夹名：夸克网盘、QuarkCloudDrive。若客户端版本没有同步文件夹功能，请改用 WebDAV 或普通本地文件夹。',
+    steps: [
+      '电脑上安装并登录夸克网盘客户端，找到同步文件夹 / 本地同步入口；',
+      '在同步目录里新建一个专门放书稿的目录（例如「卷帙」）；',
+      '在这里点「选择…」选中它，再点「测试连接」；',
+      '另一台设备登录同一账号，同步同一个云端目录后选它对应的本地路径。'
+    ]
+  },
+  xunlei: {
+    label: '迅雷网盘',
+    hint: '常见文件夹名：迅雷云盘、迅雷网盘、云盘同步。找不到就先看客户端设置里的「同步目录」。',
+    steps: [
+      '电脑上安装并登录迅雷客户端，开启云盘同步 / 同步文件夹；',
+      '在同步目录里新建一个专门放书稿的目录（例如「卷帙」）；',
+      '在这里点「选择…」选中它，再点「测试连接」；',
+      '另一台设备登录同一账号，同步同一个云端目录后选它对应的本地路径。'
+    ]
+  }
+};
+const isFolderKind = k => k === 'folder' || !!CLOUD_DRIVES[k];
+const driveLabel = k => (CLOUD_DRIVES[k] && CLOUD_DRIVES[k].label) || '同步文件夹';
 
 export default {
   id: 'settings', label: '设置',
@@ -354,26 +407,37 @@ export default {
       (NF.settings && NF.settings.sync) || {});
     const syPill = h('span', { class: 'pill ' + (sy.enabled ? 'jade' : 'seal') }, sy.enabled ? '已开启' : '未开启');
 
-    const kindSel = h('select', { class: 'input' },
-      h('option', { value: 'folder', selected: sy.kind !== 'webdav' }, '本地同步文件夹（OneDrive / 坚果云 / iCloud）'),
-      h('option', { value: 'webdav', selected: sy.kind === 'webdav' }, 'WebDAV（坚果云 / 群晖 NAS / Nextcloud）'));
+    const curKind = sy.kind || 'folder';
+    const kindSel = h('select', { class: 'input', 'data-probe': 'sync-kind' },
+      h('option', { value: 'folder', selected: curKind === 'folder' }, '本地同步文件夹（OneDrive / 坚果云 / iCloud）'),
+      h('option', { value: 'baidu', selected: curKind === 'baidu' }, '百度网盘（客户端同步文件夹）'),
+      h('option', { value: 'quark', selected: curKind === 'quark' }, '夸克网盘（客户端同步文件夹）'),
+      h('option', { value: 'xunlei', selected: curKind === 'xunlei' }, '迅雷网盘（客户端同步文件夹）'),
+      h('option', { value: 'webdav', selected: curKind === 'webdav' }, 'WebDAV（坚果云 / 群晖 NAS / Nextcloud）'));
 
-    const folderIn = h('input', { class: 'input', value: sy.folder || '', placeholder: '例如 C:\\Users\\我\\OneDrive\\卷帙' });
+    const folderByKind = Object.assign({}, sy.folders || {});
+    if (curKind && !folderByKind[curKind] && sy.folder) folderByKind[curKind] = sy.folder;
+    let lastKind = curKind;
+    const folderIn = h('input', { class: 'input', value: folderByKind[curKind] || sy.folder || '', placeholder: '例如 C:\\Users\\我\\OneDrive\\卷帙' });
     const urlIn2 = h('input', { class: 'input', value: sy.url || '', placeholder: 'https://dav.jianguoyun.com/dav/你的目录' });
     const userIn = h('input', { class: 'input', value: sy.user || '', placeholder: '坚果云账号邮箱' });
     const passIn = h('input', { class: 'input', type: 'password', placeholder: sy.hasDavPass ? '已保存（留空则不修改）' : '应用密码（不是登录密码）' });
     const passIn2 = h('input', { class: 'input', type: 'password', placeholder: sy.hasPass ? '已保存（留空则不修改）' : '设置一个同步口令，至少 8 位' });
     const encChk = h('input', { type: 'checkbox', checked: !!sy.encrypt });
 
+    const folderLab = h('label', {}, '同步文件夹');
     const folderRow = h('div', { class: 'field' },
-      h('label', {}, '同步文件夹'),
+      folderLab,
       h('div', { class: 'krow' }, folderIn,
-        h('button', { class: 'btn xs', onclick: async () => {
+        h('button', { class: 'btn xs', 'data-probe': 'sync-pick', onclick: async () => {
           try {
-            const r = await window.nf.sync.pickFolder();
+            const k = kindSel.value;
+            const label = CLOUD_DRIVES[k] ? driveLabel(k) : '';
+            const r = await window.nf.sync.pickFolder(label ? { label } : undefined);
             if (r && r.folder) folderIn.value = r.folder;
           } catch (e) { toast(e.message, 'err'); }
         } }, '选择…')));
+    const providerGuide = h('div', { class: 'set-provider', 'data-probe': 'sync-guide' });
     const davRow = h('div', { class: 'field-col' },
       h('div', { class: 'field' }, h('label', {}, 'WebDAV 地址'), urlIn2),
       h('div', { class: 'krow' },
@@ -381,19 +445,39 @@ export default {
         h('div', { class: 'field' }, h('label', {}, '密码 / 应用密码'), passIn)));
 
     function paintKind() {
-      const isDav = kindSel.value === 'webdav';
+      const kind = kindSel.value;
+      const isDav = kind === 'webdav';
+      const meta = CLOUD_DRIVES[kind];
       folderRow.hidden = isDav;
       davRow.hidden = !isDav;
+      providerGuide.hidden = !meta;
+      if (meta) {
+        clear(providerGuide);
+        providerGuide.appendChild(h('b', {}, meta.label + '怎么接进来'));
+        providerGuide.appendChild(h('ol', {}, ...meta.steps.map(s => h('li', {}, s))));
+        providerGuide.appendChild(h('div', { class: 'hint' }, meta.hint));
+      }
+      folderLab.textContent = meta ? meta.label + '同步文件夹' : '同步文件夹';
+      folderIn.placeholder = meta ? ('例如 D:\\' + meta.label + '\\卷帙') : '例如 C:\\Users\\我\\OneDrive\\卷帙';
     }
-    kindSel.addEventListener('change', paintKind);
+    kindSel.addEventListener('change', () => {
+      folderByKind[lastKind] = folderIn.value.trim();
+      lastKind = kindSel.value;
+      folderIn.value = folderByKind[lastKind] || '';
+      paintKind();
+    });
 
-    const syOut = h('div', { class: 'tiny muted' }, '');
+    const syOut = h('div', { class: 'tiny muted', 'data-probe': 'sync-out' }, '');
 
     function collectSync() {
+      const kind = kindSel.value;
+      folderByKind[kind] = folderIn.value.trim();
+      lastKind = kind;
       return {
         enabled: true,
-        kind: kindSel.value,
-        folder: folderIn.value.trim(),
+        kind,
+        folder: folderByKind[kind],
+        folders: Object.assign({}, folderByKind),
         url: urlIn2.value.trim(),
         user: userIn.value.trim(),
         encrypt: encChk.checked,
@@ -403,7 +487,7 @@ export default {
 
     async function saveSync(showToast) {
       const patch = collectSync();
-      if (patch.kind === 'folder' && !patch.folder) throw new Error('请先选择同步文件夹');
+      if (isFolderKind(patch.kind) && !patch.folder) throw new Error('请先选择' + (CLOUD_DRIVES[patch.kind] ? driveLabel(patch.kind) + '的同步文件夹' : '同步文件夹'));
       if (patch.kind === 'webdav' && !patch.url) throw new Error('请先填 WebDAV 地址');
       if (passIn.value.trim()) await window.nf.settings.setSyncSecret('davPass', passIn.value.trim());
       if (passIn2.value.trim()) {
@@ -422,7 +506,7 @@ export default {
       if (showToast) toast('同步设置已保存', 'ok');
     }
 
-    const syTest = h('button', { class: 'btn', onclick: async () => {
+    const syTest = h('button', { class: 'btn', 'data-probe': 'sync-test', onclick: async () => {
       syTest.disabled = true;
       syOut.textContent = '正在连接…';
       try { await saveSync(false); } catch (e) { syOut.textContent = e.message; syTest.disabled = false; return; }
@@ -434,7 +518,7 @@ export default {
       syTest.disabled = false;
     } }, '测试连接');
 
-    const syNow = h('button', { class: 'btn pri', onclick: async () => {
+    const syNow = h('button', { class: 'btn pri', 'data-probe': 'sync-now', onclick: async () => {
       syNow.disabled = true;
       syOut.textContent = '同步中…';
       const off = window.nf.on('sync:progress', m => { syOut.textContent = m; });
@@ -478,6 +562,7 @@ export default {
           h('b', {}, '各留一份'),
           '，不会覆盖。'),
         h('div', { class: 'field' }, h('label', {}, '连接方式'), kindSel),
+        providerGuide,
         folderRow,
         davRow,
         h('div', { class: 'field' },
@@ -490,6 +575,8 @@ export default {
         h('div', { class: 'row' }, h('div', { class: 'grow' }), syOff, syTest, syNow),
         h('div', { class: 'tiny muted' },
           '文件会以 ', h('code', { class: 'mono tiny' }, 'novelfolio.sync'), ' 的名字放在你选的网盘目录里。',
+          '百度 / 夸克 / 迅雷走客户端同步文件夹，卷帙不碰账号、不存网盘密码；',
+          '它们的客户端没有同步文件夹功能时，请改用 WebDAV 或本地文件夹。',
           '本机始终保留 30 份备份，网盘出问题也不会丢稿。'))));
 
     paintKind();
@@ -821,6 +908,65 @@ export default {
           textIn,
           h('div', { class: 'row' }, preview, h('div', { class: 'grow' }), resetTextBtn, saveTextBtn)),
         h('div', { class: 'tiny muted' }, '点上面的预览可以再看一遍打字效果。字多的时候会按宽度自动缩小，最多 ' + SPLASH_MAX + ' 个字符。'))));
+
+    /* ---------- AI 助手图标 ----------
+     * 章节写作 / 情节页右下角的悬浮按钮原本只能显示「AI」两个字。这里分别给它们换一张图：
+     * 点上传走系统文件框 → 主进程压缩后存到配置目录的 ai-icons/ → 新的 settings 回包里带 data URL，
+     * 于是预览当场刷新，之后两个页面挂载时直接读 NF.settings 就能贴上，不再多走一趟 IPC。 */
+    const AI_ICON_FILTERS = [{ name: '图片（PNG / JPG / WebP）', extensions: ['png', 'jpg', 'jpeg', 'webp'] }];
+    function aiIconRow(kind, label) {
+      const prev = h('div', { class: 'ai-icon-prev', 'data-probe': 'ai-icon-prev-' + kind });
+      const state = h('div', { class: 'ai-icon-state' });
+      const up = h('button', { class: 'btn xs', 'data-probe': 'ai-icon-upload-' + kind });
+      const reset = h('button', { class: 'btn xs', 'data-probe': 'ai-icon-reset-' + kind });
+
+      function paint() {
+        const icons = (NF.settings && NF.settings.ui && NF.settings.ui.aiIcons) || {};
+        const src = icons[kind] || '';
+        clear(prev);
+        if (src) prev.appendChild(h('img', { src, alt: '', draggable: 'false' }));
+        else prev.appendChild(document.createTextNode('AI'));
+        state.textContent = src ? '已换成自定义图片（保存在本机）' : '当前是默认「AI」字标';
+        reset.disabled = !src;
+      }
+      up.textContent = '上传图片…';
+      up.onclick = async () => {
+        up.disabled = true;
+        try {
+          const r = await window.nf.files.pick({ title: '选择「' + label + '」图标', filters: AI_ICON_FILTERS });
+          if (!r || r.canceled || !r.file) return;
+          NF.settings = await window.nf.settings.setAiIcon(kind, r.file);
+          paint();
+          toast(label + '图标已更新', 'ok');
+        } catch (e) { toast('图标上传失败：' + ipcErr(e), 'err'); }
+        finally { up.disabled = false; }
+      };
+      reset.textContent = '恢复默认';
+      reset.onclick = async () => {
+        reset.disabled = true;
+        try {
+          NF.settings = await window.nf.settings.clearAiIcon(kind);
+          toast(label + '图标已恢复默认', 'ok');
+        } catch (e) { toast(ipcErr(e), 'err'); }
+        paint();
+      };
+      paint();
+      return h('div', { class: 'ai-icon-row' },
+        prev,
+        h('div', { class: 'ai-icon-info' }, h('div', { class: 'ai-icon-name' }, label), state),
+        h('div', { class: 'ai-icon-acts' }, up, reset));
+    }
+
+    right.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'set-h' }, h('h3', {}, 'AI 助手图标')),
+      h('div', { class: 'set-b' },
+        h('div', { class: 'set-note safe' },
+          h('b', {}, '两个助手可以各用一张图：'),
+          '章节写作右下角的「写作助手」和情节页右下角的「情节构思」分开设置。图片只存在这台电脑，不上传、不随书稿同步。'),
+        aiIconRow('chapter', '章节写作 · 写作助手'),
+        aiIconRow('plot', '情节页 · 构思助手'),
+        h('div', { class: 'tiny muted' },
+          '支持 PNG / JPG / WebP，上传后自动缩到 192 像素以内。恢复默认就变回原来的「AI」字标。'))));
 
     right.appendChild(h('div', { class: 'card' },
       h('div', { class: 'set-h' }, h('h3', {}, '在线更新'), h('span', { class: 'pill', id: 'updPill' }, '未检查')),

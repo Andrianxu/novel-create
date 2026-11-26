@@ -486,8 +486,10 @@ ipcMain.handle('sync:now', async (e) => {
   if (r && r.ok && r.doc) { doc = r.doc; persist(); }     /* 只有成功才换本机数据 */
   return { ok: r.ok, changed: !!r.changed, message: r.message, conflicts: r.conflicts || [], stats: r.stats || null };
 });
-ipcMain.handle('sync:pickFolder', async () => {
-  const r = await dialog.showOpenDialog(win, { title: '选择同步文件夹', properties: ['openDirectory', 'createDirectory'] });
+ipcMain.handle('sync:pickFolder', async (e, opts) => {
+  const label = (opts && opts.label) || '';
+  const title = label ? '选择' + label + '的同步文件夹' : '选择同步文件夹';
+  const r = await dialog.showOpenDialog(win, { title, properties: ['openDirectory', 'createDirectory'] });
   if (r.canceled || !r.filePaths[0]) return { canceled: true };
   return { folder: r.filePaths[0] };
 });
@@ -495,6 +497,16 @@ ipcMain.handle('sync:pickFolder', async () => {
 /* ---------------- settings ---------------- */
 ipcMain.handle('settings:get', () => settings.publicSettings());
 ipcMain.handle('settings:set', async (e, patch) => { settings.setConfig(patch); return await settings.publicSettings(); });
+/* AI 助手图标：图片落在配置目录的 ai-icons/ 下，不走书稿数据，也不进 config.json。
+ * 图片过大的时候在 lib/settings.js 里先缩到 192px 以内再存；错误只把人话抛给设置页。 */
+ipcMain.handle('settings:setAiIcon', async (e, kind, source) => {
+  try { return await settings.setAiIcon(kind, source); }
+  catch (err) { throw new Error(err.message || String(err)); }
+});
+ipcMain.handle('settings:clearAiIcon', async (e, kind) => {
+  try { return await settings.clearAiIcon(kind); }
+  catch (err) { throw new Error(err.message || String(err)); }
+});
 ipcMain.handle('settings:setApiKey', async (e, k) => {
   await settings.setApiKey(String(k || '').trim());
   return await settings.publicSettings();

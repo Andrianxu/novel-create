@@ -1,4 +1,4 @@
-import { h, clear, toast, modal, injectStyle, uid, debounce, words, ago } from '../util.js';
+import { h, clear, toast, modal, injectStyle, uid, debounce, words, ago, aiFabFace } from '../util.js';
 
 injectStyle('chapter', `
 .ch-wrap{flex:1;min-width:0;display:flex}
@@ -109,7 +109,8 @@ injectStyle('chapter', `
 /* ---------- 右下角 AI 写作助手 ---------- */
 .ch-ai{position:fixed;right:18px;bottom:40px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .ch-ai-fab{width:54px;height:54px;border-radius:50%;border:1px solid #CBB894;background:var(--ink);color:var(--paper);
-  font-family:var(--kai);font-size:15px;letter-spacing:.06em;cursor:pointer;box-shadow:0 10px 26px rgba(50,35,20,.26);transition:transform .12s}
+  font-family:var(--kai);font-size:15px;letter-spacing:.06em;cursor:pointer;box-shadow:0 10px 26px rgba(50,35,20,.26);transition:transform .12s;
+  padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .ch-ai-fab:hover{background:#2E2823;transform:translateY(-1px)}
 .ch-ai-panel{width:376px;max-height:min(640px,74vh);display:none;flex-direction:column;background:var(--panel);
   border:1px solid #DFD4BF;border-radius:14px;box-shadow:0 24px 60px rgba(50,35,20,.24);overflow:hidden}
@@ -1016,7 +1017,7 @@ const page = {
       const clearBtn = h('button', { class: 'btn', style: { padding: '4px 10px', fontSize: '11px' }, onclick: () => { aiHistory.length = 0; renderLog(); } }, '清空对话');
 
       dock = h('div', { class: 'ch-ai', 'data-probe': 'ai-dock' },
-        h('button', { class: 'ch-ai-fab', title: 'AI 写作助手（Ctrl+J）', onclick: () => toggleDock() }, 'AI'),
+        h('button', { class: 'ch-ai-fab', title: 'AI 写作助手（Ctrl+J）', onclick: () => toggleDock() }, aiFabFace('chapter')),
         h('div', { class: 'ch-ai-panel' },
           h('div', { class: 'ch-ai-h' },
             h('h3', {}, '写作助手'),

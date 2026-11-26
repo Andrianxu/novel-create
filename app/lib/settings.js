@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
-const { safeStorage } = require('electron');
+const path = require('path');
+const { safeStorage, nativeImage } = require('electron');
 const P = require('./paths');
 
 const DEFAULTS = {
@@ -30,8 +31,9 @@ const DEFAULTS = {
   /* 同步：书稿放在用户自己的网盘 / 本地同步盘里，卷帙不经过任何服务器 */
   sync: {
     enabled: false,
-    kind: 'folder',          /* folder | webdav */
+    kind: 'folder',          /* folder | baidu | quark | xunlei | webdav；前四种都走本地同步文件夹 */
     folder: '',
+    folders: {},             /* 各连接方式各自的目录，切回来不用重新选 */
     url: '',
     user: '',
     encrypt: false,          /* 端到端加密开关 */
@@ -61,6 +63,61 @@ function getConfig() {
 const SPLASH_TEXT_MAX = 40;
 function normSplashText(v) {
   return String(v == null ? '' : v).replace(/\r\n?/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/* ---------------- AI 助手图标（章节写作 / 情节构思） ----------------
+ * 图标不是书稿数据，放在配置目录的 ai-icons/<kind>.png，不进 config.json：
+ * config.json 只是一张小设置表，塞几万字节的 base64 会让每次读写都变重。
+ * 渲染层拿到的也是 data URL（settings:get 时读盘拼出来），因此两个页面挂载时
+ * 可以同步把图贴上去，不用为每张图单独走一次 IPC。 */
+const AI_ICON_MAX_SIDE = 192;       /* 圆按钮实际只用 54px，192 够清晰又不占空间 */
+const AI_ICON_MAX_BYTES = 12 * 1024 * 1024;
+
+function aiIconDataUrl(kind) {
+  try {
+    const buf = fs.readFileSync(P.aiIconFile(kind));   // 顺带校验 kind
+    return buf.length ? 'data:image/png;base64,' + buf.toString('base64') : '';
+  } catch (e) { return ''; }                            // 没传过 / 文件被删了 = 用默认字标
+}
+
+function setAiIcon(kind, source) {
+  P.aiIconFile(kind);   // 只允许 chapter / plot，别让路径跑到别处去
+  const s = String(source == null ? '' : source).trim();
+  const inline = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=\s]+)$/i.exec(s);
+  let buf;
+  if (inline) {
+    buf = Buffer.from(inline[2].replace(/\s+/g, ''), 'base64');
+  } else if (path.isAbsolute(s)) {
+    try { buf = fs.readFileSync(s); } catch (e) { throw new Error('读不到这张图片，请重新选择'); }
+  } else {
+    throw new Error('没有拿到图片，请重新选择');
+  }
+  if (!buf || buf.length < 32) throw new Error('图片是空的或者格式不对');
+  if (buf.length > AI_ICON_MAX_BYTES) throw new Error('图片太大了（最多 12 MB），换一张小一点的');
+  let img = nativeImage.createFromBuffer(buf);
+  if (img.isEmpty()) throw new Error('这张图片打不开，请用 PNG / JPG / WebP 格式');
+  const size = img.getSize();
+  if (!size.width || !size.height) throw new Error('这张图片没有可用尺寸');
+  if (Math.max(size.width, size.height) > AI_ICON_MAX_SIDE) {
+    const k = AI_ICON_MAX_SIDE / Math.max(size.width, size.height);
+    img = img.resize({
+      width: Math.max(1, Math.round(size.width * k)),
+      height: Math.max(1, Math.round(size.height * k)),
+      quality: 'good'
+    });
+  }
+  const file = P.aiIconFile(kind);
+  /* 先写临时文件再改名：写一半断电也不会留下半张坏图（坏图会被当成没设置过） */
+  const tmp = file + '.tmp-' + process.pid;
+  fs.writeFileSync(tmp, img.toPNG());
+  fs.renameSync(tmp, file);
+  return publicSettings();
+}
+
+function clearAiIcon(kind) {
+  const file = P.aiIconFile(kind);   // 校验 kind
+  try { fs.unlinkSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  return publicSettings();
 }
 
 function setConfig(patch) {
@@ -178,10 +235,16 @@ async function publicSettings() {
   return {
     llm: cfg.llm,
     privacy: cfg.privacy,
-    ui: { launchAnim: !(cfg.ui && cfg.ui.launchAnim === false), splashText: normSplashText(cfg.ui && cfg.ui.splashText) },
+    ui: {
+      launchAnim: !(cfg.ui && cfg.ui.launchAnim === false),
+      splashText: normSplashText(cfg.ui && cfg.ui.splashText),
+      /* 自定义 AI 助手图标：两个助手各一张，空串 = 用默认「AI」字标 */
+      aiIcons: { chapter: aiIconDataUrl('chapter'), plot: aiIconDataUrl('plot') }
+    },
     update: { skipVersion: (cfg.update && cfg.update.skipVersion) || '' },
     sync: {
       enabled: !!sync.enabled, kind: sync.kind || 'folder', folder: sync.folder || '',
+      folders: Object.assign({}, sync.folders || {}),   /* 每种连接方式各记一个目录，切换时不用重选 */
       url: sync.url || '', user: sync.user || '', encrypt: !!sync.encrypt, autoMinutes: sync.autoMinutes || 0,
       hasDavPass: !!davPass, hasPass: !!syncPass,
       passFingerprint: syncPass ? require('./crypto').fingerprint(syncPass) : ''
@@ -196,5 +259,6 @@ async function publicSettings() {
 module.exports = {
   getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable,
   setSyncCredential, getSyncCredential, skipVersion, setSkipVersion,
-  SPLASH_TEXT_MAX, normSplashText
+  SPLASH_TEXT_MAX, normSplashText,
+  AI_ICON_MAX_SIDE, aiIconDataUrl, setAiIcon, clearAiIcon
 };

@@ -1,4 +1,4 @@
-import { h, clear, toast, modal, injectStyle, uid, ago, STATUS } from '../util.js';
+import { h, clear, toast, modal, injectStyle, uid, ago, STATUS, aiFabFace } from '../util.js';
 
 injectStyle('plot', `
 /* ===== 情节页 · pl- ===== */
@@ -160,7 +160,8 @@ injectStyle('plot', `
 /* ---- 右下角 AI 构思助手（和章节写作同一套外观） ---- */
 .pl-ai{position:fixed;right:18px;bottom:40px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .pl-ai-fab{width:54px;height:54px;border-radius:50%;border:1px solid #CBB894;background:var(--ink);color:var(--paper);
-  font-family:var(--kai);font-size:15px;letter-spacing:.06em;cursor:pointer;box-shadow:0 10px 26px rgba(50,35,20,.26);transition:transform .12s}
+  font-family:var(--kai);font-size:15px;letter-spacing:.06em;cursor:pointer;box-shadow:0 10px 26px rgba(50,35,20,.26);transition:transform .12s;
+  padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .pl-ai-fab:hover{background:#2E2823;transform:translateY(-1px)}
 .pl-ai-panel{width:376px;max-height:min(640px,74vh);display:none;flex-direction:column;background:var(--panel);
   border:1px solid #DFD4BF;border-radius:14px;box-shadow:0 24px 60px rgba(50,35,20,.24);overflow:hidden}
@@ -1787,7 +1788,7 @@ export default {
       const sendBtn = h('button', { class: 'btn pri', style: { padding: '4px 14px', fontSize: '11.5px' }, 'data-role': 'send', onclick: () => { const v = ta.value; ta.value = ''; askPlot(v); } }, '发送');
       const stopBtn = h('button', { class: 'btn', style: { padding: '4px 10px', fontSize: '11px', display: 'none' }, 'data-role': 'stop', onclick: () => { if (aiAbort) aiAbort.abort(); } }, '停止');
       aiDock = h('div', { class: 'pl-ai', 'data-probe': 'plot-ai-dock' },
-        h('button', { class: 'pl-ai-fab', title: 'AI 情节构思（Ctrl+J）', onclick: () => togglePlotAi() }, 'AI'),
+        h('button', { class: 'pl-ai-fab', title: 'AI 情节构思（Ctrl+J）', onclick: () => togglePlotAi() }, aiFabFace('plot')),
         h('div', { class: 'pl-ai-panel' },
           h('div', { class: 'pl-ai-h' },
             h('h3', {}, '情节构思'),

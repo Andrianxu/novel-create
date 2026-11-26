@@ -38,6 +38,20 @@ export function toast(msg, kind) {
   requestAnimationFrame(() => t.classList.add('on'));
   setTimeout(() => { t.classList.remove('on'); setTimeout(() => t.remove(), 220); }, kind === 'err' ? 4400 : 2200);
 }
+/* AI 助手悬浮按钮上显示什么：设置 → AI 助手图标 里上传的图优先，没传就还是「AI」两个字。
+ * 返回节点或字符串，调用方可以直接塞进 h() 的 children。
+ * 两个页面（章节写作 / 情节页）共用这一份，换图的地方和贴图的规矩都只有一处。 */
+export function aiFabFace(kind) {
+  const ui = (window.NF && window.NF.settings && window.NF.settings.ui) || {};
+  const icons = ui.aiIcons || {};
+  const src = icons[kind] || '';
+  if (!src) return 'AI';
+  return h('img', {
+    src, alt: 'AI 助手', draggable: 'false', 'data-probe': 'ai-icon-' + kind,
+    style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' }
+  });
+}
+
 export function modal(opts) {
   const root = document.getElementById('modalRoot');
   const close = () => { root.classList.remove('on'); clear(root); };

@@ -2,8 +2,13 @@
 /* 同步传输层：把书稿放进用户自己的网盘 / 本地同步盘
  *
  * 两种后端：
- *   folder —— 本地文件夹（OneDrive、坚果云、iCloud 的同步目录），零网络、最省事
+ *   folder —— 本地文件夹。本地同步盘（OneDrive、坚果云、iCloud）和
+ *             百度网盘 / 夸克网盘 / 迅雷网盘的电脑客户端同步文件夹都走这里：
+ *             卷帙只写本地文件，上传交给网盘客户端。
  *   webdav —— 坚果云、群晖 NAS、Nextcloud 等任何支持 WebDAV 的服务
+ *
+ * 百度 / 夸克 / 迅雷没有公开的 WebDAV，也不做未授权的私有 API 对接，
+ * 所以它们的「连接方式」就是各自客户端的同步文件夹，配置里记成 kind。
  *
  * 上传的内容：
  *   novelfolio.sync     书稿（JSON，可选端到端加密）
@@ -16,6 +21,17 @@ const path = require('path');
 const cryptoMgr = require('./crypto');
 
 const SYNC_FILE = 'novelfolio.sync';
+
+/* 走本地文件夹后端的 kind。新增网盘预设只要加在这里和设置页的说明里，
+ * 传输 / 合并 / 加密逻辑全都不用动。 */
+const FOLDER_KINDS = {
+  folder: '同步文件夹',
+  baidu: '百度网盘',
+  quark: '夸克网盘',
+  xunlei: '迅雷网盘'
+};
+function isFolderKind(kind) { return Object.prototype.hasOwnProperty.call(FOLDER_KINDS, String(kind || '')); }
+function folderLabel(kind) { return FOLDER_KINDS[String(kind || '')] || FOLDER_KINDS.folder; }
 
 /* ---------------- 本地文件夹后端 ---------------- */
 function folderConn(conf) {
@@ -41,7 +57,9 @@ function folderConn(conf) {
       try { st = fs.statSync(dir); } catch (e) { throw new Error('文件夹不存在：' + dir); }
       if (!st.isDirectory()) throw new Error('这不是一个文件夹：' + dir);
       try { fs.accessSync(dir, fs.constants.W_OK); } catch (e) { throw new Error('这个文件夹不可写：' + dir); }
-      return { ok: true, detail: '文件夹可读写：' + dir };
+      const kind = (conf && conf.kind) || 'folder';
+      const who = isFolderKind(kind) && kind !== 'folder' ? folderLabel(kind) + '同步文件夹' : '文件夹';
+      return { ok: true, detail: who + '可读写：' + dir };
     }
   };
 }
@@ -100,7 +118,7 @@ function davConn(conf) {
 function open(conf) {
   const kind = (conf && conf.kind) || 'folder';
   if (kind === 'webdav') return davConn(conf);
-  return folderConn(conf);
+  return folderConn(conf);   /* folder / baidu / quark / xunlei：都写本地同步文件夹 */
 }
 
 /* ---------------- 打包 / 解包 ---------------- */
@@ -124,4 +142,4 @@ function unpack(buf, passphrase) {
 function isEncrypted(buf) { return cryptoMgr.isEncrypted(buf); }
 function fingerprint(p) { return cryptoMgr.fingerprint(p); }
 
-module.exports = { open, pack, unpack, isEncrypted, fingerprint, SYNC_FILE, normalizeDav };
+module.exports = { open, pack, unpack, isEncrypted, fingerprint, SYNC_FILE, normalizeDav, FOLDER_KINDS, isFolderKind, folderLabel };

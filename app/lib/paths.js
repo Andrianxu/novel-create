@@ -86,6 +86,14 @@ function legacyDataFile() { return path.join(dataDir(), 'novelfolio.data.json');
 /* 图片目录：传了书号就是那本书自己的子目录，不传就是老位置（按书分目录见 bookcase.js） */
 function portraitsDir(bookId) { return bookId ? ensureDir(path.join(dataDir(), 'portraits', bookId)) : ensureDir(path.join(dataDir(), 'portraits')); }
 function mapsDir(bookId) { return bookId ? ensureDir(path.join(dataDir(), 'maps', bookId)) : ensureDir(path.join(dataDir(), 'maps')); }
+/* AI 助手图标是「界面偏好」，按软件装在哪儿走，不跟着某一本书或自定义数据目录走：
+ * 换书 / 换数据位置后图标照样是作者选的那张，删书也不会把图标删掉。 */
+const AI_ICON_KINDS = ['chapter', 'plot'];
+function aiIconsDir() { return ensureDir(path.join(root(), 'ai-icons')); }
+function aiIconFile(kind) {
+  if (!AI_ICON_KINDS.includes(kind)) throw new Error('未知的 AI 助手图标类型');
+  return path.join(aiIconsDir(), kind + '.png');
+}
 function configFile() { ensureDir(root()); return path.join(root(), CONFIG_NAME); }
 function secretsFile() { ensureDir(root()); return path.join(root(), 'secrets.bin'); }
 function logFile() { ensureDir(root()); return path.join(root(), 'app.log'); }
@@ -125,6 +133,7 @@ function openDir() {
 module.exports = {
   root, defaultRoot, dataDir, ensureDir, dataFile, legacyDataFile,
   backupDir, portraitsDir, mapsDir, configFile, secretsFile, logFile,
+  AI_ICON_KINDS, aiIconsDir, aiIconFile,
   readPointer, writePointer, checkDirs, openDir, setDataDir,
   isCustom: () => !!dataOverride
 };
