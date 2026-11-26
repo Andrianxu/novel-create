@@ -426,7 +426,7 @@ const page = {
 
       sideHead.appendChild(h('div', { class: 'ch-newrow' },
         h('button', {
-          class: 'ch-new', title: '填「第几章 + 标题名」，章号已有的话会插进去、其余自动顺延', onclick: () => addDoc()
+          class: 'ch-new', title: '填「第几章 + 标题名」；插入后本卷章号 ≥ 这个号的章节统一顺延一位', onclick: () => addDoc()
         }, h('span', { class: 'plus' }, '＋'), '新的章节')));
 
       /* ---- 卷 / 章列表 ---- */
@@ -514,8 +514,8 @@ const page = {
             : '左边还没有章节。点侧栏顶上的「＋ 新的章节」开始写，章号会自动排'));
         return;
       }
-      /* 标题框只写「章名」：「第N章」由系统按当前卷自动编号、自动排序，
-       * 所以这里只显、只改章名那一截（手写进去的「第五章 · 」前缀会被自动剥掉）。 */
+      /* 标题框只写「章名」：「第N章」是稿件创建时定下的编号，删除别的章节不会重排，
+       * 只有插入新章时才会把 ≥ 插入号的章号顺延一位。这里只显、只改章名那一截。 */
       const no = manuscriptNo(m);
       const titleIn = h('input', {
         class: 'ch-title',
@@ -558,7 +558,9 @@ const page = {
             h('div', { class: 'small', style: { lineHeight: '1.8' } },
               '把「', h('b', {}, titleOf(m) || m.title || '这一篇'), '」移入废案篓？'),
             h('div', { class: 'tiny muted', style: { lineHeight: '1.8' } },
-              '正文一个字都不会丢：情节页的废案篓里随时可以恢复；按 Ctrl+Z 也能撤销这一步。')),
+              '正文一个字都不会丢：情节页的废案篓里随时可以恢复；按 Ctrl+Z 也能撤销这一步。',
+              h('br'),
+              '章号创建后固定：删掉这一章不会让后面的章节前移，空号会留着。')),
           onOk: () => {
             doc.scraps = doc.scraps || [];
             doc.scraps.unshift({ id: uid('x'), kind: 'chapter', title: m.title, origin: '章节写作', reason: '手动移入', removedAt: new Date().toISOString(), summary: (m.content || '').slice(0, 60), payload: m });
@@ -570,7 +572,7 @@ const page = {
         return dlg;
       } }, '移入废案');
       main.appendChild(h('div', { class: 'ch-top' },
-        no ? h('span', { class: 'ch-no', title: '章号按当前卷自动排序，不用手写' }, '第' + intToCn(no) + '章') : null,
+        no ? h('span', { class: 'ch-no', title: '章号创建后固定；删除不重排，插入新章时 ≥ 插入号的章号顺延' }, '第' + intToCn(no) + '章') : null,
         titleIn,
         h('span', { class: 'pill' }, ago(m.updatedAt)),
         h('button', { class: 'btn xs', onclick: () => { st.focus = !st.focus; wrap.classList.toggle('ch-focus', st.focus); } }, '专注'),
@@ -643,19 +645,19 @@ const page = {
       const t = raw.replace(/^\s*第?\s*[〇零一二三四五六七八九十百千0-9]+\s*[章回节]\s*[·、.．:：\-—]?\s*/u, '').trim();
       return t || '';
     }
-    /* 新建一章：弹窗里自己填「第几章 + 标题名」。
-     * 这个编号如果已经有人（比如已有第三章），新章就按这个号插进去，原来的第三章及之后全部顺次 +1；
-     * 编号大于现有章数就当成在末尾加一章，中间没有的空号不补。 */
+    /* 章号一旦建好就固定：删除章节不会让后面的章号前移，空号会留着。
+     * 只有插入新章时才按章号顺延：本卷所有 ≥ 插入号的稿件 +1，新章占住插入号。 */
+    function maxChapterNo(vid) {
+      return doc.manuscripts.reduce((mx, m) => m.volumeId === vid ? Math.max(mx, manuscriptNo(m) || 0) : mx, 0);
+    }
     function addDoc(opts) {
       if (!st.vol) { toast('先点「＋ 卷」建一卷，再往里加章节', 'err'); return; }
-      /* 在某一章行内点「＋」时，默认号 = 那一章之后（等于它现在的号 + 1） */
-      let dftNo = doc.manuscripts.filter(m => m.volumeId === st.vol).length + 1;
+      /* 默认插在「本卷最大章号 + 1」后面，中间的空号不会被悄悄填掉 */
+      let dftNo = maxChapterNo(st.vol) + 1;
       if (opts && opts.mode && opts.mode.indexOf('after:') === 0) {
         const id = opts.mode.split(':')[1];
-        const vms = doc.manuscripts.filter(m => m.volumeId === st.vol)
-          .slice().sort((a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9));
-        const at = vms.findIndex(x => x.id === id);
-        if (at >= 0) dftNo = at + 2;
+        const target = doc.manuscripts.find(x => x.id === id && x.volumeId === st.vol);
+        if (target) dftNo = (manuscriptNo(target) || maxChapterNo(st.vol)) + 1;
       }
       openNewChapterDialog(dftNo);
     }
@@ -674,15 +676,20 @@ const page = {
         const list = vms();
         const name = nameIn.value.trim();
         const label = '第' + intToCn(want) + '章' + (name ? ' · ' + name : '');
-        if (want > list.length) {
-          hint.style.color = '';
-          hint.textContent = '本卷现有 ' + list.length + ' 章 → 会作为「' + label + '」加在末尾'
-            + (want > list.length + 1 ? '（实际编号第 ' + (list.length + 1) + ' 章；中间空号不补）' : '') + '。';
+        const maxNo = list.reduce((mx, m) => Math.max(mx, manuscriptNo(m) || 0), 0);
+        const ge = list.filter(m => (manuscriptNo(m) || 0) >= want);
+        hint.style.color = '';
+        if (!ge.length) {
+          hint.textContent = '本卷现有章号到 ' + maxNo + ' → 会作为「' + label + '」加在末尾。'
+            + (want > maxNo + 1 ? '中间空出的章号会留着，不补章。' : '');
         } else {
-          const hit = list[want - 1];
-          hint.style.color = '';
-          hint.textContent = '第 ' + want + ' 章已有「' + (titleOf(hit) || hit.title || '未命名') + '」→ 新的「' + label + '」插到这里，'
-            + '原来的第 ' + want + ' 章起全部顺延为第 ' + (want + 1) + (list.length ? '…' + (list.length + 1) : '') + ' 章，标题不变。';
+          const exact = ge.find(m => manuscriptNo(m) === want);
+          const first = ge[0];
+          hint.textContent = exact
+            ? '第 ' + want + ' 章现在是「' + (titleOf(exact) || exact.title || '未命名') + '」→ 新章占第 ' + want + ' 章，'
+              + '它和后面 ' + (ge.length - 1) + ' 章的章号都 +1，章名不变。'
+            : '第 ' + want + ' 章现在是空号（下一位是第 ' + manuscriptNo(first) + ' 章）→ 新章占第 ' + want + ' 章，'
+              + '这 ' + ge.length + ' 章的章号都 +1，章名不变。';
         }
       };
       numIn.addEventListener('input', preview);
@@ -694,29 +701,27 @@ const page = {
           h('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-end' } },
             h('div', { class: 'field' }, h('label', {}, '插入到第几章'), numIn),
             h('div', { class: 'field', style: { flex: '1' } }, h('label', {}, '标题名'), nameIn)),
+          h('div', { class: 'tiny muted', style: { lineHeight: '1.7' } },
+            '章号创建后固定：删除章节不会重排；插入新章时，本卷章号 ≥ 插入号的章节依次 +1。'),
           hint),
         onOk: () => {
           const want = parseChapterNo(numIn.value);
           if (!want) { toast('章号要填数字（1、2、3…）', 'err'); return false; }
           const name = nameIn.value.trim();
-          const list = vms();
-          /* want > 现有章数：直接作为第 list.length+1 章放末尾，中间空号不补 */
-          const pos = Math.min(want - 1, list.length);
           const mm = {
-            id: uid('m'), volumeId: st.vol, chapterNo: pos + 1,
-            title: '第' + intToCn(pos + 1) + '章' + (name ? ' · ' + name : ''),
+            id: uid('m'), volumeId: st.vol, chapterNo: want,
+            title: '第' + intToCn(want) + '章' + (name ? ' · ' + name : ''),
             content: '', updatedAt: new Date().toISOString()
           };
-          let at;
-          if (pos < list.length) at = doc.manuscripts.findIndex(x => x.id === list[pos].id);
-          else at = doc.manuscripts.length;
+          /* 先把原章节往后挪，再插新章：这样新章独占 want，原来 ≥ want 的一律 +1 */
+          const changed = shiftVolumeFrom(st.vol, want);
+          const before = vms().find(m => (manuscriptNo(m) || 0) > want);
+          const at = before ? doc.manuscripts.findIndex(x => x.id === before.id) : doc.manuscripts.length;
           doc.manuscripts.splice(Math.max(0, at), 0, mm);
-          /* 插进中间 → 整卷按顺序重编号，原来的第三章起顺延成第四章…；只动这一卷 */
-          const changed = pos < list.length ? renumberVolume(st.vol) : 0;
           st.id = mm.id;
           NF.save();
           renderSide(); renderMain();
-          toast('已新建「' + mm.title + '」' + (changed ? '，本卷后面的章号已顺延' : ''), 'ok');
+          toast('已新建「' + mm.title + '」' + (changed ? '，后面 ' + changed + ' 章的章号已顺延' : ''), 'ok');
         }
       });
       /* 回车 = 确定：两个输入框都绑上 */
@@ -735,22 +740,21 @@ const page = {
       if (cn) return Math.min(9999, cnToInt(cn[0]));
       return 0;
     }
-    /* 把一卷里的稿件按当前顺序重编为 第一章、第二章……；只动章号，章名保留。
-     * 返回改动过的篇数。chapterNo 与标题前缀一起改，情节页靠章号↔章节对应。 */
-    function renumberVolume(vid) {
-      const vms = doc.manuscripts.filter(m => m.volumeId === vid)
-        .slice().sort((a, b) => (manuscriptNo(a) || 1e9) - (manuscriptNo(b) || 1e9));
+    /* 本卷章号 ≥ from 的稿件统一 +1：chapterNo 和标题里的「第N章」一起改，章名保留。
+     * 删除章节不走这里，所以不会有「删一章、后面全往前挤」的事。返回改动篇数。 */
+    function shiftVolumeFrom(vid, from) {
       let n = 0;
-      vms.forEach((m, i) => {
-        const no = i + 1;
+      for (const m of doc.manuscripts) {
+        if (m.volumeId !== vid) continue;
+        const no = manuscriptNo(m) || 0;
+        if (no < from) continue;
         const name = titleOf(m);
-        const next = '第' + intToCn(no) + '章' + (name ? ' · ' + name : '');
-        if (m.chapterNo !== no || m.title !== next) {
-          m.chapterNo = no;
-          m.title = next;
-          n++;
-        }
-      });
+        const nextNo = no + 1;
+        const next = '第' + intToCn(nextNo) + '章' + (name ? ' · ' + name : '');
+        m.chapterNo = nextNo;
+        m.title = next;
+        n++;
+      }
       return n;
     }
     /* 新建一卷。

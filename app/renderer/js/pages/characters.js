@@ -44,11 +44,15 @@ injectStyle('characters', `
 .nameline{display:flex;align-items:baseline;gap:10px}
 .nameline h1{font-family:var(--kai);font-size:34px;line-height:1.05;margin:0;letter-spacing:.05em}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:4px}
-/* 年龄 / 身份 / 目前修为：鼠标移上去时标签后面浮出一个小笔，点标签也能把光标送进输入框 */
-.fgrid .field.editable>label{cursor:pointer}
-.fgrid .field.editable>label:hover{color:#8A6421}
-.fgrid .field.editable>label::after{content:'✎';margin-left:5px;font-size:9px;color:#B98A3C;opacity:0;transition:opacity .12s}
-.fgrid .field.editable:hover>label::after{opacity:.75}
+/* 档案标题本身也是输入框：平时看着像小标题，鼠标移上去 / 聚焦才浮出边框。
+ * 和世界观卡片的「修为体系」一个手感，改的是作者给这一格起的名字，不改字段名。 */
+.field>input.flabel,.endbar>input.flabel{font-family:inherit;font-size:10px;letter-spacing:.08em;color:var(--muted);
+  background:transparent;border:1px solid transparent;border-radius:4px;padding:0 3px;margin-left:-3px;
+  width:auto;min-width:52px;max-width:150px;height:17px;line-height:15px}
+.field>input.flabel::placeholder,.endbar>input.flabel::placeholder{color:#B3A790}
+.field>input.flabel:hover,.endbar>input.flabel:hover{background:#FFFCF5;border-color:#EAE1CF;color:#8A6421}
+.field>input.flabel:focus,.endbar>input.flabel:focus{background:#FFFDF8;border-color:#C2A97D;outline:none;box-shadow:0 0 0 2px rgba(185,138,60,.12);color:#6A4A16}
+.endbar>input.flabel{flex:none;width:70px;min-width:70px;color:#8C8272}
 .endbar{font-size:12px;line-height:1.55;background:#F6EEDC;border:1px solid #E2D3B5;border-radius:8px;padding:7px 10px}
 .tlcard{padding:10px 14px 4px}
 .tlhead{display:flex;align-items:center;gap:10px;font-size:12px}
@@ -99,6 +103,55 @@ export default {
 
     const getChar = () => doc.characters.find(c => c.id === st.id);
     const touch = () => { NF.save(); };
+
+    /* 人物档案里六个小标题都能改：年龄 / 身份 / 目前修为 / 分类 / 人设 / 最终结局。
+     * 作者起的名字存在这个人自己的 fieldLabels 里，留空就回到默认叫法；
+     * 改的只是显示标题，age / identity 这些字段名不动，导出和 AI 上下文照旧。
+     * 手感和世界观页的「修为体系」标题一致：平时像普通小字，点进去才浮出边框。 */
+    const FIELD_LABELS = { age: '年龄', identity: '身份', realm: '目前修为', group: '分类', persona: '人设', ending: '最终结局' };
+    const fieldLabelOf = (c, key) => {
+      const v = c.fieldLabels && c.fieldLabels[key];
+      return typeof v === 'string' && v.trim() ? v.trim() : FIELD_LABELS[key];
+    };
+    const putLabel = (c, key, v) => {
+      if (v && v !== FIELD_LABELS[key]) {
+        c.fieldLabels = c.fieldLabels || {};
+        c.fieldLabels[key] = v;
+      } else if (c.fieldLabels) {
+        delete c.fieldLabels[key];
+        if (!Object.keys(c.fieldLabels).length) delete c.fieldLabels;
+      }
+    };
+    function editableLabel(c, key, probe) {
+      const def = FIELD_LABELS[key] || '';
+      const val = fieldLabelOf(c, key);
+      const inp = h('input', {
+        class: 'flabel', value: val, size: Math.max(3, Math.min(14, val.length + 1)),
+        placeholder: def, title: '点这里改标题（回车确认，Esc 撤销）；清空后恢复默认「' + def + '」',
+        spellcheck: 'false'
+      });
+      if (probe) inp.setAttribute('data-probe', probe);
+      let before = null;
+      inp.addEventListener('focus', () => { before = c.fieldLabels && c.fieldLabels[key] || ''; });
+      inp.addEventListener('input', () => {
+        const v = String(inp.value || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 24);
+        putLabel(c, key, v);
+        touch();
+      });
+      const settle = () => { inp.value = fieldLabelOf(c, key); };
+      inp.addEventListener('change', settle);
+      inp.addEventListener('blur', settle);
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); inp.blur(); return; }
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        putLabel(c, key, before);
+        inp.value = fieldLabelOf(c, key);
+        touch();
+        inp.blur();
+      });
+      return inp;
+    }
 
     /* ---------------- 情节时间轴用的小工具 ----------------
      * 人物页这条轴和情节页那条是同一套规矩：位置 = 时间点在刻度上的百分比、
@@ -283,7 +336,7 @@ export default {
     }
 
     /* 人物档案里的小字段：点进去就能直接键入，改一个字存一个字（不弹窗、不用按保存）。
-     * 标签也绑了 focus —— 有人习惯先点「年龄」两个字，现在点完光标就在框里。 */
+     * label 可以是字符串，也可以是 editableLabel() 给出的标题输入框；传 null 就只要输入框。 */
     function fieldChar(label, key, opts) {
       const c = getChar();
       const o = opts || {};
@@ -294,15 +347,15 @@ export default {
         style: o.area ? { minHeight: '52px', fontSize: '12px' } : { fontSize: '12.5px' }
       });
       if (o.probe) input.setAttribute('data-probe', o.probe);
-      const lab = h('label', { title: label ? '点一下就能改，改完自动保存' : '' }, label);
-      if (label) {
+      const lab = typeof label === 'string' ? h('label', { title: '点一下就能改，改完自动保存' }, label) : label;
+      if (lab && lab.tagName === 'LABEL') {
         lab.addEventListener('click', () => {
           input.focus();
           try { const n = input.value.length; input.setSelectionRange(n, n); } catch (e) {}
         });
       }
       input.addEventListener('input', () => { c[key] = input.value; touch(); });
-      const box = h('div', { class: 'field' + (label ? ' editable' : '') }, lab, input);
+      const box = h('div', { class: 'field' }, lab, input);
       if (o.list) {
         const dl = h('datalist', { id: 'dl-' + key }, o.list.map(x => h('option', { value: x })));
         input.setAttribute('list', 'dl-' + key);
@@ -342,14 +395,14 @@ export default {
           h('button', { class: 'btn xs', onclick: () => openGenModal(c) }, '✧ 生成立绘'),
           h('button', { class: 'btn xs danger', 'data-probe': 'char-delete', title: '删除这个人物（相关引用会一并清理，并留一份在废案篓里）', onclick: () => removeChar(c) }, '⌫ 删除')),
         h('div', { class: 'fgrid' },
-          fieldChar('年龄', 'age', { ph: '十九', probe: 'char-age' }),
-          fieldChar('身份', 'identity', { ph: '临水剑冢 · 第三峰首徒', probe: 'char-identity' }),
-          fieldChar('目前修为', 'realm', { ph: '练气九层', probe: 'char-realm', list: (plane.realms || []).map(r => r.name) }),
-          h('div', { class: 'field' }, h('label', {}, '分类'), groupSelect(c))),
-        fieldChar('人设', 'persona', { area: true, ph: '一句话说清这个人' }),
+          fieldChar(editableLabel(c, 'age', 'label-age'), 'age', { ph: '十九', probe: 'char-age' }),
+          fieldChar(editableLabel(c, 'identity', 'label-identity'), 'identity', { ph: '临水剑冢 · 第三峰首徒', probe: 'char-identity' }),
+          fieldChar(editableLabel(c, 'realm', 'label-realm'), 'realm', { ph: '练气九层', probe: 'char-realm', list: (plane.realms || []).map(r => r.name) }),
+          h('div', { class: 'field' }, editableLabel(c, 'group', 'label-group'), groupSelect(c))),
+        fieldChar(editableLabel(c, 'persona', 'label-persona'), 'persona', { area: true, ph: '一句话说清这个人' }),
         h('div', { class: 'endbar' },
-          h('span', { class: 'tiny muted', style: { letterSpacing: '.1em', marginRight: '8px' } }, '最终结局'),
-          fieldChar('', 'ending', { area: false, ph: '他最后怎么了' }).lastChild));
+          editableLabel(c, 'ending', 'label-ending'),
+          fieldChar(null, 'ending', { area: false, ph: '他最后怎么了' }).lastChild));
       main.appendChild(h('div', { class: 'hero' }, pt, info));
 
       /* ---- relations ---- */
