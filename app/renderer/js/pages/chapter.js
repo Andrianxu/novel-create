@@ -1,4 +1,5 @@
 import { h, clear, toast, modal, injectStyle, uid, debounce, words, ago, aiFabFace } from '../util.js';
+import { runChapterReview } from '../ai-review.js';
 
 injectStyle('chapter', `
 .ch-wrap{flex:1;min-width:0;display:flex}
@@ -707,6 +708,8 @@ const page = {
         onOk: () => {
           const want = parseChapterNo(numIn.value);
           if (!want) { toast('章号要填数字（1、2、3…）', 'err'); return false; }
+          /* AI 审阅看的是「刚写完的那一章」：新建动作会把当前选中项切到新章，先留住旧章对象。 */
+          const finished = cur();
           const name = nameIn.value.trim();
           const mm = {
             id: uid('m'), volumeId: st.vol, chapterNo: want,
@@ -722,6 +725,12 @@ const page = {
           NF.save();
           renderSide(); renderMain();
           toast('已新建「' + mm.title + '」' + (changed ? '，后面 ' + changed + ' 章的章号已顺延' : ''), 'ok');
+          /* 新建完成后才审阅：开关关着 / 没配 Key / 正文太短会在审阅入口自己跳过；
+           * 建议绝不自动写入人设，逐条弹窗由作者决定。 */
+          if (finished) {
+            const snapshot = { id: finished.id, title: finished.title, content: finished.content };
+            runChapterReview({ doc, NF, manuscript: snapshot });
+          }
         }
       });
       /* 回车 = 确定：两个输入框都绑上 */

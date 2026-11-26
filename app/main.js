@@ -10,6 +10,7 @@ const datadir = require('./lib/datadir');
 const bookcase = require('./lib/bookcase');
 const store = require('./lib/store');
 const settings = require('./lib/settings');
+const aireview = require('./lib/aireview');
 const llm = require('./lib/llm');
 const parse = require('./lib/parse');
 const exportdoc = require('./lib/exportdoc');
@@ -549,6 +550,15 @@ ipcMain.handle('llm:test', async () => {
 });
 ipcMain.handle('llm:chat', (e, messages, opts) => llm.chat(messages, opts || {}));
 ipcMain.handle('llm:models', (e, opts) => llm.listModels(opts || {}));
+/* 写完一章、新建下一章时的人设审阅：只返回建议，主进程不改书稿。
+ * 阈值按本机 config.json 再夹一遍，渲染层传错 / 被改过都按合法值走。 */
+ipcMain.handle('review:chapter', async (e, payload) => {
+  const conf = settings.getConfig().aiReview || {};
+  if (conf.enabled === false) return { reviews: [], belowCount: 0, scanned: 0, skipped: 'disabled' };
+  return await aireview.runReview(Object.assign({}, payload || {}, {
+    threshold: settings.normReviewThreshold(conf.threshold)
+  }));
+});
 
 /* ---------------- book (拆书) ----------------
  * 「书籍分析」这条流水线：导入整本书 → 分章 → 抽人物 / 情节 → 入库。

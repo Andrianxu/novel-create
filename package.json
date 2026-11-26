@@ -10,6 +10,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "test": "node scripts/test-ai-review.js",
     "postinstall": "node scripts/ensure-electron.js",
     "electron:ensure": "node scripts/ensure-electron.js",
     "start": "node scripts/ensure-electron.js && electron .",

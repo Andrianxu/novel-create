@@ -63,6 +63,11 @@ injectStyle('settings', `
 .ai-icon-name{font-size:12px;color:#332C25}
 .ai-icon-state{font-size:10px;color:var(--muted);margin-top:2px}
 .ai-icon-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+/* AI 人设审阅：阈值滑块 + 数字框，数字跟着滑杆走，改完即存 */
+.rev-row{display:flex;align-items:center;gap:9px}
+.rev-range{flex:1;min-width:0;accent-color:var(--seal)}
+.rev-num{width:72px;flex:none}
+.rev-val{width:38px;flex:none;text-align:right;font-size:12px;font-weight:700;color:#8A6421}
 `);
 
 const PRESETS = [
@@ -908,6 +913,64 @@ export default {
           textIn,
           h('div', { class: 'row' }, preview, h('div', { class: 'grow' }), resetTextBtn, saveTextBtn)),
         h('div', { class: 'tiny muted' }, '点上面的预览可以再看一遍打字效果。字多的时候会按宽度自动缩小，最多 ' + SPLASH_MAX + ' 个字符。'))));
+
+    /* ---------- AI 人设审阅 ----------
+     * 开关与阈值存在 config.json 的 aiReview 里（所有书通用），不随书稿同步。
+     * 关掉之后章节页连模型都不会调；阈值只决定「多大的变化值得提醒作者」。 */
+    const revCfg = S.aiReview || {};
+    const clampRev = v => {
+      const n = Number(v);
+      return Number.isFinite(n) ? Math.min(100, Math.max(1, Math.round(n))) : 50;
+    };
+    const revChk = h('input', { type: 'checkbox', checked: revCfg.enabled !== false, 'data-probe': 'ai-review-enabled' });
+    const revPill = h('span', { class: 'pill' }, revChk.checked ? '已开启' : '已关闭');
+    const revRange = h('input', { type: 'range', min: '1', max: '100', step: '1', class: 'rev-range',
+      value: String(clampRev(revCfg.threshold)), 'data-probe': 'ai-review-threshold' });
+    const revNum = h('input', { class: 'input rev-num', type: 'number', min: '1', max: '100', step: '1',
+      value: String(clampRev(revCfg.threshold)), 'data-probe': 'ai-review-threshold-num' });
+    const revVal = h('span', { class: 'rev-val' }, revNum.value + '%');
+    const paintRev = () => { revVal.textContent = clampRev(revNum.value) + '%'; };
+    async function saveRev(patch, hint) {
+      const snapshot = { enabled: revChk.checked, threshold: clampRev(revNum.value) };
+      try {
+        NF.settings = await window.nf.settings.set({ aiReview: patch });
+        const saved = NF.settings.aiReview || {};
+        const t = clampRev(saved.threshold);
+        revChk.checked = saved.enabled !== false;
+        revPill.textContent = revChk.checked ? '已开启' : '已关闭';
+        revRange.value = String(t); revNum.value = String(t); paintRev();
+        if (hint) toast(hint, 'ok');
+      } catch (e) {
+        revChk.checked = snapshot.enabled;
+        revRange.value = String(snapshot.threshold); revNum.value = String(snapshot.threshold);
+        revPill.textContent = revChk.checked ? '已开启' : '已关闭';
+        paintRev();
+        toast('保存 AI 审阅设置失败：' + ipcErr(e), 'err');
+      }
+    }
+    revChk.addEventListener('change', () => saveRev(
+      { enabled: revChk.checked }, revChk.checked ? '已开启 AI 人设审阅' : '已关闭 AI 人设审阅'));
+    revRange.addEventListener('input', () => { revNum.value = revRange.value; paintRev(); });
+    revRange.addEventListener('change', () => saveRev(
+      { threshold: clampRev(revRange.value) }, '审阅阈值已设为 ' + clampRev(revRange.value) + '%'));
+    revNum.addEventListener('change', () => saveRev(
+      { threshold: clampRev(revNum.value) }, '审阅阈值已设为 ' + clampRev(revNum.value) + '%'));
+
+    right.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'set-h' }, h('h3', {}, 'AI 人设审阅'), revPill),
+      h('div', { class: 'set-b' },
+        h('div', { class: 'set-row' },
+          h('span', { class: 'lab' }, '自动审阅'),
+          h('span', { class: 'val' },
+            h('label', { class: 'ai-opt', style: { display: 'inline-flex', gap: '7px', alignItems: 'center', cursor: 'pointer' } },
+              revChk, h('span', {}, '写完一章、新建下一章后自动审阅')))),
+        h('div', { class: 'set-row' },
+          h('span', { class: 'lab' }, '变化阈值'),
+          h('span', { class: 'val' }, h('div', { class: 'rev-row' }, revRange, revNum, revVal))),
+        h('div', { class: 'tiny muted' },
+          '人设变化幅度超过阈值才提醒你决定；不超过阈值（默认 50%）就当作无需修改。每次修改都会弹窗由你选择采纳或忽略，AI 不会自动改人设。'),
+        h('div', { class: 'set-note' },
+          h('b', {}, '隐私：'), '审阅只把这一章正文和人物小传发给你在「模型接口」里配置的服务；不想用就关掉开关。'))));
 
     /* ---------- AI 助手图标 ----------
      * 章节写作 / 情节页右下角的悬浮按钮原本只能显示「AI」两个字。这里分别给它们换一张图：

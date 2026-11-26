@@ -53,6 +53,10 @@ contextBridge.exposeInMainWorld('nf', {
     chat: (messages, opts) => call('llm:chat', messages, opts),
     models: (opts) => call('llm:models', opts)
   },
+  review: {
+    /* 人设审阅：正文与人物小传只在本机拼装，结果只含建议，是否写入由作者决定 */
+    chapter: (payload) => call('review:chapter', payload)
+  },
   book: {
     /* 正文只在入库那一刻由主进程读出来，不走 IPC；这里只加界面真正用到的几个：
      *   touch  —— 报告"正在看哪本书"，入库时主进程靠它找回拆书结果

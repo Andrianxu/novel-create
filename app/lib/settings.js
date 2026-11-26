@@ -19,6 +19,11 @@ const DEFAULTS = {
     redactNames: false,
     logRequests: false
   },
+  /* AI 人设审阅：写完一章、新建下一章时审阅刚写完的正文；只给建议，绝不自动改人设 */
+  aiReview: {
+    enabled: true,           /* 总开关：关掉后完全不调用模型 */
+    threshold: 50            /* 人设变化幅度超过百分之几才提醒作者；不超过就不必改 */
+  },
   /* 界面偏好 */
   ui: {
     launchAnim: true,        /* 启动动画：关掉就直接进主界面 */
@@ -63,6 +68,14 @@ function getConfig() {
 const SPLASH_TEXT_MAX = 40;
 function normSplashText(v) {
   return String(v == null ? '' : v).replace(/\r\n?/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/* AI 审阅阈值：1–100 的整数，默认 50（变化幅度「不超过 50%」就不改人设）。
+ * 手改过 config.json 的旧配置也在这里夹回合法范围，不会让界面显示 300% 这种数。 */
+const AI_REVIEW_THRESHOLD_DEFAULT = 50;
+function normReviewThreshold(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(100, Math.max(1, Math.round(n))) : AI_REVIEW_THRESHOLD_DEFAULT;
 }
 
 /* ---------------- AI 助手图标（章节写作 / 情节构思） ----------------
@@ -126,6 +139,12 @@ function setConfig(patch) {
     const t = normSplashText(next.ui.splashText);
     if (t.length > SPLASH_TEXT_MAX) throw new Error('启动文字最多 ' + SPLASH_TEXT_MAX + ' 个字');
     next.ui.splashText = t;
+  }
+  if (next.aiReview) {
+    next.aiReview = {
+      enabled: next.aiReview.enabled !== false,
+      threshold: normReviewThreshold(next.aiReview.threshold)
+    };
   }
   fs.writeFileSync(P.configFile(), JSON.stringify(next, null, 1), 'utf8');
   return next;
@@ -235,6 +254,10 @@ async function publicSettings() {
   return {
     llm: cfg.llm,
     privacy: cfg.privacy,
+    aiReview: {
+      enabled: !(cfg.aiReview && cfg.aiReview.enabled === false),
+      threshold: normReviewThreshold(cfg.aiReview && cfg.aiReview.threshold)
+    },
     ui: {
       launchAnim: !(cfg.ui && cfg.ui.launchAnim === false),
       splashText: normSplashText(cfg.ui && cfg.ui.splashText),
@@ -259,6 +282,6 @@ async function publicSettings() {
 module.exports = {
   getConfig, setConfig, publicSettings, getApiKey, getApiKeySync, setApiKey, maskKey, encAvailable,
   setSyncCredential, getSyncCredential, skipVersion, setSkipVersion,
-  SPLASH_TEXT_MAX, normSplashText,
+  SPLASH_TEXT_MAX, normSplashText, AI_REVIEW_THRESHOLD_DEFAULT, normReviewThreshold,
   AI_ICON_MAX_SIDE, aiIconDataUrl, setAiIcon, clearAiIcon
 };
